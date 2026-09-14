@@ -1,0 +1,78 @@
+name: crypta
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-crypta}
+      POSTGRES_USER: ${POSTGRES_USER:-crypta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - crypta_postgres_data:/var/lib/postgresql/data
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-crypta} -d ${POSTGRES_DB:-crypta}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["crypta_redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-crypta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crypta}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      CORS_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Crypta <no-reply@example.com>}
+      CRYPTO_PROVIDER_MODE: ${CRYPTO_PROVIDER_MODE:-MOCK}
+      CRYPTO_PROVIDER_URL: ${CRYPTO_PROVIDER_URL:-}
+      CRYPTO_PROVIDER_TOKEN: ${CRYPTO_PROVIDER_TOKEN:-}
+      CRYPTO_PROVIDER_TIMEOUT_MS: ${CRYPTO_PROVIDER_TIMEOUT_MS:-15000}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/v1/health"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports: ["${APP_PORT:-8080}:80"]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    profiles: ["local-mail"]
+    ports: ["1025:1025", "8025:8025"]
+    restart: unless-stopped
+
+volumes:
+  crypta_postgres_data:
+  crypta_redis_data:

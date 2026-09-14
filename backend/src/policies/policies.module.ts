@@ -1,0 +1,1 @@
+import { Module } from '@nestjs/common'; import { AuthModule } from '../auth/auth.module'; import { PoliciesController } from './policies.controller'; @Module({imports:[AuthModule],controllers:[PoliciesController]}) export class PoliciesModule {}

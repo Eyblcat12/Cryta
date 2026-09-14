@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypta — Hệ thống Quản lý Vòng đời Tài sản Mật mã</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f4f5f7;
+            --surface: #ffffff;
+            --surface-raised: #ffffff;
+            --surface-sunken: #f0f1f3;
+            --border: #e1e4e8;
+            --border-subtle: #eceef1;
+            --text-primary: #1a1d21;
+            --text-secondary: #5a6072;
+            --text-tertiary: #8b8fa3;
+            --brand-600: #0b5cd5;
+            --brand-500: #1a6fe8;
+            --brand-100: #e8f0fe;
+            --brand-50: #f3f7fe;
+            --success-600: #1a7f4b;
+            --success-100: #e3f9ed;
+            --warning-600: #9a5b13;
+            --warning-500: #d4830a;
+            --warning-100: #fef5e0;
+            --danger-600: #c62828;
+            --danger-100: #feecec;
+            --info-600: #0b5cd5;
+            --info-100: #e8f0fe;
+            --neutral-600: #6b7280;
+            --neutral-100: #f3f4f6;
+
+            --shadow-xs: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.04);
+            --shadow-xl: 0 20px 50px rgba(0,0,0,0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            font-feature-settings: 'cv11', 'ss01';
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-primary);
+            background-color: var(--bg);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Typography */
+        h1 { font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+        h2 { font-size: 20px; font-weight: 700; line-height: 1.3; }
+        h3 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+        .text-small { font-size: 12px; }
+        .text-tiny { font-size: 11px; }
+        .text-secondary { color: var(--text-secondary); }
+        .text-tertiary { color: var(--text-tertiary); }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(212, 131, 10, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(212, 131, 10, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(212, 131, 10, 0); }
+        }
+        @keyframes pulse-danger {
+            0% { box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(198, 40, 40, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(198, 40, 40, 0); }
+        }
+        @keyframes scaleIn {
+            from { transform: scale(0.97); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .view-transition { animation: fadeIn 0.2s ease-out forwards; }
+
+        /* Layout */
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            background: linear-gradient(180deg, #1a1d28, #141720);
+            display: flex;
+            flex-direction: column;
+            color: white;
+            z-index: 10;
+        }
+
+        .sidebar-logo {
+            height: 56px;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .sidebar-logo svg { margin-right: 12px; }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 24px 16px;
+            overflow-y: auto;
+        }
+
+        .nav-group-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: rgba(255,255,255,0.35);
+            margin-bottom: 8px;
+            margin-top: 16px;
+            padding-left: 8px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            padding: 0 8px;
+            border-radius: 8px;
+            color: rgba(255,255,255,0.65);
+            text-decoration: none;
+            margin-bottom: 4px;
+            transition: all 0.15s ease;
+            cursor: pointer;
+            border-left: 3px solid transparent;
+        }
+        .nav-item:hover {
+            color: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.06);
+        }
+        .nav-item.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border-left: 3px solid var(--brand-500);
+            font-weight: 600;
+        }
+        .nav-item svg { margin-right: 12px; opacity: 0.8; }
+        .nav-item .badge { margin-left: auto; }
+
+        .sidebar-profile {
+            padding: 16px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+        }
+        .profile-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--brand-500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-right: 12px;
+        }
+        .profile-info { flex: 1; overflow: hidden; }
+        .profile-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .profile-role { font-size: 11px; color: rgba(255,255,255,0.5); }
+
+        .main-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .topbar {
+            height: 56px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            flex-shrink: 0;
+            z-index: 5;
+        }
+
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px;
+            position: relative;
+        }
+        .content-inner {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Common Components */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            box-shadow: var(--shadow-xs);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .card-clickable:hover {
+            box-shadow: var(--shadow-sm);
+            transform: translateY(-1px);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-body { padding: 20px; }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: var(--surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 3px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            box-shadow: var(--shadow-xs);
+        }
+        .metric-card.accent-brand { border-left-color: var(--brand-500); }
+        .metric-card.accent-warning { border-left-color: var(--warning-500); }
+        .metric-card.accent-info { border-left-color: var(--info-500); }
+        .metric-card.accent-success { border-left-color: var(--success-600); }
+        .metric-card.accent-danger { border-left-color: var(--danger-600); }
+
+        .metric-icon {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin-right: 16px;
+        }
+        .accent-brand .metric-icon { background: var(--brand-100); color: var(--brand-600); }
+        .accent-warning .metric-icon { background: var(--warning-100); color: var(--warning-600); }
+        .accent-info .metric-icon { background: var(--info-100); color: var(--info-600); }
+        .accent-success .metric-icon { background: var(--success-100); color: var(--success-600); }
+        .accent-danger .metric-icon { background: var(--danger-100); color: var(--danger-600); }
+
+        .metric-content { flex: 1; }
+        .metric-value { font-size: 28px; font-weight: 700; line-height: 1.1; margin-bottom: 4px; }
+        .metric-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+        .metric-sub { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+
+        .table-responsive { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: var(--surface-sunken);
+            height: 40px;
+            padding: 0 16px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        td {
+            height: 56px;
+            padding: 0 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle;
+        }
+        tbody tr { transition: background 0.15s ease; }
+        tbody tr:hover { background: #f8f9fb; }
+        tbody tr.clickable { cursor: pointer; }
+        tbody tr:last-child td { border-bottom: none; }
+
+        .badge-status {
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            padding: 0 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .badge-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+
+        .badge-ACTIVE, .badge-COMPLETED { background: var(--success-100); color: var(--success-600); }
+        .badge-ACTIVE .badge-dot, .badge-COMPLETED .badge-dot { background: var(--success-600); }
+        
+        .badge-EXPIRING_SOON, .badge-PENDING { background: var(--warning-100); color: var(--warning-600); }
+        .badge-EXPIRING_SOON .badge-dot, .badge-PENDING .badge-dot { background: var(--warning-500); }
+        .badge-EXPIRING_SOON .badge-dot { animation: pulse 2s infinite; }
+        
+        .badge-EXPIRED { background: var(--neutral-100); color: var(--neutral-600); }
+        .badge-EXPIRED .badge-dot { background: var(--neutral-600); }
+        
+        .badge-REVOKED, .badge-URGENT { background: var(--danger-100); color: var(--danger-600); }
+        .badge-REVOKED .badge-dot, .badge-URGENT .badge-dot { background: var(--danger-600); }
+        .badge-URGENT .badge-dot { animation: pulse-danger 1.5s infinite; }
+
+        .badge-PROCESSING { background: var(--info-100); color: var(--info-600); }
+        .badge-PROCESSING .badge-dot { background: var(--info-600); }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            height: 36px; padding: 0 16px;
+            border-radius: 8px; font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: all 0.15s ease;
+            border: none; outline: none;
+            font-family: inherit;
+            text-decoration: none;
+        }
+        .btn:focus-visible { box-shadow: 0 0 0 3px var(--brand-100); }
+        .btn-primary { background: var(--brand-500); color: white; }
+        .btn-primary:hover { background: var(--brand-600); box-shadow: var(--shadow-sm); }
+        .btn-secondary { background: white; border: 1px solid var(--border); color: var(--text-primary); }
+        .btn-secondary:hover { background: var(--surface-sunken); }
+        .btn-danger { background: var(--danger-600); color: white; }
+        .btn-danger:hover { background: #b71c1c; }
+        .btn-ghost { background: transparent; color: var(--brand-500); }
+        .btn-ghost:hover { background: var(--brand-50); }
+        .btn-icon { width: 36px; padding: 0; border-radius: 8px; border: 1px solid var(--border); background: white; color: var(--text-secondary); }
+        .btn-icon:hover { background: var(--surface-sunken); color: var(--text-primary); }
+        .btn svg { margin-right: 6px; }
+        .btn-icon svg { margin-right: 0; }
+
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-control {
+            width: 100%; height: 40px; padding: 0 12px;
+            border: 1px solid var(--border); border-radius: 8px;
+            font-family: inherit; font-size: 14px;
+            transition: all 0.15s ease; background: white; color: var(--text-primary);
+        }
+        .form-control:focus { border-color: var(--brand-500); box-shadow: 0 0 0 3px var(--brand-100); outline: none; }
+        textarea.form-control { height: auto; min-height: 100px; padding: 12px; resize: vertical; }
+
+        .banner {
+            border-radius: 10px; padding: 14px 16px; display: flex; align-items: flex-start;
+            margin-bottom: 24px; font-size: 13px;
+        }
+        .banner svg { margin-right: 12px; flex-shrink: 0; margin-top: 2px; }
+        .banner-warning { background: var(--warning-100); border-left: 3px solid var(--warning-500); color: var(--warning-600); }
+        .banner-danger { background: var(--danger-100); border-left: 3px solid var(--danger-600); color: var(--danger-600); }
+        .banner-info { background: var(--info-100); border-left: 3px solid var(--info-600); color: var(--info-600); }
+
+        /* Toast */
+        #toast-container {
+            position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .toast {
+            background: white; border-radius: 10px; box-shadow: var(--shadow-lg);
+            padding: 16px; width: 320px; display: flex; align-items: flex-start;
+            animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            border-left: 4px solid var(--brand-500);
+        }
+        .toast.success { border-left-color: var(--success-600); }
+        .toast.error { border-left-color: var(--danger-600); }
+        .toast.info { border-left-color: var(--info-600); }
+        .toast-icon { margin-right: 12px; flex-shrink: 0; }
+        .toast-success .toast-icon { color: var(--success-600); }
+        .toast-content { flex: 1; font-size: 13px; margin-top: 2px; }
+        .toast-close { background: none; border: none; cursor: pointer; color: var(--text-tertiary); padding: 0; margin-left: 8px; }
+
+        /* Modal Overlay */
+        .overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+            z-index: 1000; display: none; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: white; border-radius: 12px; box-shadow: var(--shadow-xl);
+            width: 100%; max-width: 640px; display: flex; flex-direction: column;
+            max-height: 90vh;
+        }
+        .modal.open { animation: scaleIn 0.2s ease-out forwards; }
+        .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 24px; overflow-y: auto; }
+        .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); background: var(--surface-sunken); display: flex; justify-content: flex-end; gap: 8px; border-radius: 0 0 12px 12px; }
+
+        /* Drawer */
+        .drawer-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.3); z-index: 1000; display: none;
+        }
+        .drawer {
+            position: fixed; top: 0; right: 0; bottom: 0; width: 480px;
+            background: white; box-shadow: var(--shadow-xl); z-index: 1001;
+            transform: translateX(100%); transition: transform 0.25s ease;
+            display: flex; flex-direction: column;
+        }
+        .drawer.open { transform: translateX(0); }
+        .drawer-header { padding: 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+        .drawer-body { padding: 24px; flex: 1; overflow-y: auto; }
+        .drawer-footer { padding: 20px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px; background: var(--surface); }
+
+        /* Timeline */
+        .timeline { position: relative; margin-top: 24px; }
+        .timeline::before {
+            content: ''; position: absolute; left: 11px; top: 4px; bottom: 4px;
+            width: 2px; background: var(--border);
+        }
+        .timeline-item { position: relative; padding-left: 36px; margin-bottom: 24px; }
+        .timeline-item:last-child { margin-bottom: 0; }
+        .timeline-dot {
+            position: absolute; left: 6px; top: 4px; width: 12px; height: 12px;
+            border-radius: 50%; background: white; border: 2px solid var(--border);
+            z-index: 2;
+        }
+        .timeline-item.completed .timeline-dot { background: var(--success-600); border-color: var(--success-600); }
+        .timeline-item.completed ~ .timeline-item::before { background: var(--success-600); }
+        .timeline-item.active .timeline-dot { background: var(--brand-500); border-color: var(--brand-500); box-shadow: 0 0 0 4px var(--brand-100); animation: pulse 2s infinite; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .grid-detail { display: grid; grid-template-columns: 140px 1fr; gap: 12px; margin-bottom: 8px; font-size: 13px; }
+        .grid-detail-label { color: var(--text-secondary); font-weight: 500; }
+        .grid-detail-value { color: var(--text-primary); font-weight: 500; }
+
+        /* Utility */
+        .flex { display: flex; }
+        .items-center { align-items: center; }
+        .justify-between { justify-content: space-between; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .gap-4 { gap: 16px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-6 { margin-bottom: 24px; }
+        .mt-4 { margin-top: 16px; }
+        .w-full { width: 100%; }
+        .text-right { text-align: right; }
+        .hidden { display: none !important; }
+
+        /* Specific Screens */
+        .login-screen {
+            background: linear-gradient(135deg, #f0f2f5, #e4e8ee);
+            height: 100vh; display: flex; align-items: center; justify-content: center;
+        }
+        .login-card {
+            width: 420px; background: white; border-radius: 16px; box-shadow: var(--shadow-lg); padding: 40px;
+        }
+        .login-logo {
+            width: 64px; height: 64px; background: var(--brand-50); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; color: var(--brand-600);
+        }
+
+        .filter-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 16px; padding: 0 20px; }
+        .filter-tab {
+            padding: 12px 16px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
+            border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 13px;
+        }
+        .filter-tab.active { color: var(--brand-600); border-bottom-color: var(--brand-500); font-weight: 600; }
+
+        /* Stepper */
+        .stepper { display: flex; align-items: center; margin-bottom: 32px; padding: 0 40px; }
+        .step { display: flex; flex-direction: column; align-items: center; flex: 1; position: relative; z-index: 1; }
+        .step-circle {
+            width: 32px; height: 32px; border-radius: 50%; background: var(--surface-sunken); border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; transition: all 0.3s;
+        }
+        .step.active .step-circle { border-color: var(--brand-500); color: var(--brand-600); background: var(--brand-50); }
+        .step.completed .step-circle { background: var(--brand-500); border-color: var(--brand-500); color: white; }
+        .step-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+        .step.active .step-label { color: var(--text-primary); font-weight: 600; }
+        .step-line { position: absolute; top: 16px; left: 50%; width: 100%; height: 2px; background: var(--border); z-index: -1; }
+        .step:last-child .step-line { display: none; }
+        .step.completed .step-line { background: var(--brand-500); }
+
+        .radio-card {
+            border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px;
+            cursor: pointer; display: flex; align-items: flex-start; transition: all 0.15s;
+        }
+        .radio-card:hover { border-color: var(--brand-500); background: var(--brand-50); }
+        .radio-card.selected { border-color: var(--brand-500); background: var(--brand-50); box-shadow: 0 0 0 1px var(--brand-500); }
+        .radio-indicator { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); margin-right: 12px; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+        .radio-card.selected .radio-indicator { border-color: var(--brand-500); background: var(--brand-500); }
+        .radio-card.selected .radio-indicator::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: white; }
+        .radio-title { font-weight: 600; margin-bottom: 4px; }
+        .radio-desc { font-size: 12px; color: var(--text-secondary); }
+
+        .approval-layout { display: grid; grid-template-columns: 7fr 5fr; gap: 24px; }
+        .policy-check { display: flex; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border-subtle); }
+        .policy-check:last-child { border-bottom: none; }
+        .policy-icon { margin-right: 12px; margin-top: 2px; }
+        .policy-icon.pass { color: var(--success-600); }
+        .policy-icon.warn { color: var(--warning-600); }
+        
+        /* Bar Chart */
+        .bar-chart-row { display: flex; align-items: center; margin-bottom: 12px; font-size: 12px; }
+        .bar-label { width: 120px; font-weight: 500; }
+        .bar-track { flex: 1; height: 16px; background: var(--surface-sunken); border-radius: 8px; overflow: hidden; margin-right: 12px; }
+        .bar-fill { height: 100%; border-radius: 8px; }
+        .bar-value { width: 30px; text-align: right; font-weight: 600; }
+
+    </style>
+</head>
+<body>
+
+<div id="toast-container"></div>
+
+<!-- Login Screen -->
+<div id="screen-login" class="login-screen view-transition">
+    <div class="login-card">
+        <div class="login-logo">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        </div>
+        <h1 style="text-align: center; margin-bottom: 8px;">Crypta</h1>
+        <p class="text-secondary" style="text-align: center; margin-bottom: 32px;">Hệ thống Quản lý Vòng đời Tài sản Mật mã</p>
+        
+        <div class="form-group">
+            <label class="form-label">Email đăng nhập</label>
+            <input type="text" class="form-control" value="demo@crypta.local">
+        </div>
+        <div class="form-group mb-6">
+            <label class="form-label">Mật khẩu</label>
+            <input type="password" class="form-control" value="********">
+        </div>
+        <div class="form-group mb-6">
+            <label class="form-label">Chọn vai trò Demo</label>
+            <select id="demo-role-select" class="form-control">
+                <option value="user">Người dùng (Nguyễn An)</option>
+                <option value="approver">Người phê duyệt (Lê Minh)</option>
+                <option value="admin">Quản trị viên (Phạm Hà)</option>
+            </select>
+        </div>
+        
+        <button class="btn btn-primary w-full" style="height: 44px;" onclick="app.login()">Đăng nhập</button>
+        
+        <div class="mt-4 text-center text-tertiary text-tiny flex items-center justify-center gap-2">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Phiên bản bảo mật · Môi trường demo
+        </div>
+    </div>
+</div>
+
+<!-- Main App Layout (Hidden initially) -->
+<div id="app-layout" class="app-container hidden">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            Crypta
+        </div>
+        <div class="sidebar-nav" id="sidebar-nav-container">
+            <!-- Injected by JS based on role -->
+        </div>
+        <div class="sidebar-profile" id="sidebar-profile-container">
+            <!-- Injected by JS -->
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+        <div class="topbar">
+            <div class="flex items-center gap-4">
+                <h2 id="page-title">Tổng quan</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <button class="btn btn-icon" onclick="app.toggleNotificationCenter()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                    <!-- red dot for unread -->
+                    <span style="position:absolute; top:8px; right:8px; width:8px; height:8px; background:var(--danger-600); border-radius:50%; border:2px solid white;"></span>
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content" id="main-content-area">
+            <!-- Screens injected here by switching visibility -->
+            
+            <!-- 2. USER DASHBOARD -->
+            <div id="screen-user-dashboard" class="content-inner hidden view-transition">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 class="mb-2">Tổng quan</h1>
+                        <p class="text-secondary">Theo dõi trạng thái tài sản và yêu cầu của bạn.</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.openWizard()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Tạo yêu cầu
+                    </button>
+                </div>
+
+                <div class="metric-grid">
+                    <div class="metric-card accent-brand">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">4</div>
+                            <div class="metric-label">Tài sản đang quản lý</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-warning">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">1</div>
+                            <div class="metric-label">Sắp hết hạn</div>
+                            <div class="metric-sub">Trong 30 ngày</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-info">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">1</div>
+                            <div class="metric-label">Yêu cầu chờ duyệt</div>
+                            <div class="metric-sub">Gửi 2 giờ trước</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-success">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">100%</div>
+                            <div class="metric-label">Tuân thủ chính sách</div>
+                            <div class="metric-sub">3/3 đang hoạt động</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="banner banner-warning">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <div style="flex:1;">
+                        <strong>CRT-FIN-SOON</strong> — Chứng thư ký hóa đơn sắp hết hạn trong 7 ngày (18/09/2026). Gia hạn sớm để tránh gián đoạn.
+                    </div>
+                    <button class="btn btn-secondary" style="height: 28px; font-size: 12px; margin-left: 16px;" onclick="app.openWizard('renew')">Yêu cầu gia hạn →</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        Tài sản của tôi
+                        <div class="flex items-center gap-2">
+                            <input type="text" class="form-control" placeholder="Tìm kiếm..." style="height: 32px; width: 200px;">
+                        </div>
+                    </div>
+                    <div class="filter-tabs">
+                        <div class="filter-tab active">Tất cả (4)</div>
+                        <div class="filter-tab">Hoạt động (2)</div>
+                        <div class="filter-tab">Sắp hết hạn (1)</div>
+                        <div class="filter-tab">Đã kết thúc (1)</div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tài sản</th>
+                                    <th>Loại</th>
+                                    <th>Thuật toán</th>
+                                    <th>Trạng thái</th>
+                                    <th>Hết hạn</th>
+                                    <th>Còn lại</th>
+                                    <th width="40"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="clickable" onclick="app.openAssetDrawer('CRT-FIN-SOON')">
+                                    <td>
+                                        <div class="flex items-center gap-3">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-tertiary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                                            <div>
+                                                <div style="font-weight:600; font-family: monospace;">CRT-FIN-SOON</div>
+                                                <div class="text-small text-secondary">Chứng thư ký hóa đơn</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-small">Chứng thư số</td>
+                                    <td class="text-small">RSA 2048</td>
+                                    <td><span class="badge-status badge-EXPIRING_SOON"><span class="badge-dot"></span>EXPIRING_SOON</span></td>
+                                    <td class="text-small">18/09/2026</td>
+                                    <td class="text-small" style="color: var(--warning-600); font-weight: 500;">7 ngày</td>
+                                    <td class="text-tertiary">→</td>
+                                </tr>
+                                <tr class="clickable" onclick="app.openAssetDrawer('KEY-DEV-001')">
+                                    <td>
+                                        <div class="flex items-center gap-3">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-tertiary"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                                            <div>
+                                                <div style="font-weight:600; font-family: monospace;">KEY-DEV-001</div>
+                                                <div class="text-small text-secondary">Khóa máy chủ phát triển</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-small">Khóa mã hóa</td>
+                                    <td class="text-small">RSA 2048</td>
+                                    <td><span class="badge-status badge-ACTIVE"><span class="badge-dot"></span>ACTIVE</span></td>
+                                    <td class="text-small">03/08/2027</td>
+                                    <td class="text-small">334 ngày</td>
+                                    <td class="text-tertiary">→</td>
+                                </tr>
+                                <tr class="clickable" onclick="app.openAssetDrawer('KEY-DEV-NEW')">
+                                    <td>
+                                        <div class="flex items-center gap-3">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-tertiary"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                                            <div>
+                                                <div style="font-weight:600; font-family: monospace;">KEY-DEV-NEW</div>
+                                                <div class="text-small text-secondary">Khóa SSH đã gia hạn</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-small">Khóa mã hóa</td>
+                                    <td class="text-small">RSA 2048</td>
+                                    <td><span class="badge-status badge-ACTIVE"><span class="badge-dot"></span>ACTIVE</span></td>
+                                    <td class="text-small">03/08/2027</td>
+                                    <td class="text-small">334 ngày</td>
+                                    <td class="text-tertiary">→</td>
+                                </tr>
+                                <tr class="clickable" onclick="app.openAssetDrawer('KEY-DEV-REVOKED')">
+                                    <td>
+                                        <div class="flex items-center gap-3">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-tertiary"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                                            <div>
+                                                <div style="font-weight:600; font-family: monospace; color: var(--text-tertiary); text-decoration: line-through;">KEY-DEV-REVOKED</div>
+                                                <div class="text-small text-secondary">Khóa thiết bị đã mất</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-small">Khóa mã hóa</td>
+                                    <td class="text-small">RSA 2048</td>
+                                    <td><span class="badge-status badge-REVOKED"><span class="badge-dot"></span>REVOKED</span></td>
+                                    <td class="text-small">—</td>
+                                    <td class="text-small text-tertiary">Đã thu hồi</td>
+                                    <td class="text-tertiary">→</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">Yêu cầu gần đây</div>
+                        <div class="card-body" style="padding: 0;">
+                            <!-- List item -->
+                            <div class="flex justify-between items-center" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);">
+                                <div class="flex gap-3">
+                                    <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--info-100); color: var(--info-600); display: flex; align-items: center; justify-content: center;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 500; font-size: 13px;">Cấp mới — Khóa RSA máy chủ mới</div>
+                                        <div class="text-small text-tertiary">REQ-2026-0105 · Hôm nay 08:42</div>
+                                    </div>
+                                </div>
+                                <span class="badge-status badge-PENDING"><span class="badge-dot"></span>PENDING</span>
+                            </div>
+                            <div class="flex justify-between items-center" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);">
+                                <div class="flex gap-3">
+                                    <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--danger-100); color: var(--danger-600); display: flex; align-items: center; justify-content: center;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 500; font-size: 13px;">Thu hồi — Khóa thiết bị thất lạc</div>
+                                        <div class="text-small text-tertiary">REQ-2026-0098 · 31/08/2026</div>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2">
+                                    <span class="badge-status badge-URGENT"><span class="badge-dot"></span>KHẨN CẤP</span>
+                                    <span class="badge-status badge-COMPLETED"><span class="badge-dot"></span>COMPLETED</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center" style="padding: 16px 20px;">
+                                <div class="flex gap-3">
+                                    <div style="width: 36px; height: 36px; border-radius: 8px; background: var(--brand-100); color: var(--brand-600); display: flex; align-items: center; justify-content: center;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 500; font-size: 13px;">Gia hạn — Khóa SSH</div>
+                                        <div class="text-small text-tertiary">REQ-2026-0084 · 25/07/2026</div>
+                                    </div>
+                                </div>
+                                <span class="badge-status badge-COMPLETED"><span class="badge-dot"></span>COMPLETED</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">Hoạt động mới</div>
+                        <div class="card-body" style="padding: 0;">
+                            <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); background: var(--brand-50);">
+                                <div style="color: var(--warning-500); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; font-size: 13px; display: flex; justify-content: space-between;">
+                                        Cảnh báo hết hạn
+                                        <div style="width: 8px; height: 8px; background: var(--brand-500); border-radius: 50%;"></div>
+                                    </div>
+                                    <div class="text-small text-secondary mt-1">CRT-FIN-SOON còn 7 ngày. Hãy yêu cầu gia hạn ngay.</div>
+                                    <div class="text-tiny text-tertiary mt-1">Hôm qua 08:00</div>
+                                </div>
+                            </div>
+                            <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);">
+                                <div style="color: var(--success-600); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; font-size: 13px;">Thu hồi thành công</div>
+                                    <div class="text-small text-secondary mt-1">KEY-DEV-REVOKED đã ngừng hiệu lực.</div>
+                                    <div class="text-tiny text-tertiary mt-1">31/08/2026</div>
+                                </div>
+                            </div>
+                            <div class="flex gap-3" style="padding: 16px 20px;">
+                                <div style="color: var(--brand-500); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></div>
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; font-size: 13px;">Gia hạn hoàn tất</div>
+                                    <div class="text-small text-secondary mt-1">KEY-DEV-NEW đã sẵn sàng để sử dụng.</div>
+                                    <div class="text-tiny text-tertiary mt-1">27/07/2026</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. APPROVER DASHBOARD -->
+            <div id="screen-approver-dashboard" class="content-inner hidden view-transition">
+                <h1 class="mb-6">Tổng quan phê duyệt</h1>
+                
+                <div class="metric-grid">
+                    <div class="metric-card accent-warning">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value flex items-center gap-2">3 <span style="display:inline-block; width:10px; height:10px; background:var(--warning-500); border-radius:50%; animation:pulse 2s infinite;"></span></div>
+                            <div class="metric-label">Chờ xử lý</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-danger">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">1</div>
+                            <div class="metric-label">Khẩn cấp</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-success">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">12</div>
+                            <div class="metric-label">Đã xử lý tháng này</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-info">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">2.4h</div>
+                            <div class="metric-label">Thời gian phản hồi TB</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="banner banner-danger" style="cursor: pointer;" onclick="app.navigateTo('approval-detail')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <div style="flex:1;">
+                        <strong>1 yêu cầu KHẨN CẤP:</strong> Thu hồi khóa nghi bị lộ (REQ-2026-0103) — Trần Bình, Phòng CNTT. Bấm để xem.
+                    </div>
+                    <span class="text-secondary">→</span>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Hàng đợi phê duyệt (3)</div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Mã YC</th>
+                                    <th>Người gửi</th>
+                                    <th>Phòng ban</th>
+                                    <th>Loại</th>
+                                    <th>Mức độ</th>
+                                    <th>Thời gian chờ</th>
+                                    <th>Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="clickable" style="background: rgba(198, 40, 40, 0.03);" onclick="app.navigateTo('approval-detail')">
+                                    <td style="font-weight:600; font-family: monospace;">REQ-2026-0103</td>
+                                    <td>Trần Bình</td>
+                                    <td>CNTT</td>
+                                    <td style="color: var(--danger-600); font-weight: 500;">Thu hồi</td>
+                                    <td><span class="badge-status badge-URGENT"><span class="badge-dot"></span>URGENT</span></td>
+                                    <td class="text-small" style="color: var(--danger-600); font-weight: 500;">2h 16m</td>
+                                    <td><span class="badge-status badge-PENDING"><span class="badge-dot"></span>PENDING</span></td>
+                                </tr>
+                                <tr class="clickable">
+                                    <td style="font-weight:600; font-family: monospace;">REQ-2026-0104</td>
+                                    <td>Nguyễn An</td>
+                                    <td>CNTT</td>
+                                    <td>Gia hạn</td>
+                                    <td><span class="badge-status badge-EXPIRED" style="background: var(--surface-sunken);">Thường</span></td>
+                                    <td class="text-small">45m</td>
+                                    <td><span class="badge-status badge-PENDING"><span class="badge-dot"></span>PENDING</span></td>
+                                </tr>
+                                <tr class="clickable">
+                                    <td style="font-weight:600; font-family: monospace;">REQ-2026-0105</td>
+                                    <td>Hoàng Lê</td>
+                                    <td>Kế toán</td>
+                                    <td>Cấp mới</td>
+                                    <td><span class="badge-status badge-EXPIRED" style="background: var(--surface-sunken);">Thường</span></td>
+                                    <td class="text-small">16h 30m</td>
+                                    <td><span class="badge-status badge-PENDING"><span class="badge-dot"></span>PENDING</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. APPROVAL DETAIL (STAR SCREEN) -->
+            <div id="screen-approval-detail" class="content-inner hidden view-transition">
+                <button class="btn btn-ghost" style="padding: 0; margin-bottom: 16px;" onclick="app.navigateTo('approver-dashboard')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Quay lại hàng đợi
+                </button>
+                
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <h1 style="font-family: monospace;">REQ-2026-0103</h1>
+                            <span class="badge-status badge-URGENT"><span class="badge-dot"></span>URGENT</span>
+                            <span class="badge-status badge-PENDING"><span class="badge-dot"></span>PENDING</span>
+                        </div>
+                        <div class="text-secondary">Thu hồi khẩn cấp · Thời gian chờ: 2 giờ 16 phút</div>
+                    </div>
+                </div>
+
+                <div class="banner banner-danger" style="margin-bottom: 24px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <div>
+                        <strong>CẢNH BÁO:</strong> Đây là yêu cầu thu hồi khẩn cấp. Tài sản sẽ ngừng hiệu lực ngay sau khi được phê duyệt. Hành động này <strong>KHÔNG THỂ HOÀN TÁC</strong>.
+                    </div>
+                </div>
+
+                <div class="approval-layout">
+                    <!-- Left Column -->
+                    <div>
+                        <div class="card">
+                            <div class="card-header">Thông tin yêu cầu</div>
+                            <div class="card-body">
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Người gửi:</div>
+                                    <div class="grid-detail-value">Trần Bình</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Phòng ban:</div>
+                                    <div class="grid-detail-value">CNTT</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Loại yêu cầu:</div>
+                                    <div class="grid-detail-value" style="color: var(--danger-600);">Thu hồi tài sản</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Tài sản đích:</div>
+                                    <div class="grid-detail-value" style="color: var(--brand-600); text-decoration: underline; cursor: pointer;">KEY-DEVICE-021 — Khóa thiết bị thất lạc</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Thời gian tạo:</div>
+                                    <div class="grid-detail-value">04/09/2026, 06:55 (GMT+7)</div>
+                                </div>
+                                <div class="grid-detail" style="margin-top: 16px;">
+                                    <div class="grid-detail-label">Lý do:</div>
+                                    <div class="grid-detail-value" style="background: var(--surface-sunken); padding: 12px; border-radius: 6px; font-style: italic;">
+                                        "Nghi ngờ lộ khóa do thiết bị thất lạc tại khu vực công cộng. Cần thu hồi gấp để ngăn chặn truy cập trái phép vào mạng nội bộ."
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="border-left: 4px solid var(--warning-500);">
+                            <div class="card-body" style="background: var(--warning-100);">
+                                <h3 style="color: var(--warning-600); margin-bottom: 8px;">Mức rủi ro: CAO</h3>
+                                <p style="color: var(--warning-600); font-size: 13px;">Tài sản này đang được sử dụng bởi 2 dịch vụ: VPN Endpoint và Internal Gateway. Thu hồi sẽ gây gián đoạn các dịch vụ này cho đến khi khóa thay thế được cấp.</p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">Kiểm tra chính sách tự động</div>
+                            <div class="card-body" style="padding-top: 8px; padding-bottom: 8px;">
+                                <div class="policy-check">
+                                    <svg class="policy-icon pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px;">Đạt</div>
+                                        <div class="text-secondary text-small">Người yêu cầu có quyền thu hồi tài sản này (owner)</div>
+                                    </div>
+                                </div>
+                                <div class="policy-check">
+                                    <svg class="policy-icon pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px;">Đạt</div>
+                                        <div class="text-secondary text-small">Tài sản đang ở trạng thái hợp lệ để thu hồi (ACTIVE)</div>
+                                    </div>
+                                </div>
+                                <div class="policy-check">
+                                    <svg class="policy-icon pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px;">Đạt</div>
+                                        <div class="text-secondary text-small">Lý do thu hồi đã được cung cấp đầy đủ</div>
+                                    </div>
+                                </div>
+                                <div class="policy-check">
+                                    <svg class="policy-icon warn" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px; color: var(--warning-600);">Cảnh báo</div>
+                                        <div class="text-secondary text-small">Tài sản đang được 2 dịch vụ sử dụng (cần đánh giá tác động)</div>
+                                    </div>
+                                </div>
+                                <div style="height: 1px; background: var(--border-subtle); margin: 8px 0;"></div>
+                                <div class="policy-check">
+                                    <svg class="policy-icon pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px;">SoD (Phân tách nhiệm vụ)</div>
+                                        <div class="text-secondary text-small">Người phê duyệt (Lê Minh) ≠ Người tạo (Trần Bình)</div>
+                                    </div>
+                                </div>
+                                <div class="policy-check">
+                                    <svg class="policy-icon pass" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                    <div>
+                                        <div style="font-weight: 600; font-size: 13px;">Phạm vi</div>
+                                        <div class="text-secondary text-small">Phòng CNTT thuộc phạm vi phê duyệt của bạn</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">Thông tin tài sản đích</div>
+                            <div class="card-body">
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Mã tài sản:</div>
+                                    <div class="grid-detail-value flex items-center gap-2">
+                                        <span style="font-family: monospace;">KEY-DEVICE-021</span>
+                                        <button class="btn btn-icon" style="width: 24px; height: 24px; border: none; background: transparent;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+                                    </div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Loại:</div>
+                                    <div class="grid-detail-value">Khóa mã hóa</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Thuật toán:</div>
+                                    <div class="grid-detail-value">RSA 2048</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Trạng thái hiện tại:</div>
+                                    <div class="grid-detail-value"><span class="badge-status badge-ACTIVE"><span class="badge-dot"></span>ACTIVE</span></div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Chủ sở hữu:</div>
+                                    <div class="grid-detail-value">Trần Bình</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Ngày cấp phát:</div>
+                                    <div class="grid-detail-value">15/03/2026</div>
+                                </div>
+                                <div class="grid-detail">
+                                    <div class="grid-detail-label">Fingerprint:</div>
+                                    <div class="grid-detail-value" style="font-family: monospace;">SHA256:d4e5••••f8a2</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column -->
+                    <div>
+                        <div class="card">
+                            <div class="card-header">Tiến trình xử lý</div>
+                            <div class="card-body">
+                                <div class="timeline">
+                                    <div class="timeline-item completed">
+                                        <div class="timeline-dot"></div>
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">Khởi tạo yêu cầu</div>
+                                        <div class="text-secondary text-small">Trần Bình · 04/09/2026 06:55</div>
+                                    </div>
+                                    <div class="timeline-item completed">
+                                        <div class="timeline-dot"></div>
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px;">Kiểm tra chính sách</div>
+                                        <div class="text-secondary text-small">Hệ thống · 04/09/2026 06:55</div>
+                                    </div>
+                                    <div class="timeline-item active">
+                                        <div class="timeline-dot"></div>
+                                        <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px; color: var(--brand-600);">Chờ phê duyệt</div>
+                                        <div class="text-secondary text-small">Đang chờ · 04/09/2026 06:56</div>
+                                    </div>
+                                    <div class="timeline-item" style="opacity: 0.5;">
+                                        <div class="timeline-dot"></div>
+                                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Xử lý thu hồi</div>
+                                        <div class="text-secondary text-small">Worker</div>
+                                    </div>
+                                    <div class="timeline-item" style="opacity: 0.5;">
+                                        <div class="timeline-dot"></div>
+                                        <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Hoàn tất</div>
+                                        <div class="text-secondary text-small">Thông báo kết quả</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="box-shadow: var(--shadow-md); border: 1px solid var(--brand-500);">
+                            <div class="card-header" style="background: var(--brand-50); color: var(--brand-600);">Quyết định của bạn</div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <textarea id="approval-notes" class="form-control" placeholder="Nhập nhận xét hoặc lý do quyết định... (bắt buộc khi từ chối)" style="min-height: 120px;"></textarea>
+                                </div>
+                                <div class="flex gap-3">
+                                    <button class="btn btn-secondary flex-1" onclick="app.rejectApproval()">Từ chối yêu cầu</button>
+                                    <button class="btn btn-primary" style="flex: 2; height: 44px; font-size: 14px;" onclick="app.approveApproval()">Phê duyệt yêu cầu</button>
+                                </div>
+                                <div class="text-tiny text-center mt-3" style="color: var(--danger-600);">
+                                    Phê duyệt sẽ thực thi thu hồi ngay lập tức
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. ADMIN DASHBOARD -->
+            <div id="screen-admin-dashboard" class="content-inner hidden view-transition">
+                <h1 class="mb-6">Tổng quan hệ thống</h1>
+                
+                <div class="metric-grid">
+                    <div class="metric-card accent-brand">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">47</div>
+                            <div class="metric-label">Tổng tài sản</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-warning">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">12</div>
+                            <div class="metric-label">Sắp hết hạn</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-danger">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">3</div>
+                            <div class="metric-label">Vi phạm chính sách</div>
+                        </div>
+                    </div>
+                    <div class="metric-card accent-success">
+                        <div class="metric-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg></div>
+                        <div class="metric-content">
+                            <div class="metric-value">99.2%</div>
+                            <div class="metric-label">Uptime hệ thống</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header">Sức khỏe hệ thống</div>
+                        <div class="card-body">
+                            <div class="flex items-center justify-between mb-4 pb-4" style="border-bottom: 1px solid var(--border-subtle);">
+                                <div class="flex items-center gap-3">
+                                    <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--success-600);"></div>
+                                    <div style="font-weight: 500;">Crypto Provider (Mock KMS)</div>
+                                </div>
+                                <div class="text-secondary text-small">✅ Hoạt động · Phản hồi 45ms</div>
+                            </div>
+                            <div class="flex items-center justify-between mb-4 pb-4" style="border-bottom: 1px solid var(--border-subtle);">
+                                <div class="flex items-center gap-3">
+                                    <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--success-600);"></div>
+                                    <div style="font-weight: 500;">Dịch vụ thông báo</div>
+                                </div>
+                                <div class="text-secondary text-small">✅ Hoạt động · 12 thông báo gửi hôm nay</div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <div style="width: 10px; height: 10px; border-radius: 50%; background: var(--success-600);"></div>
+                                    <div style="font-weight: 500;">Quét hết hạn</div>
+                                </div>
+                                <div class="text-secondary text-small">✅ Hoạt động · Lần quét gần nhất: Hôm nay 09:00</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">Phân bố tài sản theo trạng thái</div>
+                        <div class="card-body">
+                            <div class="bar-chart-row">
+                                <div class="bar-label">ACTIVE</div>
+                                <div class="bar-track"><div class="bar-fill" style="width: 68%; background: var(--success-500, #1a7f4b);"></div></div>
+                                <div class="bar-value">32</div>
+                            </div>
+                            <div class="bar-chart-row">
+                                <div class="bar-label">EXPIRING_SOON</div>
+                                <div class="bar-track"><div class="bar-fill" style="width: 25%; background: var(--warning-500);"></div></div>
+                                <div class="bar-value">12</div>
+                            </div>
+                            <div class="bar-chart-row">
+                                <div class="bar-label">EXPIRED</div>
+                                <div class="bar-track"><div class="bar-fill" style="width: 4%; background: var(--neutral-400, #9ca3af);"></div></div>
+                                <div class="bar-value">2</div>
+                            </div>
+                            <div class="bar-chart-row">
+                                <div class="bar-label">REVOKED</div>
+                                <div class="bar-track"><div class="bar-fill" style="width: 2%; background: var(--danger-500, #d32f2f);"></div></div>
+                                <div class="bar-value">1</div>
+                            </div>
+                            <div class="text-center text-small text-tertiary mt-4 pt-4" style="border-top: 1px solid var(--border-subtle);">
+                                Tổng cộng: 47 tài sản
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Sự kiện gần đây</div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Thời gian</th>
+                                    <th>Người thực hiện</th>
+                                    <th>Hành động</th>
+                                    <th>Kết quả</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 14:30</td>
+                                    <td>Lê Minh</td>
+                                    <td>Phê duyệt yêu cầu (REQ-2026-0098)</td>
+                                    <td>✅ Thành công</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 14:28</td>
+                                    <td>Trần Bình</td>
+                                    <td>Tạo yêu cầu thu hồi (REQ-2026-0103)</td>
+                                    <td>✅ Thành công</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 09:00</td>
+                                    <td>Hệ thống</td>
+                                    <td>Quét hết hạn định kỳ</td>
+                                    <td>✅ Thành công</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-body text-center" style="border-top: 1px solid var(--border-subtle); padding: 12px;">
+                        <a href="#" style="color: var(--brand-600); text-decoration: none; font-size: 13px; font-weight: 500;" onclick="app.navigateTo('audit-log'); return false;">Xem tất cả Audit Log →</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. AUDIT LOG PAGE -->
+            <div id="screen-audit-log" class="content-inner hidden view-transition">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="mb-0">Nhật ký kiểm toán</h1>
+                    <button class="btn btn-secondary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Xuất CSV
+                    </button>
+                </div>
+
+                <div class="card">
+                    <div class="card-body" style="background: var(--surface-sunken); border-bottom: 1px solid var(--border);">
+                        <div class="flex gap-4 items-end">
+                            <div style="flex: 2;">
+                                <label class="form-label">Tìm kiếm</label>
+                                <input type="text" class="form-control" placeholder="Tìm kiếm theo mã, tên, hành động...">
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label">Thời gian</label>
+                                <select class="form-control">
+                                    <option>Hôm nay</option>
+                                    <option>7 ngày qua</option>
+                                    <option>30 ngày qua</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label">Hành động</label>
+                                <select class="form-control">
+                                    <option>Tất cả</option>
+                                    <option>Tạo yêu cầu</option>
+                                    <option>Phê duyệt</option>
+                                </select>
+                            </div>
+                            <div style="flex: 1;">
+                                <label class="form-label">Kết quả</label>
+                                <select class="form-control">
+                                    <option>Tất cả</option>
+                                    <option>Thành công</option>
+                                    <option>Thất bại</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary" style="margin-right: 8px;">Lọc</button>
+                                <button class="btn btn-ghost">Xóa</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Thời gian</th>
+                                    <th>Người thực hiện</th>
+                                    <th>Hành động</th>
+                                    <th>Đối tượng</th>
+                                    <th>Kết quả</th>
+                                    <th width="80">Chi tiết</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 14:30</td>
+                                    <td>Lê Minh</td>
+                                    <td>Phê duyệt yêu cầu</td>
+                                    <td style="font-family: monospace;">REQ-2026-0098</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 14:28</td>
+                                    <td>Trần Bình</td>
+                                    <td>Tạo yêu cầu thu hồi</td>
+                                    <td style="font-family: monospace;">REQ-2026-0103</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">04/09/2026 09:00</td>
+                                    <td>Hệ thống (auto)</td>
+                                    <td>Quét hết hạn định kỳ</td>
+                                    <td>47 tài sản</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">03/09/2026 16:45</td>
+                                    <td>Nguyễn An</td>
+                                    <td>Tạo yêu cầu cấp mới</td>
+                                    <td style="font-family: monospace;">REQ-2026-0105</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">03/09/2026 11:20</td>
+                                    <td>Phạm Hà</td>
+                                    <td>Cập nhật chính sách</td>
+                                    <td>RSA Standard v2</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">02/09/2026 15:30</td>
+                                    <td>Nguyễn An</td>
+                                    <td>Đăng nhập</td>
+                                    <td>Phiên #8472</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">01/09/2026 09:15</td>
+                                    <td>Trần Bình</td>
+                                    <td>Tự phê duyệt</td>
+                                    <td style="font-family: monospace;">REQ-2026-0099</td>
+                                    <td>❌ Từ chối (SOD)</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-small text-secondary">31/08/2026 14:22</td>
+                                    <td>Lê Minh</td>
+                                    <td>Phê duyệt thu hồi</td>
+                                    <td style="font-family: monospace;">REQ-2026-0098</td>
+                                    <td>✅ Thành công</td>
+                                    <td><button class="btn btn-ghost" style="padding: 0 8px; height: 24px;">Xem ▸</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-body flex justify-between items-center" style="border-top: 1px solid var(--border-subtle); padding: 12px 20px;">
+                        <span class="text-small text-secondary">Hiển thị 1-8 / 156 sự kiện</span>
+                        <div class="flex gap-2">
+                            <button class="btn btn-secondary" style="height: 28px; font-size: 12px;" disabled>Trước</button>
+                            <button class="btn btn-secondary" style="height: 28px; font-size: 12px;">Sau</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ERROR PAGES -->
+            <div id="screen-403" class="content-inner hidden view-transition" style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--danger-500)" stroke-width="2" style="margin-bottom: 24px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                <h1 style="margin-bottom: 12px;">Không có quyền truy cập</h1>
+                <p class="text-secondary" style="max-width: 400px; margin-bottom: 32px;">Tài khoản của bạn không có đủ quyền để xem trang này. Vui lòng liên hệ quản trị viên nếu bạn nghĩ đây là lỗi.</p>
+                <button class="btn btn-primary" onclick="app.goHome()">Quay về trang chủ</button>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- 3. ASSET DETAIL DRAWER -->
+<div id="drawer-overlay" class="drawer-overlay" onclick="app.closeDrawer()"></div>
+<div id="asset-drawer" class="drawer">
+    <div class="drawer-header">
+        <div>
+            <div class="flex items-center gap-2 mb-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-tertiary"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                <span style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">CRT-FIN-SOON</span>
+            </div>
+            <h3 style="font-size: 16px;">Chứng thư ký hóa đơn</h3>
+            <div class="flex items-center gap-3 mt-3">
+                <span class="badge-status badge-EXPIRING_SOON"><span class="badge-dot"></span>EXPIRING_SOON</span>
+                <span class="text-tiny text-tertiary">Cập nhật 2 giờ trước</span>
+            </div>
+        </div>
+        <button class="btn btn-icon" style="border: none;" onclick="app.closeDrawer()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+    </div>
+    <div class="drawer-body">
+        <div class="grid-2 mb-6">
+            <div class="grid-detail">
+                <div class="grid-detail-label">Loại:</div>
+                <div class="grid-detail-value">Chứng thư số</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Thuật toán:</div>
+                <div class="grid-detail-value">RSA 2048</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Phòng ban:</div>
+                <div class="grid-detail-value">CNTT</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Chủ sở hữu:</div>
+                <div class="grid-detail-value">Nguyễn An</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Ngày hiệu lực:</div>
+                <div class="grid-detail-value">18/09/2024</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Hết hạn:</div>
+                <div class="grid-detail-value" style="color: var(--warning-600); font-weight: 600;">18/09/2026</div>
+            </div>
+            <div class="grid-detail">
+                <div class="grid-detail-label">Nhà cung cấp:</div>
+                <div class="grid-detail-value">Demo CA</div>
+            </div>
+        </div>
+        
+        <h4 class="text-secondary mb-2" style="font-size: 11px; text-transform: uppercase;">Fingerprint</h4>
+        <div class="flex items-center justify-between p-3 bg-surface-sunken mb-6" style="background: var(--surface-sunken); padding: 12px; border-radius: 8px;">
+            <span style="font-family: monospace; font-size: 13px;">SHA256:a1b2••••f6e7</span>
+            <button class="btn btn-ghost" style="height: 24px; padding: 0 8px; font-size: 12px;">Copy</button>
+        </div>
+
+        <h4 class="text-secondary mb-2" style="font-size: 11px; text-transform: uppercase;">Mục đích sử dụng</h4>
+        <div class="mb-6" style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px;">
+            Ký hóa đơn điện tử
+        </div>
+
+        <h4 class="text-secondary mb-4" style="font-size: 11px; text-transform: uppercase;">Vòng đời</h4>
+        <div class="timeline">
+            <div class="timeline-item completed">
+                <div class="timeline-dot"></div>
+                <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Được cấp phát</div>
+                <div class="text-secondary text-small">18/09/2024 · Demo CA</div>
+            </div>
+            <div class="timeline-item completed">
+                <div class="timeline-dot"></div>
+                <div style="font-weight: 500; font-size: 13px; margin-bottom: 2px;">Đang hoạt động</div>
+                <div class="text-secondary text-small">Tuân thủ RSA Standard v2</div>
+            </div>
+            <div class="timeline-item active">
+                <div class="timeline-dot"></div>
+                <div style="font-weight: 600; font-size: 13px; margin-bottom: 2px; color: var(--warning-600);">Hết hạn dự kiến</div>
+                <div class="text-secondary text-small">18/09/2026</div>
+            </div>
+        </div>
+    </div>
+    <div class="drawer-footer">
+        <button class="btn btn-ghost" onclick="app.closeDrawer()">Đóng</button>
+        <button class="btn btn-primary" onclick="app.closeDrawer(); app.openWizard('renew');">Yêu cầu gia hạn</button>
+    </div>
+</div>
+
+<!-- 9. NOTIFICATION CENTER -->
+<div id="notif-overlay" class="drawer-overlay" onclick="app.toggleNotificationCenter()"></div>
+<div id="notif-drawer" class="drawer" style="width: 360px;">
+    <div class="drawer-header" style="padding: 20px;">
+        <h3 style="font-size: 16px;">Thông báo</h3>
+        <a href="#" style="font-size: 12px; color: var(--brand-600); text-decoration: none;">Đánh dấu tất cả đã đọc</a>
+    </div>
+    <div class="filter-tabs" style="padding: 0 20px; border-bottom: 1px solid var(--border);">
+        <div class="filter-tab active" style="padding: 8px 12px;">Tất cả</div>
+        <div class="filter-tab" style="padding: 8px 12px;">Chưa đọc (2)</div>
+    </div>
+    <div class="drawer-body" style="padding: 0;">
+        <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); background: var(--brand-50);">
+            <div style="color: var(--danger-600); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 13px; display: flex; justify-content: space-between;">
+                    Cảnh báo hết hạn
+                    <div style="width: 8px; height: 8px; background: var(--brand-500); border-radius: 50%;"></div>
+                </div>
+                <div class="text-small text-secondary mt-1">CRT-FIN-SOON còn 7 ngày.</div>
+                <div class="text-tiny text-tertiary mt-1">Hôm qua 08:00</div>
+            </div>
+        </div>
+        <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);">
+            <div style="color: var(--success-600); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+            <div style="flex: 1;">
+                <div style="font-weight: 500; font-size: 13px;">Thu hồi thành công</div>
+                <div class="text-small text-secondary mt-1">KEY-DEV-REVOKED đã ngừng.</div>
+                <div class="text-tiny text-tertiary mt-1">31/08 14:22</div>
+            </div>
+        </div>
+        <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle);">
+            <div style="color: var(--info-600); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg></div>
+            <div style="flex: 1;">
+                <div style="font-weight: 500; font-size: 13px;">Gia hạn hoàn tất</div>
+                <div class="text-small text-secondary mt-1">KEY-DEV-NEW đã sẵn sàng.</div>
+                <div class="text-tiny text-tertiary mt-1">27/07 09:16</div>
+            </div>
+        </div>
+        <div class="flex gap-3" style="padding: 16px 20px; border-bottom: 1px solid var(--border-subtle); background: var(--brand-50);">
+            <div style="color: var(--warning-600); margin-top: 2px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg></div>
+            <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 13px; display: flex; justify-content: space-between;">
+                    Yêu cầu đã gửi
+                    <div style="width: 8px; height: 8px; background: var(--brand-500); border-radius: 50%;"></div>
+                </div>
+                <div class="text-small text-secondary mt-1">REQ-2026-0105 đang chờ duyệt.</div>
+                <div class="text-tiny text-tertiary mt-1">Hôm nay 08:42</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. REQUEST WIZARD MODAL -->
+<div id="modal-wizard" class="overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Tạo yêu cầu mới</h3>
+            <button class="btn btn-icon" style="border: none;" onclick="app.closeModal('wizard')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="modal-body" style="min-height: 400px;">
+            <div class="stepper">
+                <div class="step active" id="step-nav-1">
+                    <div class="step-circle">1</div>
+                    <div class="step-label">Loại YC</div>
+                    <div class="step-line"></div>
+                </div>
+                <div class="step" id="step-nav-2">
+                    <div class="step-circle">2</div>
+                    <div class="step-label">Thông tin</div>
+                    <div class="step-line"></div>
+                </div>
+                <div class="step" id="step-nav-3">
+                    <div class="step-circle">3</div>
+                    <div class="step-label">Xác nhận</div>
+                </div>
+            </div>
+
+            <!-- Step 1 -->
+            <div id="wizard-step-1" class="view-transition">
+                <h4 class="mb-4">Chọn loại yêu cầu</h4>
+                <div class="radio-card selected" onclick="app.selectWizardType('new', this)">
+                    <div class="radio-indicator"></div>
+                    <div>
+                        <div class="radio-title flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> Cấp phát mới</div>
+                        <div class="radio-desc">Tạo khóa hoặc chứng thư mới cho hệ thống</div>
+                    </div>
+                </div>
+                <div class="radio-card" onclick="app.selectWizardType('renew', this)">
+                    <div class="radio-indicator"></div>
+                    <div>
+                        <div class="radio-title flex items-center gap-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> Gia hạn</div>
+                        <div class="radio-desc">Thay thế tài sản sắp hết hạn bằng tài sản mới</div>
+                    </div>
+                </div>
+                <div class="radio-card" style="border-color: var(--border);" onclick="app.selectWizardType('revoke', this)">
+                    <div class="radio-indicator"></div>
+                    <div>
+                        <div class="radio-title flex items-center gap-2" style="color: var(--danger-600);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg> Thu hồi</div>
+                        <div class="radio-desc">Ngừng hiệu lực tài sản ngay lập tức</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div id="wizard-step-2" class="hidden view-transition">
+                <h4 class="mb-4">Điền thông tin</h4>
+                
+                <!-- Form New -->
+                <div id="form-new">
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Loại tài sản</label>
+                            <select class="form-control">
+                                <option>Chứng thư số</option>
+                                <option>Khóa mã hóa</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Thuật toán</label>
+                            <select class="form-control">
+                                <option>RSA 2048</option>
+                                <option>RSA 4096</option>
+                                <option>ECDSA P-256</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Chính sách áp dụng</label>
+                        <select class="form-control">
+                            <option>RSA Standard v2</option>
+                            <option>High Security Crypto Policy</option>
+                        </select>
+                    </div>
+                    <div class="banner banner-info mb-4" style="padding: 10px 12px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        Chính sách RSA Standard v2 yêu cầu khóa tối thiểu 2048-bit.
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="form-label">Lý do cấp mới</label>
+                        <textarea class="form-control" style="min-height: 80px;" placeholder="Nhập lý do chi tiết..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Form Revoke (hidden by default) -->
+                <div id="form-revoke" class="hidden">
+                    <div class="form-group">
+                        <label class="form-label">Chọn tài sản cần thu hồi</label>
+                        <select class="form-control">
+                            <option>KEY-DEVICE-021 (Khóa thiết bị)</option>
+                            <option>CRT-FIN-SOON (Chứng thư ký)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Lý do thu hồi</label>
+                        <select class="form-control">
+                            <option>Nghi ngờ lộ khóa</option>
+                            <option>Mất thiết bị</option>
+                            <option>Ngừng sử dụng</option>
+                            <option>Khác</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mô tả chi tiết</label>
+                        <textarea class="form-control" style="min-height: 80px;" placeholder="Cung cấp bối cảnh..."></textarea>
+                    </div>
+                    <label class="flex items-center gap-2 mb-4" style="cursor: pointer; font-size: 13px; font-weight: 500;">
+                        <input type="checkbox" id="urgent-checkbox" onchange="app.toggleUrgentBanner(this)" style="width: 16px; height: 16px;">
+                        Đánh dấu Khẩn cấp
+                    </label>
+                    <div id="urgent-banner" class="banner banner-danger hidden" style="padding: 10px 12px; margin-bottom: 0;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        Thu hồi khẩn cấp sẽ được ưu tiên xử lý. Hành động này không thể hoàn tác sau khi được phê duyệt.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div id="wizard-step-3" class="hidden view-transition">
+                <h4 class="mb-4">Xác nhận thông tin</h4>
+                
+                <div class="card mb-4" style="box-shadow: none;">
+                    <div class="card-body">
+                        <div class="grid-detail">
+                            <div class="grid-detail-label">Loại yêu cầu:</div>
+                            <div class="grid-detail-value font-weight-bold" id="confirm-type">Cấp phát mới</div>
+                        </div>
+                        <div class="grid-detail">
+                            <div class="grid-detail-label">Chi tiết:</div>
+                            <div class="grid-detail-value">Chứng thư số · RSA 2048</div>
+                        </div>
+                        <div class="grid-detail">
+                            <div class="grid-detail-label">Chính sách:</div>
+                            <div class="grid-detail-value">RSA Standard v2</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="banner banner-info mb-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                    <div>
+                        Hệ thống sẽ kiểm tra chính sách tự động trước khi gửi. Người tạo không thể tự phê duyệt yêu cầu này.
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" style="margin-right: auto;" onclick="app.closeModal('wizard')">Hủy</button>
+            <button class="btn btn-secondary" id="wizard-btn-prev" style="display: none;" onclick="app.wizardPrev()">Quay lại</button>
+            <button class="btn btn-primary" id="wizard-btn-next" onclick="app.wizardNext()">Tiếp tục</button>
+            <button class="btn btn-primary hidden" id="wizard-btn-submit" onclick="app.wizardSubmit()">Gửi yêu cầu</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal Generic -->
+<div id="modal-confirm" class="overlay">
+    <div class="modal" style="max-width: 480px;">
+        <div class="modal-header">
+            <h3 id="confirm-title">Xác nhận</h3>
+            <button class="btn btn-icon" style="border: none;" onclick="app.closeModal('confirm')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p id="confirm-body" style="font-size: 14px; white-space: pre-line;"></p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="app.closeModal('confirm')">Hủy</button>
+            <button class="btn btn-danger" id="confirm-action-btn">Xác nhận</button>
+        </div>
+    </div>
+</div>
+
+
+<script>
+const app = (function() {
+    let currentRole = 'user';
+    let wizardStep = 1;
+    let wizardType = 'new';
+    
+    // Toast System
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        let iconSvg = '';
+        if (type === 'success') {
+            iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
+        } else if (type === 'error') {
+            iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+        } else {
+            iconSvg = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+        }
+
+        toast.innerHTML = `
+            <div class="toast-icon">${iconSvg}</div>
+            <div class="toast-content">${message}</div>
+            <button class="toast-close" onclick="this.parentElement.remove()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'none';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 4000);
+    }
+
+    const navigationConfig = {
+        user: [
+            { id: 'user-dashboard', label: 'Tổng quan', icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>', active: true },
+            { id: 'my-assets', label: 'Tài sản của tôi', icon: '<rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>' },
+            { id: 'my-requests', label: 'Yêu cầu', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>' },
+            { id: 'create-request', label: 'Tạo yêu cầu', icon: '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>', action: 'app.openWizard()' },
+        ],
+        approver: [
+            { id: 'approver-dashboard', label: 'Tổng quan phê duyệt', icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>', active: true },
+            { id: 'approval-queue', label: 'Hàng đợi', icon: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>', badge: '3' },
+            { id: 'approval-history', label: 'Lịch sử quyết định', icon: '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>' },
+        ],
+        admin: [
+            { id: 'admin-dashboard', label: 'Tổng quan', icon: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline>', active: true },
+            { id: 'sys-assets', label: 'Tài sản hệ thống', icon: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>' },
+            { id: 'users', label: 'Người dùng & phân quyền', icon: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path>' },
+            { id: 'policies', label: 'Chính sách', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>' },
+            { id: 'audit-log', label: 'Audit Log', icon: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>' },
+            { id: 'monitor', label: 'Giám sát', icon: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>' },
+        ]
+    };
+
+    const profiles = {
+        user: { name: 'Nguyễn An', role: 'Nhân viên · CNTT', initials: 'NA' },
+        approver: { name: 'Lê Minh', role: 'Người phê duyệt · CNTT, Kế toán', initials: 'LM' },
+        admin: { name: 'Phạm Hà', role: 'Quản trị viên · ATTT', initials: 'PH' }
+    };
+
+    function renderSidebar() {
+        const navContainer = document.getElementById('sidebar-nav-container');
+        const items = navigationConfig[currentRole];
+        let html = '';
+        
+        items.forEach(item => {
+            const action = item.action ? `onclick="${item.action}"` : `onclick="app.navigateTo('${item.id}')"`;
+            const activeClass = item.active ? 'active' : '';
+            const badgeHtml = item.badge ? `<span class="badge" style="background:var(--danger-600); color:white; padding:2px 6px; border-radius:10px; font-size:10px; font-weight:bold;">${item.badge}</span>` : '';
+            
+            html += `
+                <a class="nav-item ${activeClass}" ${action} data-id="${item.id}">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${item.icon}</svg>
+                    ${item.label}
+                    ${badgeHtml}
+                </a>
+            `;
+        });
+        
+        navContainer.innerHTML = html;
+
+        const profileContainer = document.getElementById('sidebar-profile-container');
+        const p = profiles[currentRole];
+        profileContainer.innerHTML = `
+            <div class="profile-avatar">${p.initials}</div>
+            <div class="profile-info">
+                <div class="profile-name">${p.name}</div>
+                <div class="profile-role">${p.role}</div>
+            </div>
+        `;
+    }
+
+    function navigateTo(screenId) {
+        // Update nav active state
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.classList.remove('active');
+            if(el.getAttribute('data-id') === screenId) {
+                el.classList.add('active');
+                document.getElementById('page-title').innerText = el.innerText;
+            }
+        });
+
+        // Hide all screens
+        document.querySelectorAll('.main-content > div').forEach(el => {
+            el.classList.add('hidden');
+        });
+
+        // Some mappings
+        let targetId = 'screen-' + screenId;
+        if(screenId === 'approval-queue' || screenId === 'approver-dashboard') {
+            targetId = 'screen-approver-dashboard';
+            document.getElementById('page-title').innerText = 'Tổng quan phê duyệt';
+        }
+        
+        // Show target
+        const target = document.getElementById(targetId);
+        if(target) {
+            target.classList.remove('hidden');
+            if(screenId === 'approval-detail') {
+                 document.getElementById('page-title').innerText = 'Chi tiết phê duyệt';
+                 // remove active state from sidebar for detail view
+                 document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            }
+        } else {
+            // 404/403 for unimplemented
+            document.getElementById('screen-403').classList.remove('hidden');
+            document.getElementById('page-title').innerText = 'Lỗi';
+        }
+    }
+
+    function login() {
+        currentRole = document.getElementById('demo-role-select').value;
+        document.getElementById('screen-login').classList.add('hidden');
+        document.getElementById('app-layout').classList.remove('hidden');
+        renderSidebar();
+        
+        if(currentRole === 'user') navigateTo('user-dashboard');
+        else if(currentRole === 'approver') navigateTo('approver-dashboard');
+        else navigateTo('admin-dashboard');
+
+        showToast(`Đăng nhập thành công với vai trò ${profiles[currentRole].name}`, 'success');
+    }
+
+    function goHome() {
+        if(currentRole === 'user') navigateTo('user-dashboard');
+        else if(currentRole === 'approver') navigateTo('approver-dashboard');
+        else navigateTo('admin-dashboard');
+    }
+
+    // Drawers
+    function openAssetDrawer(id) {
+        document.getElementById('drawer-overlay').style.display = 'block';
+        setTimeout(() => document.getElementById('asset-drawer').classList.add('open'), 10);
+    }
+    
+    function closeDrawer() {
+        document.getElementById('asset-drawer').classList.remove('open');
+        document.getElementById('notif-drawer').classList.remove('open');
+        setTimeout(() => {
+            document.getElementById('drawer-overlay').style.display = 'none';
+            document.getElementById('notif-overlay').style.display = 'none';
+        }, 250);
+    }
+
+    function toggleNotificationCenter() {
+        const drawer = document.getElementById('notif-drawer');
+        const overlay = document.getElementById('notif-overlay');
+        if(drawer.classList.contains('open')) {
+            drawer.classList.remove('open');
+            setTimeout(() => overlay.style.display = 'none', 250);
+        } else {
+            overlay.style.display = 'block';
+            setTimeout(() => drawer.classList.add('open'), 10);
+        }
+    }
+
+    // Modals
+    function openModal(id) {
+        document.getElementById('modal-' + id).style.display = 'flex';
+        setTimeout(() => document.querySelector('#modal-' + id + ' .modal').classList.add('open'), 10);
+    }
+    function closeModal(id) {
+        const modal = document.querySelector('#modal-' + id + ' .modal');
+        modal.classList.remove('open');
+        setTimeout(() => document.getElementById('modal-' + id).style.display = 'none', 200);
+    }
+
+    // Wizard Logic
+    function openWizard(type = 'new') {
+        wizardStep = 1;
+        wizardType = type;
+        updateWizardUI();
+        openModal('wizard');
+    }
+
+    function selectWizardType(type, el) {
+        wizardType = type;
+        document.querySelectorAll('#wizard-step-1 .radio-card').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+    }
+
+    function wizardNext() {
+        if(wizardStep < 3) {
+            wizardStep++;
+            updateWizardUI();
+        }
+    }
+    
+    function wizardPrev() {
+        if(wizardStep > 1) {
+            wizardStep--;
+            updateWizardUI();
+        }
+    }
+
+    function updateWizardUI() {
+        // Update nav
+        [1,2,3].forEach(i => {
+            const step = document.getElementById('step-nav-' + i);
+            step.classList.remove('active', 'completed');
+            if(i < wizardStep) step.classList.add('completed');
+            if(i === wizardStep) step.classList.add('active');
+        });
+
+        // Update content
+        document.getElementById('wizard-step-1').classList.add('hidden');
+        document.getElementById('wizard-step-2').classList.add('hidden');
+        document.getElementById('wizard-step-3').classList.add('hidden');
+        document.getElementById('wizard-step-' + wizardStep).classList.remove('hidden');
+
+        // Form logic
+        if(wizardStep === 2) {
+            if(wizardType === 'revoke') {
+                document.getElementById('form-new').classList.add('hidden');
+                document.getElementById('form-revoke').classList.remove('hidden');
+            } else {
+                document.getElementById('form-new').classList.remove('hidden');
+                document.getElementById('form-revoke').classList.add('hidden');
+            }
+        }
+
+        if(wizardStep === 3) {
+            const typeText = wizardType === 'new' ? 'Cấp phát mới' : wizardType === 'renew' ? 'Gia hạn' : 'Thu hồi';
+            document.getElementById('confirm-type').innerText = typeText;
+            if(wizardType === 'revoke') document.getElementById('confirm-type').style.color = 'var(--danger-600)';
+            else document.getElementById('confirm-type').style.color = 'var(--text-primary)';
+        }
+
+        // Buttons
+        document.getElementById('wizard-btn-prev').style.display = wizardStep > 1 ? 'block' : 'none';
+        
+        if(wizardStep === 3) {
+            document.getElementById('wizard-btn-next').classList.add('hidden');
+            document.getElementById('wizard-btn-submit').classList.remove('hidden');
+        } else {
+            document.getElementById('wizard-btn-next').classList.remove('hidden');
+            document.getElementById('wizard-btn-submit').classList.add('hidden');
+        }
+    }
+
+    function toggleUrgentBanner(checkbox) {
+        if(checkbox.checked) {
+            document.getElementById('urgent-banner').classList.remove('hidden');
+        } else {
+            document.getElementById('urgent-banner').classList.add('hidden');
+        }
+    }
+
+    function wizardSubmit() {
+        closeModal('wizard');
+        showToast('Yêu cầu REQ-2026-0106 đã được gửi và đang chờ phê duyệt.', 'success');
+    }
+
+    // Approval Logic
+    function approveApproval() {
+        document.getElementById('confirm-title').innerText = 'Xác nhận phê duyệt thu hồi';
+        document.getElementById('confirm-body').innerHTML = 'Bạn sắp phê duyệt thu hồi khẩn cấp tài sản KEY-DEVICE-021. Hành động này sẽ:\n• Ngừng hiệu lực tài sản ngay lập tức\n• Ảnh hưởng 2 dịch vụ đang sử dụng\n• Không thể hoàn tác';
+        
+        const btn = document.getElementById('confirm-action-btn');
+        btn.innerText = 'Xác nhận phê duyệt';
+        btn.onclick = () => {
+            closeModal('confirm');
+            showToast('Đã phê duyệt yêu cầu REQ-2026-0103. Quá trình thu hồi đang được thực thi.', 'success');
+            setTimeout(() => navigateTo('approver-dashboard'), 1000);
+        };
+        
+        openModal('confirm');
+    }
+
+    function rejectApproval() {
+        const notes = document.getElementById('approval-notes');
+        if(!notes.value.trim()) {
+            notes.style.borderColor = 'var(--danger-600)';
+            showToast('Vui lòng nhập lý do từ chối để người yêu cầu biết cách sửa.', 'error');
+            return;
+        }
+        notes.style.borderColor = 'var(--border)';
+
+        document.getElementById('confirm-title').innerText = 'Xác nhận từ chối';
+        document.getElementById('confirm-body').innerHTML = 'Yêu cầu sẽ bị từ chối và người tạo sẽ nhận được thông báo kèm lý do.';
+        
+        const btn = document.getElementById('confirm-action-btn');
+        btn.innerText = 'Xác nhận từ chối';
+        btn.onclick = () => {
+            closeModal('confirm');
+            showToast('Đã từ chối yêu cầu REQ-2026-0103.', 'info');
+            setTimeout(() => navigateTo('approver-dashboard'), 1000);
+        };
+        
+        openModal('confirm');
+    }
+
+    return {
+        login, navigateTo, goHome,
+        openAssetDrawer, closeDrawer, toggleNotificationCenter,
+        openModal, closeModal,
+        openWizard, selectWizardType, wizardNext, wizardPrev, wizardSubmit, toggleUrgentBanner,
+        approveApproval, rejectApproval
+    };
+})();
+</script>
+</body>
+</html>
