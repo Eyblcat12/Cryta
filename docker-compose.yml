@@ -17,17 +17,6 @@ services:
       retries: 20
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes: ["crypta_redis_data:/data"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-    restart: unless-stopped
-
   backend:
     build: ./backend
     environment:
@@ -52,7 +41,6 @@ services:
       CRYPTO_PROVIDER_TIMEOUT_MS: ${CRYPTO_PROVIDER_TIMEOUT_MS:-15000}
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/v1/health"]
       interval: 10s
@@ -75,4 +63,3 @@ services:
 
 volumes:
   crypta_postgres_data:
-  crypta_redis_data:

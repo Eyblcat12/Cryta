@@ -15,9 +15,20 @@ export class AuthService {
 
   async login(email: string, password: string, context: SessionContext = {}) {
     const row = await this.findUserByEmail(email);
-    if(row?.locked_until&&row.locked_until>new Date())throw new UnauthorizedException({code:'ACCOUNT_TEMPORARILY_LOCKED',message:'Tài khoản tạm khóa do đăng nhập sai nhiều lần. Hãy thử lại sau.'});
-    const valid=await compare(password,row?.password_hash??'$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.');
-    if (!row || row.status !== 'ACTIVE' || !valid){if(row&&row.status==='ACTIVE')await this.pool.query(`UPDATE users SET failed_login_attempts=failed_login_attempts+1,locked_until=CASE WHEN failed_login_attempts+1>=5 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END WHERE id=$1`,[row.id]);throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });}
+    if (row?.locked_until && row.locked_until > new Date()) throw new UnauthorizedException({ code: 'ACCOUNT_TEMPORARILY_LOCKED', message: 'Tài khoản tạm khóa do đăng nhập sai nhiều lần. Hãy thử lại sau.' });
+    const isLockExpired = row?.locked_until && row.locked_until <= new Date();
+    const currentFailedAttempts = isLockExpired ? 0 : (row?.failed_login_attempts ?? 0);
+    const valid = await compare(password, row?.password_hash ?? '$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.');
+    if (!row || row.status !== 'ACTIVE' || !valid) {
+      if (row && row.status === 'ACTIVE') {
+        const nextAttempts = currentFailedAttempts + 1;
+        await this.pool.query(
+          `UPDATE users SET failed_login_attempts=$1, locked_until=CASE WHEN $1 >= 10 THEN NOW() + INTERVAL '15 minutes' ELSE NULL END WHERE id=$2`,
+          [nextAttempts, row.id]
+        );
+      }
+      throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
+    }
     const user = this.toAuthUser(row);
     const client = await this.pool.connect();
     try {

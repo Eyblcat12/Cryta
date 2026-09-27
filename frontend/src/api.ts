@@ -42,4 +42,7 @@ export const api={
   createRequest(body:unknown){return request('/requests',{method:'POST',body:JSON.stringify(body)})},
   decide(id:string,body:unknown){return request(`/requests/${id}/decision`,{method:'POST',body:JSON.stringify(body)})},
   cancel(id:string){return request(`/requests/${id}/cancel`,{method:'POST'})},
+  emergencyRevoke(assetId:string,reason:string){return request(`/assets/${assetId}/revoke`,{method:'POST',body:JSON.stringify({reason})})},
+  createPolicy(body:{code:string;name:string;configuration:Record<string,unknown>}){return request('/policies',{method:'POST',body:JSON.stringify(body)})},
+  createPolicyVersion(policyId:string,configuration:Record<string,unknown>){return request(`/policies/${policyId}/versions`,{method:'POST',body:JSON.stringify({configuration})})},
 };

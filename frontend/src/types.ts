@@ -1,5 +1,6 @@
 export type AssetStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'SUPERSEDED';
 export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type AssetFilter = 'ALL' | 'ACTIVE' | 'EXPIRING_SOON' | 'ENDED';
 
 export interface Asset {
   id: string;
