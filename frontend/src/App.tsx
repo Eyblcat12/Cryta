@@ -48,6 +48,7 @@ import { PolicyModal } from './components/PolicyModal';
 import { RequestDrawer, requestStatus } from './components/RequestDrawer';
 import { RequestModal, type PolicyOption, type RequestType } from './components/RequestModal';
 import { StatusPill } from './components/StatusPill';
+import { NotificationPopover } from './components/NotificationPopover';
 
 type Theme = 'light' | 'dark';
 type RequestModalState = { type: RequestType; assetId?: string } | null;
@@ -74,6 +75,7 @@ function App() {
   const [dataState, setDataState] = useState<'LOADING' | 'READY' | 'ERROR'>('LOADING');
   const [dataError, setDataError] = useState('');
   const [roleMenu, setRoleMenu] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const [filter, setFilter] = useState<AssetFilter>('ALL');
   const [query, setQuery] = useState('');
   const [globalQuery, setGlobalQuery] = useState('');
@@ -148,7 +150,10 @@ function App() {
         event.preventDefault();
         globalSearchRef.current?.focus();
       }
-      if (event.key === 'Escape') setRoleMenu(false);
+      if (event.key === 'Escape') {
+        setRoleMenu(false);
+        setNotificationOpen(false);
+      }
     };
     window.addEventListener('keydown', shortcut);
     return () => window.removeEventListener('keydown', shortcut);
@@ -291,7 +296,16 @@ function App() {
           </div>
           <div className="nav-group">
             <p className="nav-label">Theo dõi</p>
-            <button className="nav-item" onClick={() => scrollTo(role === 'USER' ? 'notifications' : 'overview')}>
+            <button
+              className="nav-item"
+              onClick={() => {
+                if (role === 'USER') {
+                  scrollTo('notifications');
+                } else {
+                  setNotificationOpen((open) => !open);
+                }
+              }}
+            >
               <Bell size={19} /> Thông báo {unreadNotificationCount > 0 && <span className="unread-dot" aria-label={`${unreadNotificationCount} thông báo chưa đọc`} />}
             </button>
             <button className="nav-item" onClick={() => setHelpOpen(true)}>
@@ -334,9 +348,41 @@ function App() {
             <button className="icon-button" aria-label={`Chuyển sang giao diện ${theme === 'light' ? 'tối' : 'sáng'}`} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
               {theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}
             </button>
-            <button className={`icon-button ${unreadNotificationCount > 0 ? 'has-alert' : ''}`} aria-label={unreadNotificationCount > 0 ? `${unreadNotificationCount} thông báo chưa đọc` : 'Thông báo'} onClick={() => scrollTo('notifications')}>
-              <Bell size={19} />{unreadNotificationCount > 0 && <span />}
-            </button>
+            <div className="notification-control">
+              <button
+                className={`icon-button ${unreadNotificationCount > 0 ? 'has-alert' : ''}`}
+                aria-label={unreadNotificationCount > 0 ? `${unreadNotificationCount} thông báo chưa đọc` : 'Thông báo'}
+                aria-expanded={notificationOpen}
+                aria-haspopup="dialog"
+                onClick={() => setNotificationOpen((open) => !open)}
+              >
+                <Bell size={19} />{unreadNotificationCount > 0 && <span />}
+              </button>
+              {notificationOpen && (
+                <NotificationPopover
+                  notifications={notifications}
+                  unreadCount={unreadNotificationCount}
+                  onMarkAllRead={async () => {
+                    await api.markAllNotificationsRead();
+                    await loadData();
+                    setToast('Đã đánh dấu tất cả là đã đọc.');
+                  }}
+                  onClose={() => setNotificationOpen(false)}
+                  onSelectNotification={(item) => {
+                    setNotificationOpen(false);
+                    if (role === 'APPROVER') {
+                      scrollTo('approval-queue');
+                    } else if (role === 'ADMIN') {
+                      if (item.assetCode) scrollTo('admin-assets');
+                      else scrollTo('audit-log');
+                    } else {
+                      if (item.assetCode) scrollTo('assets');
+                      else scrollTo('requests');
+                    }
+                  }}
+                />
+              )}
+            </div>
             <button className="icon-button" aria-label="Đăng xuất" onClick={async () => { await api.logout(); setUser(null); setSessionState('GUEST'); }}>
               <LogOut size={18} />
             </button>
