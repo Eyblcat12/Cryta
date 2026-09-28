@@ -71,8 +71,8 @@
   - [IV. Sơ đồ hoạt động (Activity Diagram)](#iv-sơ-đồ-hoạt-động-activity-diagram)
   - [V. Thiết kế Cơ sở Dữ liệu](#v-thiết-kế-cơ-sở-dữ-liệu)
     - [1. Mô hình Thực thể Liên kết (ERD)](#1-mô-hình-thực-thể-liên-kết-erd)
-    - [2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (Trích xuất từ Supabase)](#2-từ-điển-dữ-liệu-chi-tiết-các-bảng-cơ-sở-dữ-liệu-trích-xuất-từ-supabase)
-    - [3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL](#3-ràng-buộc-toàn-vẹn-triggers--cơ-chế-bảo-mật-tầng-csdl-trích-xuất-từ-supabase)
+    - [2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (PostgreSQL)](#2-từ-điển-dữ-liệu-chi-tiết-các-bảng-cơ-sở-dữ-liệu-postgresql)
+    - [3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL (PostgreSQL)](#3-ràng-buộc-toàn-vẹn-triggers--cơ-chế-bảo-mật-tầng-csdl-postgresql)
 - [CHƯƠNG IV. PHÁT TRIỂN / THỰC THI](#chương-iv-phát-triển--thực-thi)
   - [I. Màn hình Đăng nhập & Đổi mật khẩu bắt buộc](#i-màn-hình-đăng-nhập--đổi-mật-khẩu-bắt-buộc)
   - [II. Màn hình Không gian làm việc cá nhân (User Dashboard)](#ii-màn-hình-không-gian-làm-việc-cá-nhân-user-dashboard)
@@ -175,7 +175,7 @@ Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lự
 
 | Tiêu chí so sánh | Phương pháp Quản lý Truyền thống | Hệ thống Đề xuất |
 | :--- | :--- | :--- |
-| **Phương thức lưu trữ** | Phân tán trên máy trạm, file text, Excel, chat nội bộ | Tập trung trên CSDL Supabase với cơ chế mã hóa và phân quyền |
+| **Phương thức lưu trữ** | Phân tán trên máy trạm, file text, Excel, chat nội bộ | Tập trung trên Hệ quản trị CSDL PostgreSQL với cơ chế mã hóa và phân quyền |
 | **Kiểm soát phê duyệt (SoD)** | Không có hoặc trao đổi miệng, dễ tự cấp quyền | Phân luồng nghiêm ngặt theo phòng ban, DB Trigger chặn tự duyệt |
 | **Theo dõi hạn hiệu lực** | Ghi nhớ thủ công, dễ quên dẫn tới gián đoạn dịch vụ | Tự động quét theo lịch trình và cảnh báo trước 30 ngày qua In-app & Email |
 | **Ứng phó sự cố rò rỉ** | Mất nhiều giờ liên hệ các bên để gỡ bỏ thủ công | CISO kích hoạt Thu hồi khẩn cấp tức thời (Emergency Revocation) |
@@ -203,7 +203,7 @@ Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lự
 ### 4. Nền tảng kỹ thuật lựa chọn
 - **Phía Máy chủ (Backend):** Sử dụng **NestJS (Node.js/TypeScript)** theo mô hình kiến trúc phân tầng (Controller - Service - Module), thiết kế chuẩn RESTful API, tài liệu hóa tự động bằng OpenAPI/Swagger UI (`/docs`).
 - **Phía Giao diện (Frontend):** Ứng dụng Single Page Application (SPA) xây dựng bằng **React 19, TypeScript và Vite**, thiết kế giao diện theo phong cách Dashboard hiện đại, tích hợp Bảng thông báo nổi (`NotificationPopover`).
-- **Cơ sở Dữ liệu (Database):** Hệ quản trị **PostgreSQL 15** (lưu trữ đám mây Supabase), tận dụng các ràng buộc CHECK, Foreign Key và Database Trigger để thực thi logic SoD và tính bất biến của nhật ký kiểm toán ở tầng vật lý.
+- **Cơ sở Dữ liệu (Database):** Hệ quản trị cơ sở dữ liệu quan hệ **PostgreSQL 15**, tận dụng các ràng buộc CHECK, Foreign Key và Database Trigger để thực thi logic SoD và tính bất biến của nhật ký kiểm toán ở tầng vật lý.
 
 ---
 
@@ -491,7 +491,7 @@ sequenceDiagram
     actor U as Người dùng (User / Approver / Admin)
     participant UI as React Frontend
     participant API as Backend (Auth Module)
-    participant DB as PostgreSQL (Supabase)
+    participant DB as PostgreSQL Database
 
     U->>UI: 1. Nhập email & mật khẩu (Password@123)
     UI->>API: 2. POST /api/v1/auth/login
@@ -552,7 +552,7 @@ sequenceDiagram
     actor C as CISO (ciso@congty.com)
     participant UI as React Frontend
     participant API as Backend API
-    participant DB as PostgreSQL (Supabase)
+    participant DB as PostgreSQL Database
     actor Owner as Chủ sở hữu tài sản
 
     C->>UI: 1. Phát hiện sự cố lộ khóa bí mật trên máy chủ
@@ -578,7 +578,7 @@ sequenceDiagram
     participant UI as React Frontend (Header)
     participant Pop as NotificationPopover Component
     participant API as Backend API
-    participant DB as PostgreSQL (Supabase)
+    participant DB as PostgreSQL Database
 
     DB-->>UI: 1. Có thông báo mới (read_at IS NULL)
     UI->>UI: 2. Quả chuông trên Header bật chấm đỏ (.has-alert)
@@ -661,13 +661,13 @@ erDiagram
 ```
 *Hình 3.9: Sơ đồ Thực thể Liên kết CSDL (ERD)*
 
-### 2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (Trích xuất từ Supabase)
+### 2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (PostgreSQL)
 
-Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên nền tảng **PostgreSQL (Supabase Cloud)** với 15 bảng nghiệp vụ chính, được thiết kế chuẩn hóa mức 3NF và tích hợp các ràng buộc khóa ngoại (Foreign Key), chỉ mục (Index) và cơ chế khóa phiên bản lạc quan (Optimistic Concurrency Control). Dưới đây là đặc tả chi tiết 100% các cột và kiểu dữ liệu thực tế đang vận hành:
+Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên nền tảng **Hệ quản trị CSDL quan hệ PostgreSQL 15** với 15 bảng nghiệp vụ chính, được thiết kế chuẩn hóa mức 3NF và tích hợp các ràng buộc khóa ngoại (Foreign Key), chỉ mục (Index) và cơ chế khóa phiên bản lạc quan (Optimistic Concurrency Control). Dưới đây là đặc tả chi tiết các cột và kiểu dữ liệu thực tế đang vận hành:
 
 #### Bảng 3.1: departments — Quản lý Danh mục Phòng ban Tổ chức
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `DEPARTMENTS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `DEPARTMENTS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `4` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -683,7 +683,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.2: roles — Quản lý Danh mục Vai trò Hệ thống (RBAC)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `ROLES` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `ROLES` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -697,7 +697,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.3: users — Quản lý Thông tin Tài khoản & Trạng thái Bảo mật
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USERS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USERS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -720,7 +720,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.4: user_roles — Phân quyền Người dùng theo Vai trò (Quan hệ N-N)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USER_ROLES` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USER_ROLES` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -734,7 +734,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.5: auth_sessions — Quản lý Phiên Đăng nhập & Refresh Token
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUTH_SESSIONS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUTH_SESSIONS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `70` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -754,7 +754,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.6: approver_scopes — Cấu hình Phạm vi Phê duyệt theo Phòng ban của Approver
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `APPROVER_SCOPES` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `APPROVER_SCOPES` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -768,7 +768,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.7: policies — Danh mục Chính sách Mật mã Doanh nghiệp
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICIES` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICIES` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `6` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -784,7 +784,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.8: policy_versions — Phiên bản Cấu hình Tham số Chính sách (Versioning)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICY_VERSIONS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICY_VERSIONS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `9` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -801,7 +801,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.9: crypto_assets — Siêu dữ liệu Quản lý Vòng đời Tài sản Mật mã
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTO_ASSETS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTO_ASSETS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `20` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -826,7 +826,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.10: cryptographic_keys — Chi tiết Khóa Mật mã Đối xứng & Bất đối xứng
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTOGRAPHIC_KEYS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTOGRAPHIC_KEYS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `13` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -841,7 +841,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.11: certificates — Chi tiết Chứng chỉ Số X.509
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CERTIFICATES` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CERTIFICATES` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `7` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -857,7 +857,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.12: requests — Đơn Yêu cầu Vòng đời Mật mã (Cấp mới / Gia hạn / Thu hồi)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUESTS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUESTS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `25` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -882,7 +882,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.13: request_decisions — Quyết định Thẩm định & Phê duyệt Đơn (Tuân thủ SoD)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUEST_DECISIONS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUEST_DECISIONS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `16` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -898,7 +898,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.14: notifications — Hàng đợi Thông báo Ứng dụng & Cảnh báo Hết hạn
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `NOTIFICATIONS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `NOTIFICATIONS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `95` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -923,7 +923,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 #### Bảng 3.15: audit_logs — Nhật ký Kiểm toán An ninh Bất biến (Tamper-proof Audit Log)
 
-- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUDIT_LOGS` trên Supabase PostgreSQL.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUDIT_LOGS` trong hệ cơ sở dữ liệu PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `150` bản ghi.
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
@@ -942,9 +942,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-### 3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL (Trích xuất từ Supabase)
+### 3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL (PostgreSQL)
 
-Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ngặt ở mức thấp nhất (Database Engine) thông qua hệ thống **Stored Procedures và Triggers** viết bằng PL/pgSQL trên Supabase PostgreSQL, đảm bảo dù có truy cập trực tiếp bằng SQL Console thì cũng không thể phá vỡ tính toàn vẹn:
+Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ngặt ở mức thấp nhất (Database Engine) thông qua hệ thống **Stored Procedures và Triggers** viết bằng ngôn ngữ PL/pgSQL trên PostgreSQL, đảm bảo dù có truy cập trực tiếp bằng công cụ dòng lệnh (psql) hay SQL Client thì cũng không thể phá vỡ tính toàn vẹn:
 
 #### a. Hệ thống Triggers Kiểm soát Phân tách Trách nhiệm (SoD Enforcement)
 - **Trigger `trg_request_decision_sod` (Bảng `request_decisions`):**
@@ -970,7 +970,7 @@ Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ng�
 - Các bảng dữ liệu chính (`departments`, `users`, `policies`, `crypto_assets`, `requests`) đều được gắn trigger tự động cập nhật trường `updated_at = NOW()` trước mỗi thao tác sửa đổi (`BEFORE UPDATE` thực thi hàm `set_updated_at()`).
 
 #### d. Chiến lược Đánh chỉ mục (Indexing Strategy)
-- Supabase Database được cấu hình tổng cộng **48 chỉ mục (Indexes)** tối ưu hóa:
+- Cơ sở dữ liệu PostgreSQL được cấu hình tổng cộng **48 chỉ mục (Indexes)** tối ưu hóa:
   - Chỉ mục B-Tree trên toàn bộ các khóa ngoại (`department_id`, `owner_id`, `creator_id`, `policy_version_id`) giúp các câu lệnh `JOIN` giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt O(log N).
   - Chỉ mục một phần (Partial Indexes) trên `requests(status)` và `notifications(read_at)` lọc nhanh các đơn `PENDING` và thông báo chưa đọc mà không cần quét toàn bộ bảng (Table Scan).
 
