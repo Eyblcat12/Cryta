@@ -984,27 +984,53 @@ Dưới đây là hình ảnh và đặc tả chi tiết các màn hình chức 
 
 ## I. Màn hình Đăng nhập & Đổi mật khẩu bắt buộc
 - **Mô tả chức năng:** Cho phép người dùng đăng nhập bằng tài khoản email công ty. Hệ thống hiển thị sẵn danh sách tài khoản mẫu theo từng vai trò để thuận tiện kiểm thử. Khi đăng nhập bằng tài khoản được tạo mới hoặc reset mật khẩu, cờ `must_change_password = true` sẽ kích hoạt hộp thoại `PasswordChangeDialog` bắt buộc người dùng nhập mật khẩu mới trước khi truy cập ứng dụng.
-- **Minh chứng giao diện:** *(Hình 4.1)*
+- **Minh chứng giao diện:**
+
+![Giao diện Đăng nhập hệ thống](images/hinh_4_1_dang_nhap.png)
+
+![Hộp thoại Đổi mật khẩu ban đầu bắt buộc](images/hinh_4_1_doi_mat_khau.png)
+
+*Hình 4.1: Giao diện Đăng nhập hệ thống và Hộp thoại Đổi mật khẩu bắt buộc*
 
 ## II. Màn hình Không gian làm việc cá nhân (User Dashboard)
 - **Mô tả chức năng:** Dành cho nhân viên nghiệp vụ (vai trò USER như `dev.nguyen`). Cung cấp bảng thống kê số lượng tài sản sở hữu, thẻ cảnh báo nếu có chứng chỉ sắp hết hạn trong 30 ngày, bảng quản lý tài sản có bộ lọc trạng thái và nút "Tải xuống" để xuất Public Key dạng PEM. Phía dưới là danh sách các yêu cầu cấp phát gần đây kèm nút "Hủy đơn" đối với các yêu cầu đang ở trạng thái `PENDING`.
-- **Minh chứng giao diện:** *(Hình 4.2)*
+- **Minh chứng giao diện:**
+
+![Giao diện Dashboard cá nhân của Requester và Bảng tài sản mật mã](images/hinh_4_2_dashboard_ca_nhan.png)
+
+*Hình 4.2: Giao diện Dashboard cá nhân của Requester và Bảng tài sản mật mã*
 
 ## III. Màn hình Hàng đợi duyệt phòng ban (Approval Queue) & Quyết định
 - **Mô tả chức năng:** Dành cho Quản lý phòng ban (vai trò APPROVER như `it.manager`). Hệ thống tự động lọc và hiển thị danh sách các đơn chờ duyệt trong phạm vi phụ trách (`approver_scopes`). Màn hình hiển thị chi tiết thông tin người gửi, thuật toán, mục đích sử dụng. Phía dưới là thanh quyết định với 2 lựa chọn: "Từ chối" (mở modal nhập lý do) và "Phê duyệt yêu cầu" (tự động kích hoạt worker sinh khóa).
-- **Minh chứng giao diện:** *(Hình 4.3)*
+- **Minh chứng giao diện:**
+
+![Giao diện Hàng đợi duyệt của Approver và Thanh quyết định duyệt đơn](images/hinh_4_3_hang_doi_duyet.png)
+
+*Hình 4.3: Giao diện Hàng đợi duyệt của Approver và Thanh quyết định duyệt đơn*
 
 ## IV. Màn hình Bảng thông báo nổi (Notification Popover)
 - **Mô tả chức năng:** Được tích hợp trực tiếp vào biểu tượng quả chuông trên thanh Header. Khi có thông báo mới (yêu cầu được duyệt, đơn mới cần duyệt, tài sản sắp hết hạn), chuông hiển thị chấm đỏ cảnh báo (`.has-alert`). Khi bấm vào chuông, bảng `NotificationPopover` xổ xuống mượt mà hiển thị 15 tin mới nhất với icon phân loại màu sắc (Xanh: Duyệt; Đỏ: Từ chối/Thu hồi; Vàng: Sắp hết hạn). Có nút "Đánh dấu đã đọc" để xóa chấm đỏ tức thì.
-- **Minh chứng giao diện:** *(Hình 4.4)*
+- **Minh chứng giao diện:**
+
+![Giao diện Bảng thông báo nổi Notification Popover trên thanh Header](images/hinh_4_4_bang_thong_bao_noi.png)
+
+*Hình 4.4: Giao diện Bảng thông báo nổi Notification Popover trên thanh Header*
 
 ## V. Màn hình Quản trị Chính sách & Thu hồi khẩn cấp
 - **Mô tả chức năng:** Dành cho Giám đốc An toàn Thông tin (CISO) và Quản trị viên (`ciso@congty.com`). Cho phép tạo mới chính sách mật mã hoặc nâng cấp phiên bản (Policy Versioning v1/v2) siết chặt thời hạn sử dụng. Đặc biệt, CISO có thể chọn bất kỳ tài sản nào bị nghi ngờ rò rỉ khóa và nhấn nút "Thu hồi khẩn cấp" để lập tức chuyển trạng thái tài sản sang `REVOKED` mà không cần qua quy trình duyệt đơn.
-- **Minh chứng giao diện:** *(Hình 4.5)*
+- **Minh chứng giao diện:**
+
+![Giao diện Quản trị Chính sách (Policy Versioning) và Nút Thu hồi khẩn cấp của CISO](images/hinh_4_5_quan_tri_chinh_sach_thu_hoi.png)
+
+*Hình 4.5: Giao diện Quản trị Chính sách (Policy Versioning) và Nút Thu hồi khẩn cấp của CISO*
 
 ## VI. Màn hình Nhật ký kiểm toán bất biến (Audit Logs)
 - **Mô tả chức năng:** Cho phép Quản trị viên tra cứu toàn bộ vết thao tác trên hệ thống. Dữ liệu được sắp xếp theo dòng thời gian giảm dần, hiển thị rõ thời điểm, tác nhân, hành động (`AUTH_LOGIN`, `REQUEST_CREATED`, `EMERGENCY_REVOKE`), địa chỉ IP và kết quả thực thi (`SUCCESS`/`FAILED`). Có bộ lọc nhanh theo loại hành vi và kết quả.
-- **Minh chứng giao diện:** *(Hình 4.6)*
+- **Minh chứng giao diện:**
+
+![Giao diện Tra cứu Nhật ký kiểm toán bất biến (Audit Logs Console)](images/hinh_4_6_nhat_ky_kiem_toan.png)
+
+*Hình 4.6: Giao diện Tra cứu Nhật ký kiểm toán bất biến (Audit Logs Console)*
 
 ---
 
