@@ -563,28 +563,25 @@ sequenceDiagram
 ## IV. Sơ đồ hoạt động (Activity Diagram)
 
 ```mermaid
-flowchart LR
-    Start([● Bắt đầu]) --> CreateReq[1. Requester nộp đơn xin cấp]
-    CreateReq --> ValPolicy{Policy hợp lệ?}
-    
-    ValPolicy -->|Không| ShowErr[Báo lỗi vi phạm]
-    ShowErr -.->|Sửa lại| CreateReq
-    ValPolicy -->|Hợp lệ| SaveReq[2. Lưu PENDING & Báo Approver]
-    
-    SaveReq --> ViewQueue[3. Approver mở Hàng đợi]
-    ViewQueue --> CheckSoD{Trùng người tạo?<br/>SoD check}
-    
-    CheckSoD -->|Vi phạm| BlockApprove[Báo lỗi SoD: Cấm tự duyệt]
-    CheckSoD -->|Hợp lệ| Decision{Quyết định duyệt?}
-    
-    Decision -->|Từ chối| RejectReq[4a. Cập nhật REJECTED]
-    RejectReq --> EndFail([◉ Kết thúc])
-    
-    Decision -->|Đồng ý| ApproveReq[4b. Cập nhật APPROVED]
-    ApproveReq --> WorkerGen[5. Worker tự động sinh Khóa ngầm]
-    WorkerGen --> SaveAsset[6. Kích hoạt ACTIVE & Ghi Audit Log]
-    SaveAsset --> DownloadKey[7. Requester tải Public Key PEM]
-    DownloadKey --> EndOk([◉ Hoàn thành])
+flowchart TD
+    Start([● Bắt đầu: Requester nộp đơn xin cấp]) --> CheckPol{1. Thẩm tra Policy<br/>tham số hợp lệ?}
+
+    CheckPol -->|Không hợp lệ| ErrPol[Báo lỗi vi phạm chính sách]
+    ErrPol -.->|Sửa lại đơn| Start
+
+    CheckPol -->|Hợp lệ| Pending[2. Ghi nhận PENDING & Đưa vào Hàng đợi duyệt]
+
+    Pending --> Decide{3. Approver thẩm định SoD<br/>& Quyết định phê duyệt?}
+
+    Decide -->|Vi phạm SoD| BlockSoD[Vô hiệu hóa duyệt: Báo lỗi SoD]
+    BlockSoD --> EndSoD([◉ Dừng: Vi phạm SoD])
+
+    Decide -->|Từ chối| Rej[4a. Cập nhật REJECTED kèm lý do]
+    Rej --> EndRej([◉ Kết thúc: Đơn bị từ chối])
+
+    Decide -->|Đồng ý duyệt| Approve[4b. APPROVED: Worker tự động sinh Khóa ngầm]
+    Approve --> Finish[5. Kích hoạt ACTIVE & Bàn giao Public Key PEM]
+    Finish --> EndOk([◉ Hoàn thành quy trình cấp phát])
 ```
 *Hình 3.8: Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt*
 
