@@ -1,6 +1,6 @@
-# BỘ KHOA HỌC VÀ CÔNG NGHỆ
+# BỘ THÔNG TIN VÀ TRUYỀN THÔNG
 # HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG
-### KHOA CÔNG NGHỆ THÔNG TIN
+### KHOA AN TOÀN THÔNG TIN & CÔNG NGHỆ THÔNG TIN
 ---
 
 <br/>
@@ -15,8 +15,8 @@
 
 <br/>
 
-**Giảng viên hướng dẫn:** ThS. [Điền tên Giảng viên hướng dẫn]  
-**Nhóm sinh viên thực hiện:** Nhóm [Điền số nhóm]  
+**Giảng viên hướng dẫn:** ThS. [Giảng viên hướng dẫn]  
+**Nhóm sinh viên thực hiện:**  
 
 | STT | Họ và tên sinh viên | Mã số sinh viên (MSSV) | Lớp sinh viên | Vai trò trong nhóm |
 | :-: | :--- | :-: | :-: | :-: |
@@ -56,12 +56,23 @@
     - [3. Chức năng của đối tượng CISO / Security Admin (Giám đốc Bảo mật)](#3-chức-năng-của-đối-tượng-ciso--security-admin-giám-đốc-bảo-mật)
     - [4. Chức năng của đối tượng System Admin (Quản trị viên hệ thống)](#4-chức-năng-của-đối-tượng-system-admin-quản-trị-viên-hệ-thống)
   - [V. Yêu cầu chức năng hệ thống và Yêu cầu chất lượng](#v-yêu-cầu-chức-năng-hệ-thống-và-yêu-cầu-chất-lượng)
+    - [1. Yêu cầu chức năng hệ thống](#1-yêu-cầu-chức-năng-hệ-thống)
+    - [2. Yêu cầu chất lượng (Phi chức năng)](#2-yêu-cầu-chất-lượng-phi-chức-năng)
 - [CHƯƠNG III. PHÂN TÍCH THIẾT KẾ HỆ THỐNG](#chương-iii-phân-tích-thiết-kế-hệ-thống)
   - [I. Sơ đồ Use Case](#i-sơ-đồ-use-case)
   - [II. Sơ đồ trạng thái (State Diagram)](#ii-sơ-đồ-trạng-thái-state-diagram)
+    - [1. Máy trạng thái Đơn yêu cầu (Request State Machine)](#1-máy-trạng-thái-đơn-yêu-cầu-request-state-machine)
+    - [2. Máy trạng thái Tài sản Mật mã (Asset State Machine)](#2-máy-trạng-thái-tài-sản-mật-mã-asset-state-machine)
   - [III. Sơ đồ tuần tự (Sequence Diagram)](#iii-sơ-đồ-tuần-tự-sequence-diagram)
+    - [1. Sơ đồ Tuần tự luồng Xác thực & Đổi mật khẩu bắt buộc (UC-01)](#1-sơ-đồ-tuần-tự-luồng-xác-thực--đổi-mật-khẩu-bắt-buộc-uc-01)
+    - [2. Sơ đồ Tuần tự luồng Phê duyệt & Kiểm soát Phân tách Trách nhiệm SoD (UC-07)](#2-sơ-đồ-tuần-tự-luồng-phê-duyệt--kiểm-soát-phân-tách-trách-nhiệm-sod-uc-07)
+    - [3. Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10)](#3-sơ-đồ-tuần-tự-luồng-thu-hồi-tài-sản-khẩn-cấp-uc-10)
+    - [4. Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 & UC-UI-01)](#4-sơ-đồ-tuần-tự-luồng-bảng-thông-báo-nổi-notification-popover-uc-12--uc-ui-01)
   - [IV. Sơ đồ hoạt động (Activity Diagram)](#iv-sơ-đồ-hoạt-động-activity-diagram)
   - [V. Thiết kế Cơ sở Dữ liệu](#v-thiết-kế-cơ-sở-dữ-liệu)
+    - [1. Mô hình Thực thể Liên kết (ERD)](#1-mô-hình-thực-thể-liên-kết-erd)
+    - [2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (Trích xuất từ Supabase)](#2-từ-điển-dữ-liệu-chi-tiết-các-bảng-cơ-sở-dữ-liệu-trích-xuất-từ-supabase)
+    - [3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL](#3-ràng-buộc-toàn-vẹn-triggers--cơ-chế-bảo-mật-tầng-csdl-trích-xuất-từ-supabase)
 - [CHƯƠNG IV. PHÁT TRIỂN / THỰC THI](#chương-iv-phát-triển--thực-thi)
   - [I. Màn hình Đăng nhập & Đổi mật khẩu bắt buộc](#i-màn-hình-đăng-nhập--đổi-mật-khẩu-bắt-buộc)
   - [II. Màn hình Không gian làm việc cá nhân (User Dashboard)](#ii-màn-hình-không-gian-làm-việc-cá-nhân-user-dashboard)
@@ -72,6 +83,8 @@
 - [CHƯƠNG V. KẾT LUẬN](#chương-v-kết-luận)
   - [I. Kết quả đã thực hiện](#i-kết-quả-đã-thực-hiện)
   - [II. Ưu khuyết điểm](#ii-ưu-khuyết-điểm)
+    - [1. Ưu điểm](#1-ưu-điểm)
+    - [2. Khuyết điểm / Điểm hạn chế](#2-khuyết-điểm--điểm-hạn-chế)
   - [III. Hướng mở rộng trong tương lai](#iii-hướng-mở-rộng-trong-tương-lai)
 - [TÀI LIỆU THAM KHẢO](#tài-liệu-tham-khảo)
 
@@ -104,11 +117,21 @@
 - **Bảng 2.2:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng Approver (Quản lý).
 - **Bảng 2.3:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng CISO (Giám đốc Bảo mật).
 - **Bảng 2.4:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng System Admin (Quản trị viên).
-- **Bảng 3.1:** Bảng cấu trúc CSDL `users` (Thông tin tài khoản).
-- **Bảng 3.2:** Bảng cấu trúc CSDL `crypto_assets` (Siêu dữ liệu tài sản mật mã).
-- **Bảng 3.3:** Bảng cấu trúc CSDL `requests` (Đơn yêu cầu nghiệp vụ).
-- **Bảng 3.4:** Bảng cấu trúc CSDL `audit_logs` (Nhật ký kiểm toán bất biến).
-- **Bảng 3.5:** Bảng cấu trúc CSDL `notifications` (Thông báo ứng dụng).
+- **Bảng 3.1:** Bảng cấu trúc CSDL `departments` (Quản lý danh mục phòng ban tổ chức).
+- **Bảng 3.2:** Bảng cấu trúc CSDL `roles` (Quản lý danh mục vai trò hệ thống RBAC).
+- **Bảng 3.3:** Bảng cấu trúc CSDL `users` (Quản lý thông tin tài khoản & trạng thái bảo mật).
+- **Bảng 3.4:** Bảng cấu trúc CSDL `user_roles` (Liên kết vai trò và người dùng).
+- **Bảng 3.5:** Bảng cấu trúc CSDL `auth_sessions` (Quản lý phiên đăng nhập và mã làm mới).
+- **Bảng 3.6:** Bảng cấu trúc CSDL `approver_scopes` (Phạm vi phê duyệt đơn theo phòng ban).
+- **Bảng 3.7:** Bảng cấu trúc CSDL `policies` (Định nghĩa chính sách an toàn mật mã).
+- **Bảng 3.8:** Bảng cấu trúc CSDL `policy_versions` (Các phiên bản tham số chính sách mật mã).
+- **Bảng 3.9:** Bảng cấu trúc CSDL `crypto_assets` (Siêu dữ liệu quản lý tài sản mật mã).
+- **Bảng 3.10:** Bảng cấu trúc CSDL `cryptographic_keys` (Chi tiết thông số kỹ thuật cặp khóa mật mã).
+- **Bảng 3.11:** Bảng cấu trúc CSDL `certificates` (Chi tiết chứng chỉ số X.509).
+- **Bảng 3.12:** Bảng cấu trúc CSDL `requests` (Đơn yêu cầu vòng đời mật mã).
+- **Bảng 3.13:** Bảng cấu trúc CSDL `request_decisions` (Quyết định thẩm định và phê duyệt đơn SoD).
+- **Bảng 3.14:** Bảng cấu trúc CSDL `notifications` (Hàng đợi thông báo ứng dụng và cảnh báo).
+- **Bảng 3.15:** Bảng cấu trúc CSDL `audit_logs` (Nhật ký kiểm toán an ninh bất biến).
 
 ---
 
@@ -149,6 +172,18 @@ Tuy nhiên, tại nhiều doanh nghiệp, công tác quản lý tài sản mật
 4. **Không có quy trình ứng phó rò rỉ khẩn cấp:** Khi phát hiện máy chủ bị tấn công hoặc khóa bí mật bị đẩy nhầm lên kho mã nguồn công khai (GitHub), người quản trị bảo mật (CISO) không có công cụ thu hồi tài sản mật mã tức thời trên toàn hệ thống.
 
 Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lựa chọn đề tài: **"Xây dựng Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp"** cho đồ án môn học Thiết kế Hệ thống Thông tin nhằm cung cấp một giải pháp quản trị tập trung, an toàn, minh bạch và tự động hóa cao.
+
+| Tiêu chí so sánh | Phương pháp Quản lý Truyền thống | Hệ thống Đề xuất |
+| :--- | :--- | :--- |
+| **Phương thức lưu trữ** | Phân tán trên máy trạm, file text, Excel, chat nội bộ | Tập trung trên CSDL Supabase với cơ chế mã hóa và phân quyền |
+| **Kiểm soát phê duyệt (SoD)** | Không có hoặc trao đổi miệng, dễ tự cấp quyền | Phân luồng nghiêm ngặt theo phòng ban, DB Trigger chặn tự duyệt |
+| **Theo dõi hạn hiệu lực** | Ghi nhớ thủ công, dễ quên dẫn tới gián đoạn dịch vụ | Tự động quét theo lịch trình và cảnh báo trước 30 ngày qua In-app & Email |
+| **Ứng phó sự cố rò rỉ** | Mất nhiều giờ liên hệ các bên để gỡ bỏ thủ công | CISO kích hoạt Thu hồi khẩn cấp tức thời (Emergency Revocation) |
+| **Tính toàn vẹn kiểm toán** | Dễ bị chỉnh sửa hoặc xóa log trên máy chủ | Bảng `audit_logs` bất biến (Append-only), cấm UPDATE/DELETE bằng Trigger |
+
+*Bảng 1.1: So sánh các giải pháp quản lý khóa truyền thống và hệ thống đề xuất*
+
+<br/>
 
 ### 2. Mục tiêu của đề tài
 - **Chuẩn hóa quy trình nghiệp vụ:** Xây dựng quy trình nghiệp vụ khép kín từ lúc nộp đơn xin cấp phát, quản lý phân luồng phê duyệt theo phòng ban, tự động sinh khóa/chứng chỉ, gia hạn tài sản, cho đến thu hồi khi hết nhu cầu.
@@ -247,6 +282,8 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 | **10** | Xem Bảng thông báo nổi | Tra cứu | - Quả chuông trên Header hiển thị chấm đỏ khi có tin chưa đọc<br/>- Click chuông mở Notification Popover hiển thị 15 thông báo mới nhất | Notification Popover | UC-12 |
 | **11** | Đánh dấu đã đọc thông báo | Lưu trữ | - Bấm nút "Đánh dấu đã đọc" trên Popover để cập nhật `read_at = NOW()`<br/>- Chấm đỏ cảnh báo trên quả chuông tắt ngay lập tức | Nút Đánh dấu đã đọc | UC-12 |
 
+*Bảng 2.1: Bảng yêu cầu chức năng nghiệp vụ của đối tượng Requester (Nhân viên)*
+
 ### 2. Chức năng của đối tượng Approver (Quản lý / Người phê duyệt)
 
 | STT | Công việc | Loại công việc | Quy định / Công thức liên quan | Biểu mẫu liên quan | Ghi chú |
@@ -256,6 +293,8 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 | **3** | Từ chối đơn yêu cầu | Xử lý | - Bắt buộc nhập lời phê từ chối (Comment)<br/>- Đơn chuyển trạng thái `REJECTED`, gửi thông báo về cho Requester | Hộp thoại Từ chối | UC-07 |
 | **4** | Báo cáo tài sản phòng ban | Trích xuất | - Thống kê tổng số tài sản phòng ban, số đơn tồn đọng, thời gian chờ duyệt trung bình của nhân viên | Approver Dashboard | UC-08 |
 | **5** | Xem lịch sử xử lý đơn | Trích xuất | - Tra cứu danh sách các đơn đã được duyệt hoặc từ chối gần đây trong phạm vi phòng ban của mình | Bảng Lịch sử xử lý | UC-08 |
+
+*Bảng 2.2: Bảng yêu cầu chức năng nghiệp vụ của đối tượng Approver (Quản lý)*
 
 ### 3. Chức năng của đối tượng CISO / Security Admin (Giám đốc Bảo mật)
 
@@ -267,6 +306,8 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 | **4** | Tra cứu Nhật ký kiểm toán | Tra cứu | - Tra cứu dòng thời gian toàn bộ các sự kiện kiểm toán<br/>- Hỗ trợ lọc theo hành động, tác nhân, kết quả và ngày tạo | Bảng Audit Log | UC-11 |
 | **5** | Giám sát Dashboard an toàn | Trích xuất | - Theo dõi biểu đồ tỷ lệ loại tài sản toàn công ty, tài sản sắp hết hạn, trạng thái kết nối các dịch vụ nền | Admin Dashboard | UC-12 |
 
+*Bảng 2.3: Bảng yêu cầu chức năng nghiệp vụ của đối tượng CISO (Giám đốc Bảo mật)*
+
 ### 4. Chức năng của đối tượng System Admin (Quản trị viên hệ thống)
 
 | STT | Công việc | Loại công việc | Quy định / Công thức liên quan | Biểu mẫu liên quan | Ghi chú |
@@ -276,6 +317,8 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 | **3** | Khóa / Kích hoạt tài khoản | Lưu trữ | - Chuyển trạng thái người dùng thành `INACTIVE`<br/>- Vô hiệu hóa ngay lập tức mọi phiên đăng nhập và token hiện có | Nút Khóa/Mở tài khoản | UC-14 |
 | **4** | Phân vai trò người dùng | Lưu trữ | - Gán các vai trò `USER`, `APPROVER`, `ADMIN`<br/>- Hệ thống ngăn chặn việc gỡ vai trò Admin cuối cùng | Modal Phân quyền | UC-15 |
 | **5** | Phân luồng Scopes duyệt | Lưu trữ | - Gán danh sách các phòng ban mà một Approver được quyền xem và phê duyệt yêu cầu | Modal Gán Scopes | UC-15 |
+
+*Bảng 2.4: Bảng yêu cầu chức năng nghiệp vụ của đối tượng System Admin (Quản trị viên)*
 
 ---
 
@@ -622,7 +665,7 @@ erDiagram
 
 Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên nền tảng **PostgreSQL (Supabase Cloud)** với 15 bảng nghiệp vụ chính, được thiết kế chuẩn hóa mức 3NF và tích hợp các ràng buộc khóa ngoại (Foreign Key), chỉ mục (Index) và cơ chế khóa phiên bản lạc quan (Optimistic Concurrency Control). Dưới đây là đặc tả chi tiết 100% các cột và kiểu dữ liệu thực tế đang vận hành:
 
-#### 1. Bảng `departments` — Quản lý Danh mục Phòng ban Tổ chức
+#### Bảng 3.1: departments — Quản lý Danh mục Phòng ban Tổ chức
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `DEPARTMENTS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `4` bản ghi.
@@ -638,7 +681,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 2. Bảng `roles` — Quản lý Danh mục Vai trò Hệ thống (RBAC)
+#### Bảng 3.2: roles — Quản lý Danh mục Vai trò Hệ thống (RBAC)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `ROLES` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
@@ -652,7 +695,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 3. Bảng `users` — Quản lý Thông tin Tài khoản & Trạng thái Bảo mật
+#### Bảng 3.3: users — Quản lý Thông tin Tài khoản & Trạng thái Bảo mật
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USERS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
@@ -675,7 +718,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 4. Bảng `user_roles` — Phân quyền Người dùng theo Vai trò (Quan hệ N-N)
+#### Bảng 3.4: user_roles — Phân quyền Người dùng theo Vai trò (Quan hệ N-N)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USER_ROLES` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
@@ -689,7 +732,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 5. Bảng `auth_sessions` — Quản lý Phiên Đăng nhập & Refresh Token
+#### Bảng 3.5: auth_sessions — Quản lý Phiên Đăng nhập & Refresh Token
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUTH_SESSIONS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `70` bản ghi.
@@ -709,7 +752,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 6. Bảng `approver_scopes` — Cấu hình Phạm vi Phê duyệt theo Phòng ban của Approver
+#### Bảng 3.6: approver_scopes — Cấu hình Phạm vi Phê duyệt theo Phòng ban của Approver
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `APPROVER_SCOPES` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
@@ -723,7 +766,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 7. Bảng `policies` — Danh mục Chính sách Mật mã Doanh nghiệp
+#### Bảng 3.7: policies — Danh mục Chính sách Mật mã Doanh nghiệp
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICIES` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `6` bản ghi.
@@ -739,7 +782,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 8. Bảng `policy_versions` — Phiên bản Cấu hình Tham số Chính sách (Versioning)
+#### Bảng 3.8: policy_versions — Phiên bản Cấu hình Tham số Chính sách (Versioning)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICY_VERSIONS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `9` bản ghi.
@@ -756,7 +799,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 9. Bảng `crypto_assets` — Siêu dữ liệu Quản lý Vòng đời Tài sản Mật mã
+#### Bảng 3.9: crypto_assets — Siêu dữ liệu Quản lý Vòng đời Tài sản Mật mã
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTO_ASSETS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `20` bản ghi.
@@ -781,7 +824,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 10. Bảng `cryptographic_keys` — Chi tiết Khóa Mật mã Đối xứng & Bất đối xứng
+#### Bảng 3.10: cryptographic_keys — Chi tiết Khóa Mật mã Đối xứng & Bất đối xứng
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTOGRAPHIC_KEYS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `13` bản ghi.
@@ -796,7 +839,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 11. Bảng `certificates` — Chi tiết Chứng chỉ Số X.509
+#### Bảng 3.11: certificates — Chi tiết Chứng chỉ Số X.509
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CERTIFICATES` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `7` bản ghi.
@@ -812,7 +855,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 12. Bảng `requests` — Đơn Yêu cầu Vòng đời Mật mã (Cấp mới / Gia hạn / Thu hồi)
+#### Bảng 3.12: requests — Đơn Yêu cầu Vòng đời Mật mã (Cấp mới / Gia hạn / Thu hồi)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUESTS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `25` bản ghi.
@@ -837,7 +880,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 13. Bảng `request_decisions` — Quyết định Thẩm định & Phê duyệt Đơn (Tuân thủ SoD)
+#### Bảng 3.13: request_decisions — Quyết định Thẩm định & Phê duyệt Đơn (Tuân thủ SoD)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUEST_DECISIONS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `16` bản ghi.
@@ -853,7 +896,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 14. Bảng `notifications` — Hàng đợi Thông báo Ứng dụng & Cảnh báo Hết hạn
+#### Bảng 3.14: notifications — Hàng đợi Thông báo Ứng dụng & Cảnh báo Hết hạn
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `NOTIFICATIONS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `95` bản ghi.
@@ -878,7 +921,7 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 ---
 
-#### 15. Bảng `audit_logs` — Nhật ký Kiểm toán An ninh Bất biến (Tamper-proof Audit Log)
+#### Bảng 3.15: audit_logs — Nhật ký Kiểm toán An ninh Bất biến (Tamper-proof Audit Log)
 
 - **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUDIT_LOGS` trên Supabase PostgreSQL.
 - **Số lượng bản ghi thực tế trong DB:** `150` bản ghi.
