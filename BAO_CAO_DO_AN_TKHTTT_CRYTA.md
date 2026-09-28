@@ -327,8 +327,8 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 ### 1. Yêu cầu chức năng hệ thống
 - **Quản lý phiên làm việc tập trung:** Phiên đăng nhập được duy trì thông qua cặp token JWT: Access Token (thời hạn 15 phút) và Refresh Token được lưu trữ trong HttpOnly Cookie có cờ `Secure`, chống tấn công XSS.
 - **Tiến trình chạy ngầm (Background Worker):** Định kỳ mỗi giờ quét kiểm tra toàn bộ bảng `crypto_assets`:
-  - Nếu `expires_at <= NOW() + 30 days` và trạng thái đang là `ACTIVE` $\rightarrow$ Chuyển sang `EXPIRING_SOON` và gửi thông báo cảnh báo.
-  - Nếu `expires_at <= NOW()` và chưa được gia hạn $\rightarrow$ Tự động chuyển vĩnh viễn sang `EXPIRED`.
+  - Nếu `expires_at <= NOW() + 30 days` và trạng thái đang là `ACTIVE` → Chuyển sang `EXPIRING_SOON` và gửi thông báo cảnh báo.
+  - Nếu `expires_at <= NOW()` và chưa được gia hạn → Tự động chuyển vĩnh viễn sang `EXPIRED`.
 - **Ghép nối khóa tự động:** Khi phê duyệt một đơn cấp chứng chỉ số, hệ thống tự động sinh ngầm một cặp khóa bất đối xứng và lưu vào trường `certificates.public_key_asset_id`.
 
 ### 2. Yêu cầu chất lượng (Phi chức năng)
@@ -672,9 +672,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của phòng ban (UUID v4 tự sinh) |
-| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã viết tắt phòng ban (ví dụ: SEC, DEV, OPS, FIN), là giá trị duy nhất (UNIQUE) |
-| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên đầy đủ của phòng ban (ví dụ: An toàn thông tin, Phát triển phần mềm) |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của phòng ban (UUID v4 tự sinh) |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | - | Mã viết tắt phòng ban (ví dụ: SEC, DEV, OPS, FIN), là giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | - | Tên đầy đủ của phòng ban (ví dụ: An toàn thông tin, Phát triển phần mềm) |
 | `is_active` | `BOOL` | NOT NULL | `true` | Trạng thái kích hoạt (TRUE: đang hoạt động, FALSE: tạm ngừng) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian tạo phòng ban trong hệ thống |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian cập nhật thông tin phòng ban gần nhất |
@@ -688,9 +688,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của vai trò hệ thống |
-| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã vai trò chuẩn hóa (ADMIN, CISO, APPROVER, USER), giá trị duy nhất (UNIQUE) |
-| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên mô tả vai trò (Quản trị viên, Giám đốc ATTT, Quản lý phê duyệt, Người dùng) |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của vai trò hệ thống |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | - | Mã vai trò chuẩn hóa (ADMIN, CISO, APPROVER, USER), giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | - | Tên mô tả vai trò (Quản trị viên, Giám đốc ATTT, Quản lý phê duyệt, Người dùng) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian khởi tạo vai trò trong hệ thống |
 
 ---
@@ -702,17 +702,17 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của người dùng |
-| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới departments(id), xác định phòng ban trực thuộc |
-| `email` | `VARCHAR(255)` | NOT NULL | `*None*` | Địa chỉ email công vụ dùng làm tên đăng nhập, là duy nhất (UNIQUE) |
-| `password_hash` | `VARCHAR(255)` | NOT NULL | `*None*` | Chuỗi băm mật khẩu bảo mật sử dụng giải thuật Bcrypt với salt rounds chuẩn |
-| `display_name` | `VARCHAR(255)` | NOT NULL | `*None*` | Họ và tên đầy đủ hiển thị trên giao diện người dùng |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của người dùng |
+| `department_id` | `UUID` | FK → departments(id), NOT NULL | - | Khóa ngoại (FK) liên kết tới departments(id), xác định phòng ban trực thuộc |
+| `email` | `VARCHAR(255)` | NOT NULL | - | Địa chỉ email công vụ dùng làm tên đăng nhập, là duy nhất (UNIQUE) |
+| `password_hash` | `VARCHAR(255)` | NOT NULL | - | Chuỗi băm mật khẩu bảo mật sử dụng giải thuật Bcrypt với salt rounds chuẩn |
+| `display_name` | `VARCHAR(255)` | NOT NULL | - | Họ và tên đầy đủ hiển thị trên giao diện người dùng |
 | `status` | `VARCHAR(30)` | NOT NULL | `'ACTIVE'` | Trạng thái tài khoản (ACTIVE: hoạt động, SUSPENDED: tạm khóa, INACTIVE: ngừng dùng) |
 | `token_version` | `INT4` | NOT NULL | `1` | Phiên bản token (dùng để vô hiệu hóa tức thời toàn bộ JWT token khi đổi mật khẩu/bị khóa) |
 | `failed_login_attempts` | `INT4` | NOT NULL | `0` | Số lần đăng nhập sai liên tiếp (tự reset về 0 khi đúng, khóa khi vượt ngưỡng 10) |
-| `locked_until` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm tài khoản bị khóa tạm thời nếu đăng nhập sai quá số lần quy định |
+| `locked_until` | `TIMESTAMPTZ` | NULL | - | Thời điểm tài khoản bị khóa tạm thời nếu đăng nhập sai quá số lần quy định |
 | `must_change_password` | `BOOL` | NOT NULL | `false` | Cờ bắt buộc đổi mật khẩu lần đầu (TRUE khi tài khoản vừa tạo hoặc reset mật khẩu) |
-| `last_login_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm đăng nhập thành công gần nhất vào hệ thống |
+| `last_login_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm đăng nhập thành công gần nhất vào hệ thống |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm khởi tạo tài khoản trong cơ sở dữ liệu |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm chỉnh sửa thông tin tài khoản gần nhất |
 
@@ -725,9 +725,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `user_id` | `UUID` | **PK**, **FK** $\to$ `users.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết tới users(id) |
-| `role_id` | `UUID` | **PK**, **FK** $\to$ `roles.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết tới roles(id) |
-| `assigned_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), ghi nhận quản trị viên thực hiện gán quyền |
+| `user_id` | `UUID` | PK, FK → users(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết tới users(id) |
+| `role_id` | `UUID` | PK, FK → roles(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết tới roles(id) |
+| `assigned_by` | `UUID` | FK → users(id), NULL | - | Khóa ngoại (FK) liên kết tới users(id), ghi nhận quản trị viên thực hiện gán quyền |
 | `assigned_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian phân quyền vai trò cho người dùng |
 
 ---
@@ -739,15 +739,15 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh phiên đăng nhập |
-| `user_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), xác định chủ sở hữu phiên |
-| `token_hash` | `BPCHAR(64)` | UNIQUE, NOT NULL | `*None*` | Mã băm an toàn SHA-256 của Refresh Token (chống lộ token gốc khi bị rò rỉ DB) |
-| `user_agent` | `VARCHAR(500)` | NULL | `*None*` | Thông tin trình duyệt và hệ điều hành của client đăng nhập |
-| `ip_address` | `INET` | NULL | `*None*` | Địa chỉ IP client khi khởi tạo phiên làm việc |
-| `expires_at` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm hết hạn hiệu lực của phiên đăng nhập (mặc định 30 ngày) |
-| `last_used_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm sử dụng token để lấy Access Token mới gần nhất |
-| `revoked_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm phiên bị thu hồi (người dùng bấm Đăng xuất hoặc Admin cưỡng chế khóa) |
-| `replaced_by` | `UUID` | **FK** $\to$ `auth_sessions.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới auth_sessions(id) của phiên mới thay thế phiên này trong chu trình Token Rotation |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), mã định danh phiên đăng nhập |
+| `user_id` | `UUID` | FK → users(id), NOT NULL | - | Khóa ngoại (FK) liên kết tới users(id), xác định chủ sở hữu phiên |
+| `token_hash` | `BPCHAR(64)` | UNIQUE, NOT NULL | - | Mã băm an toàn SHA-256 của Refresh Token (chống lộ token gốc khi bị rò rỉ DB) |
+| `user_agent` | `VARCHAR(500)` | NULL | - | Thông tin trình duyệt và hệ điều hành của client đăng nhập |
+| `ip_address` | `INET` | NULL | - | Địa chỉ IP client khi khởi tạo phiên làm việc |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | - | Thời điểm hết hạn hiệu lực của phiên đăng nhập (mặc định 30 ngày) |
+| `last_used_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm sử dụng token để lấy Access Token mới gần nhất |
+| `revoked_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm phiên bị thu hồi (người dùng bấm Đăng xuất hoặc Admin cưỡng chế khóa) |
+| `replaced_by` | `UUID` | FK → auth_sessions(id), NULL | - | Khóa ngoại (FK) trỏ tới auth_sessions(id) của phiên mới thay thế phiên này trong chu trình Token Rotation |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm đăng nhập khởi tạo phiên làm việc |
 
 ---
@@ -759,9 +759,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `user_id` | `UUID` | **PK**, **FK** $\to$ `users.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết users(id), người dùng giữ vai trò Approver |
-| `department_id` | `UUID` | **PK**, **FK** $\to$ `departments.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết departments(id), phòng ban mà Approver có quyền xét duyệt |
-| `assigned_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới users(id) của quản trị viên đã gán phạm vi duyệt |
+| `user_id` | `UUID` | PK, FK → users(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết users(id), người dùng giữ vai trò Approver |
+| `department_id` | `UUID` | PK, FK → departments(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết departments(id), phòng ban mà Approver có quyền xét duyệt |
+| `assigned_by` | `UUID` | FK → users(id), NULL | - | Khóa ngoại (FK) trỏ tới users(id) của quản trị viên đã gán phạm vi duyệt |
 | `assigned_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm phê duyệt thiết lập phạm vi phụ trách phòng ban |
 
 ---
@@ -773,9 +773,9 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của chính sách mật mã |
-| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã chính sách (ví dụ: POL-RSA, POL-ECC, POL-AES), giá trị duy nhất (UNIQUE) |
-| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên mô tả chính sách bảo mật mật mã doanh nghiệp |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của chính sách mật mã |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | - | Mã chính sách (ví dụ: POL-RSA, POL-ECC, POL-AES), giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | - | Tên mô tả chính sách bảo mật mật mã doanh nghiệp |
 | `is_active` | `BOOL` | NOT NULL | `true` | Trạng thái hiệu lực của chính sách (TRUE: đang áp dụng, FALSE: ngưng dùng) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian tạo danh mục chính sách |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian cập nhật chính sách |
@@ -789,11 +789,11 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh phiên bản cụ thể của chính sách |
-| `policy_id` | `UUID` | **FK** $\to$ `policies.id`, UNIQUE, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới policies(id), chính sách cha |
-| `version` | `INT4` | UNIQUE, NOT NULL | `*None*` | Số hiệu phiên bản tăng dần (v1, v2, v3...) |
-| `configuration` | `JSONB` | NOT NULL | `*None*` | Cấu hình quy chuẩn tham số dưới dạng JSONB (thuật toán, min key size, max TTL, ngưỡng cảnh báo gia hạn) |
-| `changed_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người ban hành phiên bản mới (CISO) |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), định danh phiên bản cụ thể của chính sách |
+| `policy_id` | `UUID` | FK → policies(id), UNIQUE, NOT NULL | - | Khóa ngoại (FK) liên kết tới policies(id), chính sách cha |
+| `version` | `INT4` | UNIQUE, NOT NULL | - | Số hiệu phiên bản tăng dần (v1, v2, v3...) |
+| `configuration` | `JSONB` | NOT NULL | - | Cấu hình quy chuẩn tham số dưới dạng JSONB (thuật toán, min key size, max TTL, ngưỡng cảnh báo gia hạn) |
+| `changed_by` | `UUID` | FK → users(id), NULL | - | Khóa ngoại (FK) liên kết users(id), người ban hành phiên bản mới (CISO) |
 | `effective_from` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm chính sách bắt đầu có hiệu lực pháp lý bắt buộc trong hệ thống |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian lưu phiên bản chính sách |
 
@@ -806,18 +806,18 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của tài sản mật mã |
-| `asset_code` | `VARCHAR(100)` | UNIQUE, NOT NULL | `*None*` | Mã tài sản chuẩn hóa (ví dụ: KEY-2026-001, CERT-2026-002), giá trị duy nhất (UNIQUE) |
-| `asset_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại tài sản mật mã (KEY: Khóa mật mã, CERTIFICATE: Chứng chỉ số) |
-| `owner_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), người tạo và sở hữu tài sản |
-| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới departments(id), phòng ban quản lý tài sản |
-| `policy_version_id` | `UUID` | **FK** $\to$ `policy_versions.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết policy_versions(id), chính sách áp dụng cho tài sản |
-| `purpose` | `VARCHAR(255)` | NOT NULL | `*None*` | Mục đích sử dụng thực tế (ví dụ: Production TLS/SSL, Database Encryption, API Signing) |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của tài sản mật mã |
+| `asset_code` | `VARCHAR(100)` | UNIQUE, NOT NULL | - | Mã tài sản chuẩn hóa (ví dụ: KEY-2026-001, CERT-2026-002), giá trị duy nhất (UNIQUE) |
+| `asset_type` | `VARCHAR(30)` | NOT NULL | - | Loại tài sản mật mã (KEY: Khóa mật mã, CERTIFICATE: Chứng chỉ số) |
+| `owner_id` | `UUID` | FK → users(id), NOT NULL | - | Khóa ngoại (FK) liên kết tới users(id), người tạo và sở hữu tài sản |
+| `department_id` | `UUID` | FK → departments(id), NOT NULL | - | Khóa ngoại (FK) liên kết tới departments(id), phòng ban quản lý tài sản |
+| `policy_version_id` | `UUID` | FK → policy_versions(id), NOT NULL | - | Khóa ngoại (FK) liên kết policy_versions(id), chính sách áp dụng cho tài sản |
+| `purpose` | `VARCHAR(255)` | NOT NULL | - | Mục đích sử dụng thực tế (ví dụ: Production TLS/SSL, Database Encryption, API Signing) |
 | `status` | `VARCHAR(30)` | NOT NULL | `'REGISTERED'` | Trạng thái vòng đời (ACTIVE, EXPIRING_SOON, EXPIRED, REVOKED, SUPERSEDED) |
-| `valid_from` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm bắt đầu có hiệu lực của tài sản mật mã |
-| `expires_at` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm hết hạn hiệu lực theo quy định chính sách |
-| `replaces_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) tự liên kết crypto_assets(id), trỏ tới khóa cũ nếu đây là bản gia hạn |
-| `provider_reference` | `VARCHAR(255)` | NULL | `*None*` | Mã tham chiếu định danh tài sản từ HSM/KMS ngoài (hoặc Mock provider) |
+| `valid_from` | `TIMESTAMPTZ` | NOT NULL | - | Thời điểm bắt đầu có hiệu lực của tài sản mật mã |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | - | Thời điểm hết hạn hiệu lực theo quy định chính sách |
+| `replaces_asset_id` | `UUID` | FK → crypto_assets(id), NULL | - | Khóa ngoại (FK) tự liên kết crypto_assets(id), trỏ tới khóa cũ nếu đây là bản gia hạn |
+| `provider_reference` | `VARCHAR(255)` | NULL | - | Mã tham chiếu định danh tài sản từ HSM/KMS ngoài (hoặc Mock provider) |
 | `version` | `INT4` | NOT NULL | `1` | Phiên bản tài sản phục vụ kiểm soát xung đột ghi đè dữ liệu (OCC) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm tạo và phát hành tài sản |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm cập nhật thông tin tài sản gần nhất |
@@ -831,11 +831,11 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `asset_id` | `UUID` | **PK**, **FK** $\to$ `crypto_assets.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
-| `algorithm` | `VARCHAR(50)` | NOT NULL | `*None*` | Thuật toán mật mã (RSA, ECDSA, AES_GCM, Ed25519) |
-| `key_size` | `INT4` | NOT NULL | `*None*` | Độ dài khóa tính bằng bit (ví dụ: 2048, 4096, 256, 384) |
-| `usage` | `VARCHAR(100)` | NOT NULL | `*None*` | Mục đích sử dụng khóa cho phép (SIGN, ENCRYPT, DECRYPT, VERIFY, KEY_EXCHANGE) |
-| `public_key_fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Mã băm đại diện (Fingerprint SHA-256) của Khóa công khai, giá trị duy nhất (UNIQUE) |
+| `asset_id` | `UUID` | PK, FK → crypto_assets(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
+| `algorithm` | `VARCHAR(50)` | NOT NULL | - | Thuật toán mật mã (RSA, ECDSA, AES_GCM, Ed25519) |
+| `key_size` | `INT4` | NOT NULL | - | Độ dài khóa tính bằng bit (ví dụ: 2048, 4096, 256, 384) |
+| `usage` | `VARCHAR(100)` | NOT NULL | - | Mục đích sử dụng khóa cho phép (SIGN, ENCRYPT, DECRYPT, VERIFY, KEY_EXCHANGE) |
+| `public_key_fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | - | Mã băm đại diện (Fingerprint SHA-256) của Khóa công khai, giá trị duy nhất (UNIQUE) |
 
 ---
 
@@ -846,12 +846,12 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `asset_id` | `UUID` | **PK**, **FK** $\to$ `crypto_assets.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
-| `serial_number` | `VARCHAR(100)` | UNIQUE, NOT NULL | `*None*` | Số sê-ri duy nhất của chứng chỉ số do CA cấp (UNIQUE) |
-| `subject_dn` | `VARCHAR(500)` | NOT NULL | `*None*` | Tên phân biệt chủ thể (Distinguished Name, ví dụ: CN=api.congty.com, O=Doanh Nghiep) |
-| `issuer_dn` | `VARCHAR(500)` | NOT NULL | `*None*` | Tên phân biệt cơ quan chứng thực cấp phát (Issuer CA DN) |
-| `fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Mã băm vân tay toàn vẹn (SHA-256 Fingerprint) của chứng chỉ số (UNIQUE) |
-| `public_key_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới crypto_assets(id) của cặp khóa dùng làm public key trong cert |
+| `asset_id` | `UUID` | PK, FK → crypto_assets(id) | - | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
+| `serial_number` | `VARCHAR(100)` | UNIQUE, NOT NULL | - | Số sê-ri duy nhất của chứng chỉ số do CA cấp (UNIQUE) |
+| `subject_dn` | `VARCHAR(500)` | NOT NULL | - | Tên phân biệt chủ thể (Distinguished Name, ví dụ: CN=api.congty.com, O=Doanh Nghiep) |
+| `issuer_dn` | `VARCHAR(500)` | NOT NULL | - | Tên phân biệt cơ quan chứng thực cấp phát (Issuer CA DN) |
+| `fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | - | Mã băm vân tay toàn vẹn (SHA-256 Fingerprint) của chứng chỉ số (UNIQUE) |
+| `public_key_asset_id` | `UUID` | FK → crypto_assets(id), NULL | - | Khóa ngoại (FK) trỏ tới crypto_assets(id) của cặp khóa dùng làm public key trong cert |
 
 ---
 
@@ -862,20 +862,20 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của đơn yêu cầu |
-| `request_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại yêu cầu nghiệp vụ (CREATE: cấp mới, RENEW: gia hạn, REVOKE: thu hồi) |
-| `creator_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người lập và nộp đơn |
-| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết departments(id), phòng ban phát sinh yêu cầu |
-| `policy_version_id` | `UUID` | **FK** $\to$ `policy_versions.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết policy_versions(id), phiên bản chính sách áp dụng để thẩm tra |
-| `target_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản đích cần thao tác (dùng cho RENEW/REVOKE) |
-| `result_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản mới được sinh ra sau khi đơn hoàn tất |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của đơn yêu cầu |
+| `request_type` | `VARCHAR(30)` | NOT NULL | - | Loại yêu cầu nghiệp vụ (CREATE: cấp mới, RENEW: gia hạn, REVOKE: thu hồi) |
+| `creator_id` | `UUID` | FK → users(id), NOT NULL | - | Khóa ngoại (FK) liên kết users(id), người lập và nộp đơn |
+| `department_id` | `UUID` | FK → departments(id), NOT NULL | - | Khóa ngoại (FK) liên kết departments(id), phòng ban phát sinh yêu cầu |
+| `policy_version_id` | `UUID` | FK → policy_versions(id), NOT NULL | - | Khóa ngoại (FK) liên kết policy_versions(id), phiên bản chính sách áp dụng để thẩm tra |
+| `target_asset_id` | `UUID` | FK → crypto_assets(id), NULL | - | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản đích cần thao tác (dùng cho RENEW/REVOKE) |
+| `result_asset_id` | `UUID` | FK → crypto_assets(id), NULL | - | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản mới được sinh ra sau khi đơn hoàn tất |
 | `status` | `VARCHAR(30)` | NOT NULL | `'PENDING'` | Trạng thái đơn (PENDING, APPROVED, REJECTED, PROCESSING, COMPLETED, CANCELLED) |
-| `reason` | `TEXT` | NOT NULL | `*None*` | Lý do nộp đơn (bắt buộc nhập để phục vụ thẩm định và kiểm toán) |
+| `reason` | `TEXT` | NOT NULL | - | Lý do nộp đơn (bắt buộc nhập để phục vụ thẩm định và kiểm toán) |
 | `emergency` | `BOOL` | NOT NULL | `false` | Cờ đánh dấu yêu cầu khẩn cấp (TRUE: ưu tiên xử lý / CISO duyệt tức thời) |
 | `requested_parameters` | `JSONB` | NOT NULL | `'{}'` | Thông số kỹ thuật đề xuất dạng JSONB (thuật toán, độ dài khóa, thời hạn ngày, SAN) |
 | `version` | `INT4` | NOT NULL | `1` | Phiên bản số (dùng cơ chế Optimistic Concurrency Control chống xung đột ghi đè dữ liệu) |
 | `submitted_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm nộp đơn yêu cầu |
-| `completed_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm đơn được xử lý hoàn tất (hoặc bị hủy) |
+| `completed_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm đơn được xử lý hoàn tất (hoặc bị hủy) |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm cập nhật đơn gần nhất |
 
 ---
@@ -887,11 +887,11 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh bản ghi quyết định phê duyệt |
-| `request_id` | `UUID` | **FK** $\to$ `requests.id`, UNIQUE, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết requests(id), ràng buộc UNIQUE (mỗi đơn chỉ có 1 quyết định cuối cùng) |
-| `approver_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), cấp quản lý đưa ra quyết định phê duyệt |
-| `decision` | `VARCHAR(30)` | NOT NULL | `*None*` | Kết quả phê duyệt (APPROVED: Chấp thuận, REJECTED: Từ chối) |
-| `comment` | `TEXT` | NULL | `*None*` | Lời phê hoặc lý do chi tiết từ chối đơn từ phía Approver |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), định danh bản ghi quyết định phê duyệt |
+| `request_id` | `UUID` | FK → requests(id), UNIQUE, NOT NULL | - | Khóa ngoại (FK) liên kết requests(id), ràng buộc UNIQUE (mỗi đơn chỉ có 1 quyết định cuối cùng) |
+| `approver_id` | `UUID` | FK → users(id), NOT NULL | - | Khóa ngoại (FK) liên kết users(id), cấp quản lý đưa ra quyết định phê duyệt |
+| `decision` | `VARCHAR(30)` | NOT NULL | - | Kết quả phê duyệt (APPROVED: Chấp thuận, REJECTED: Từ chối) |
+| `comment` | `TEXT` | NULL | - | Lời phê hoặc lý do chi tiết từ chối đơn từ phía Approver |
 | `decided_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian ra quyết định phê duyệt |
 
 ---
@@ -903,21 +903,21 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh thông báo |
-| `recipient_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người nhận thông báo |
-| `asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản liên quan tới thông báo (nếu có) |
-| `request_id` | `UUID` | **FK** $\to$ `requests.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết requests(id), đơn yêu cầu liên quan (nếu có) |
-| `type` | `VARCHAR(50)` | NOT NULL | `*None*` | Loại sự kiện thông báo (REQUEST_SUBMITTED, REQUEST_APPROVED, REQUEST_REJECTED, ASSET_EXPIRING...) |
-| `channel` | `VARCHAR(30)` | NOT NULL | `*None*` | Kênh truyền tải thông báo (IN_APP: thông báo quả chuông, EMAIL: gửi thư điện tử) |
+| `id` | `UUID` | PK | `gen_random_uuid()` | Khóa chính (PK), mã định danh thông báo |
+| `recipient_id` | `UUID` | FK → users(id), NOT NULL | - | Khóa ngoại (FK) liên kết users(id), người nhận thông báo |
+| `asset_id` | `UUID` | FK → crypto_assets(id), NULL | - | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản liên quan tới thông báo (nếu có) |
+| `request_id` | `UUID` | FK → requests(id), NULL | - | Khóa ngoại (FK) liên kết requests(id), đơn yêu cầu liên quan (nếu có) |
+| `type` | `VARCHAR(50)` | NOT NULL | - | Loại sự kiện thông báo (REQUEST_SUBMITTED, REQUEST_APPROVED, REQUEST_REJECTED, ASSET_EXPIRING...) |
+| `channel` | `VARCHAR(30)` | NOT NULL | - | Kênh truyền tải thông báo (IN_APP: thông báo quả chuông, EMAIL: gửi thư điện tử) |
 | `delivery_status` | `VARCHAR(30)` | NOT NULL | `'PENDING'` | Trạng thái gửi thông báo (PENDING, SENT, FAILED, DELIVERED) |
-| `deduplication_key` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Khóa chống trùng lặp thông báo (UNIQUE) ngăn chặn spam cảnh báo nhiều lần trong ngày |
+| `deduplication_key` | `VARCHAR(255)` | UNIQUE, NOT NULL | - | Khóa chống trùng lặp thông báo (UNIQUE) ngăn chặn spam cảnh báo nhiều lần trong ngày |
 | `attempt_count` | `INT4` | NOT NULL | `0` | Số lần hệ thống đã thử gửi lại khi gặp lỗi |
 | `scheduled_for` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm lên lịch gửi thông báo |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm tạo bản ghi thông báo |
-| `sent_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm gửi thành công thông báo |
-| `failed_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm gửi thất bại (nếu có lỗi) |
-| `read_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm người dùng click xem/đọc thông báo qua Popover quả chuông |
-| `error_message` | `TEXT` | NULL | `*None*` | Chi tiết thông báo lỗi từ SMTP/Push service nếu gửi thất bại |
+| `sent_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm gửi thành công thông báo |
+| `failed_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm gửi thất bại (nếu có lỗi) |
+| `read_at` | `TIMESTAMPTZ` | NULL | - | Thời điểm người dùng click xem/đọc thông báo qua Popover quả chuông |
+| `error_message` | `TEXT` | NULL | - | Chi tiết thông báo lỗi từ SMTP/Push service nếu gửi thất bại |
 
 ---
 
@@ -928,15 +928,15 @@ Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên n
 
 | Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
 | :--- | :--- | :---: | :--- | :--- |
-| `id` | `INT8` | **PK** | `nextval('audit_logs_id_seq'::regclass)` | Khóa chính (PK), mã bản ghi kiểm toán tuần tự tự tăng (BIGINT) |
-| `actor_id` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), tác nhân thực hiện hành động |
-| `actor_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại tác nhân thực hiện thao tác (USER, SYSTEM_WORKER, API_KEY) |
-| `action` | `VARCHAR(100)` | NOT NULL | `*None*` | Hành động thực hiện (AUTH_LOGIN, REQUEST_CREATE, REQUEST_APPROVE, ASSET_GENERATE, EMERGENCY_REVOKE) |
-| `entity_type` | `VARCHAR(50)` | NOT NULL | `*None*` | Tên thực thể bị tác động (USER, REQUEST, CRYPTO_ASSET, POLICY, AUTH) |
-| `entity_id` | `VARCHAR(100)` | NULL | `*None*` | Mã định danh của bản ghi hoặc đối tượng chịu tác động |
-| `outcome` | `VARCHAR(30)` | NOT NULL | `*None*` | Kết quả thực thi (SUCCESS: Thành công, FAILED: Thất bại, BLOCKED: Bị chặn bởi SoD/Chính sách) |
-| `request_id` | `UUID` | **FK** $\to$ `requests.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới requests(id) nếu hành động phát sinh từ một đơn yêu cầu |
-| `ip_address` | `INET` | NULL | `*None*` | Địa chỉ IP nguồn nơi phát sinh yêu cầu |
+| `id` | `INT8` | PK | Tự tăng (Sequence) | Khóa chính (PK), mã bản ghi kiểm toán tuần tự tự tăng (BIGINT) |
+| `actor_id` | `UUID` | FK → users(id), NULL | - | Khóa ngoại (FK) liên kết users(id), tác nhân thực hiện hành động |
+| `actor_type` | `VARCHAR(30)` | NOT NULL | - | Loại tác nhân thực hiện thao tác (USER, SYSTEM_WORKER, API_KEY) |
+| `action` | `VARCHAR(100)` | NOT NULL | - | Hành động thực hiện (AUTH_LOGIN, REQUEST_CREATE, REQUEST_APPROVE, ASSET_GENERATE, EMERGENCY_REVOKE) |
+| `entity_type` | `VARCHAR(50)` | NOT NULL | - | Tên thực thể bị tác động (USER, REQUEST, CRYPTO_ASSET, POLICY, AUTH) |
+| `entity_id` | `VARCHAR(100)` | NULL | - | Mã định danh của bản ghi hoặc đối tượng chịu tác động |
+| `outcome` | `VARCHAR(30)` | NOT NULL | - | Kết quả thực thi (SUCCESS: Thành công, FAILED: Thất bại, BLOCKED: Bị chặn bởi SoD/Chính sách) |
+| `request_id` | `UUID` | FK → requests(id), NULL | - | Khóa ngoại (FK) trỏ tới requests(id) nếu hành động phát sinh từ một đơn yêu cầu |
+| `ip_address` | `INET` | NULL | - | Địa chỉ IP nguồn nơi phát sinh yêu cầu |
 | `metadata` | `JSONB` | NOT NULL | `'{}'` | Dữ liệu chi tiết tham số trước/sau và ngữ cảnh giao dịch dưới dạng JSONB |
 | `occurred_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian chính xác ghi nhận sự kiện (Bất biến, không thể sửa xóa) |
 
@@ -971,7 +971,7 @@ Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ng�
 
 #### d. Chiến lược Đánh chỉ mục (Indexing Strategy)
 - Supabase Database được cấu hình tổng cộng **48 chỉ mục (Indexes)** tối ưu hóa:
-  - Chỉ mục B-Tree trên toàn bộ các khóa ngoại (`department_id`, `owner_id`, `creator_id`, `policy_version_id`) giúp các câu lệnh `JOIN` giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt $O(\log N)$.
+  - Chỉ mục B-Tree trên toàn bộ các khóa ngoại (`department_id`, `owner_id`, `creator_id`, `policy_version_id`) giúp các câu lệnh `JOIN` giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt O(log N).
   - Chỉ mục một phần (Partial Indexes) trên `requests(status)` và `notifications(read_at)` lọc nhanh các đơn `PENDING` và thông báo chưa đọc mà không cần quét toàn bộ bảng (Table Scan).
 
 ---

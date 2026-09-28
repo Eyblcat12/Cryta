@@ -1370,8 +1370,8 @@
 <li><strong>Quản lý phiên làm việc tập trung:</strong> Phiên đăng nhập được duy trì thông qua cặp token JWT: Access Token (thời hạn 15 phút) và Refresh Token được lưu trữ trong HttpOnly Cookie có cờ <code>Secure</code>, chống tấn công XSS.</li>
 <li><strong>Tiến trình chạy ngầm (Background Worker):</strong> Định kỳ mỗi giờ quét kiểm tra toàn bộ bảng <code>crypto_assets</code>:
 <ul>
-<li>Nếu <code>expires_at &lt;= NOW() + 30 days</code> và trạng thái đang là <code>ACTIVE</code> $\rightarrow$ Chuyển sang <code>EXPIRING_SOON</code> và gửi thông báo cảnh báo.</li>
-<li>Nếu <code>expires_at &lt;= NOW()</code> và chưa được gia hạn $\rightarrow$ Tự động chuyển vĩnh viễn sang <code>EXPIRED</code>.</li>
+<li>Nếu <code>expires_at &lt;= NOW() + 30 days</code> và trạng thái đang là <code>ACTIVE</code> → Chuyển sang <code>EXPIRING_SOON</code> và gửi thông báo cảnh báo.</li>
+<li>Nếu <code>expires_at &lt;= NOW()</code> và chưa được gia hạn → Tự động chuyển vĩnh viễn sang <code>EXPIRED</code>.</li>
 </ul>
 </li>
 <li><strong>Ghép nối khóa tự động:</strong> Khi phê duyệt một đơn cấp chứng chỉ số, hệ thống tự động sinh ngầm một cặp khóa bất đối xứng và lưu vào trường <code>certificates.public_key_asset_id</code>.</li>
@@ -1639,7 +1639,7 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), định danh duy nhất của phòng ban (UUID v4 tự sinh)</td>
 </tr>
@@ -1647,14 +1647,14 @@
 <td style="text-align:left"><code>code</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã viết tắt phòng ban (ví dụ: SEC, DEV, OPS, FIN), là giá trị duy nhất (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>name</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên đầy đủ của phòng ban (ví dụ: An toàn thông tin, Phát triển phần mềm)</td>
 </tr>
 <tr>
@@ -1712,7 +1712,7 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), định danh duy nhất của vai trò hệ thống</td>
 </tr>
@@ -1720,14 +1720,14 @@
 <td style="text-align:left"><code>code</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã vai trò chuẩn hóa (ADMIN, CISO, APPROVER, USER), giá trị duy nhất (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>name</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên mô tả vai trò (Quản trị viên, Giám đốc ATTT, Quản lý phê duyệt, Người dùng)</td>
 </tr>
 <tr>
@@ -1771,36 +1771,36 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của người dùng</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>department_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → departments(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới departments(id), xác định phòng ban trực thuộc</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>email</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Địa chỉ email công vụ dùng làm tên đăng nhập, là duy nhất (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>password_hash</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Chuỗi băm mật khẩu bảo mật sử dụng giải thuật Bcrypt với salt rounds chuẩn</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>display_name</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Họ và tên đầy đủ hiển thị trên giao diện người dùng</td>
 </tr>
 <tr>
@@ -1828,7 +1828,7 @@
 <td style="text-align:left"><code>locked_until</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm tài khoản bị khóa tạm thời nếu đăng nhập sai quá số lần quy định</td>
 </tr>
 <tr>
@@ -1842,7 +1842,7 @@
 <td style="text-align:left"><code>last_login_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm đăng nhập thành công gần nhất vào hệ thống</td>
 </tr>
 <tr>
@@ -1893,22 +1893,22 @@
 <tr>
 <td style="text-align:left"><code>user_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>users.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → users(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết tới users(id)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>role_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>roles.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → roles(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết tới roles(id)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>assigned_by</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), ghi nhận quản trị viên thực hiện gán quyền</td>
 </tr>
 <tr>
@@ -1952,64 +1952,64 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), mã định danh phiên đăng nhập</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>user_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), xác định chủ sở hữu phiên</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>token_hash</code></td>
 <td style="text-align:left"><code>BPCHAR(64)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã băm an toàn SHA-256 của Refresh Token (chống lộ token gốc khi bị rò rỉ DB)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>user_agent</code></td>
 <td style="text-align:left"><code>VARCHAR(500)</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thông tin trình duyệt và hệ điều hành của client đăng nhập</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>ip_address</code></td>
 <td style="text-align:left"><code>INET</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Địa chỉ IP client khi khởi tạo phiên làm việc</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>expires_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm hết hạn hiệu lực của phiên đăng nhập (mặc định 30 ngày)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>last_used_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm sử dụng token để lấy Access Token mới gần nhất</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>revoked_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm phiên bị thu hồi (người dùng bấm Đăng xuất hoặc Admin cưỡng chế khóa)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>replaced_by</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>auth_sessions.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → auth_sessions(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) trỏ tới auth_sessions(id) của phiên mới thay thế phiên này trong chu trình Token Rotation</td>
 </tr>
 <tr>
@@ -2053,22 +2053,22 @@
 <tr>
 <td style="text-align:left"><code>user_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>users.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → users(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết users(id), người dùng giữ vai trò Approver</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>department_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>departments.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → departments(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết departments(id), phòng ban mà Approver có quyền xét duyệt</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>assigned_by</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) trỏ tới users(id) của quản trị viên đã gán phạm vi duyệt</td>
 </tr>
 <tr>
@@ -2112,7 +2112,7 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), định danh duy nhất của chính sách mật mã</td>
 </tr>
@@ -2120,14 +2120,14 @@
 <td style="text-align:left"><code>code</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã chính sách (ví dụ: POL-RSA, POL-ECC, POL-AES), giá trị duy nhất (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>name</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên mô tả chính sách bảo mật mật mã doanh nghiệp</td>
 </tr>
 <tr>
@@ -2185,36 +2185,36 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), định danh phiên bản cụ thể của chính sách</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>policy_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>policies.id</code>, UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → policies(id), UNIQUE, NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới policies(id), chính sách cha</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>version</code></td>
 <td style="text-align:left"><code>INT4</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Số hiệu phiên bản tăng dần (v1, v2, v3...)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>configuration</code></td>
 <td style="text-align:left"><code>JSONB</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Cấu hình quy chuẩn tham số dưới dạng JSONB (thuật toán, min key size, max TTL, ngưỡng cảnh báo gia hạn)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>changed_by</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người ban hành phiên bản mới (CISO)</td>
 </tr>
 <tr>
@@ -2265,7 +2265,7 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của tài sản mật mã</td>
 </tr>
@@ -2273,42 +2273,42 @@
 <td style="text-align:left"><code>asset_code</code></td>
 <td style="text-align:left"><code>VARCHAR(100)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã tài sản chuẩn hóa (ví dụ: KEY-2026-001, CERT-2026-002), giá trị duy nhất (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>asset_type</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Loại tài sản mật mã (KEY: Khóa mật mã, CERTIFICATE: Chứng chỉ số)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>owner_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), người tạo và sở hữu tài sản</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>department_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → departments(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết tới departments(id), phòng ban quản lý tài sản</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>policy_version_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>policy_versions.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → policy_versions(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết policy_versions(id), chính sách áp dụng cho tài sản</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>purpose</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mục đích sử dụng thực tế (ví dụ: Production TLS/SSL, Database Encryption, API Signing)</td>
 </tr>
 <tr>
@@ -2322,28 +2322,28 @@
 <td style="text-align:left"><code>valid_from</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm bắt đầu có hiệu lực của tài sản mật mã</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>expires_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm hết hạn hiệu lực theo quy định chính sách</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>replaces_asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → crypto_assets(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) tự liên kết crypto_assets(id), trỏ tới khóa cũ nếu đây là bản gia hạn</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>provider_reference</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã tham chiếu định danh tài sản từ HSM/KMS ngoài (hoặc Mock provider)</td>
 </tr>
 <tr>
@@ -2401,36 +2401,36 @@
 <tr>
 <td style="text-align:left"><code>asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>crypto_assets.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → crypto_assets(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>algorithm</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thuật toán mật mã (RSA, ECDSA, AES_GCM, Ed25519)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>key_size</code></td>
 <td style="text-align:left"><code>INT4</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Độ dài khóa tính bằng bit (ví dụ: 2048, 4096, 256, 384)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>usage</code></td>
 <td style="text-align:left"><code>VARCHAR(100)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mục đích sử dụng khóa cho phép (SIGN, ENCRYPT, DECRYPT, VERIFY, KEY_EXCHANGE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>public_key_fingerprint</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã băm đại diện (Fingerprint SHA-256) của Khóa công khai, giá trị duy nhất (UNIQUE)</td>
 </tr>
 </tbody>
@@ -2467,43 +2467,43 @@
 <tr>
 <td style="text-align:left"><code>asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>crypto_assets.id</code></td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">PK, FK → crypto_assets(id)</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>serial_number</code></td>
 <td style="text-align:left"><code>VARCHAR(100)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Số sê-ri duy nhất của chứng chỉ số do CA cấp (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>subject_dn</code></td>
 <td style="text-align:left"><code>VARCHAR(500)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên phân biệt chủ thể (Distinguished Name, ví dụ: CN=api.congty.com, O=Doanh Nghiep)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>issuer_dn</code></td>
 <td style="text-align:left"><code>VARCHAR(500)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên phân biệt cơ quan chứng thực cấp phát (Issuer CA DN)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>fingerprint</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã băm vân tay toàn vẹn (SHA-256 Fingerprint) của chứng chỉ số (UNIQUE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>public_key_asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → crypto_assets(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) trỏ tới crypto_assets(id) của cặp khóa dùng làm public key trong cert</td>
 </tr>
 </tbody>
@@ -2540,7 +2540,7 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của đơn yêu cầu</td>
 </tr>
@@ -2548,42 +2548,42 @@
 <td style="text-align:left"><code>request_type</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Loại yêu cầu nghiệp vụ (CREATE: cấp mới, RENEW: gia hạn, REVOKE: thu hồi)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>creator_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người lập và nộp đơn</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>department_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → departments(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết departments(id), phòng ban phát sinh yêu cầu</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>policy_version_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>policy_versions.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → policy_versions(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết policy_versions(id), phiên bản chính sách áp dụng để thẩm tra</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>target_asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → crypto_assets(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản đích cần thao tác (dùng cho RENEW/REVOKE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>result_asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → crypto_assets(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản mới được sinh ra sau khi đơn hoàn tất</td>
 </tr>
 <tr>
@@ -2597,7 +2597,7 @@
 <td style="text-align:left"><code>reason</code></td>
 <td style="text-align:left"><code>TEXT</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Lý do nộp đơn (bắt buộc nhập để phục vụ thẩm định và kiểm toán)</td>
 </tr>
 <tr>
@@ -2632,7 +2632,7 @@
 <td style="text-align:left"><code>completed_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm đơn được xử lý hoàn tất (hoặc bị hủy)</td>
 </tr>
 <tr>
@@ -2676,36 +2676,36 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), định danh bản ghi quyết định phê duyệt</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>request_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → requests(id), UNIQUE, NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết requests(id), ràng buộc UNIQUE (mỗi đơn chỉ có 1 quyết định cuối cùng)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>approver_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết users(id), cấp quản lý đưa ra quyết định phê duyệt</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>decision</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Kết quả phê duyệt (APPROVED: Chấp thuận, REJECTED: Từ chối)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>comment</code></td>
 <td style="text-align:left"><code>TEXT</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Lời phê hoặc lý do chi tiết từ chối đơn từ phía Approver</td>
 </tr>
 <tr>
@@ -2749,43 +2749,43 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:center">PK</td>
 <td style="text-align:left"><code>gen_random_uuid()</code></td>
 <td style="text-align:left">Khóa chính (PK), mã định danh thông báo</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>recipient_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NOT NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người nhận thông báo</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>asset_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → crypto_assets(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản liên quan tới thông báo (nếu có)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>request_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → requests(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết requests(id), đơn yêu cầu liên quan (nếu có)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>type</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Loại sự kiện thông báo (REQUEST_SUBMITTED, REQUEST_APPROVED, REQUEST_REJECTED, ASSET_EXPIRING...)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>channel</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Kênh truyền tải thông báo (IN_APP: thông báo quả chuông, EMAIL: gửi thư điện tử)</td>
 </tr>
 <tr>
@@ -2799,7 +2799,7 @@
 <td style="text-align:left"><code>deduplication_key</code></td>
 <td style="text-align:left"><code>VARCHAR(255)</code></td>
 <td style="text-align:center">UNIQUE, NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa chống trùng lặp thông báo (UNIQUE) ngăn chặn spam cảnh báo nhiều lần trong ngày</td>
 </tr>
 <tr>
@@ -2827,28 +2827,28 @@
 <td style="text-align:left"><code>sent_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm gửi thành công thông báo</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>failed_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm gửi thất bại (nếu có lỗi)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>read_at</code></td>
 <td style="text-align:left"><code>TIMESTAMPTZ</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Thời điểm người dùng click xem/đọc thông báo qua Popover quả chuông</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>error_message</code></td>
 <td style="text-align:left"><code>TEXT</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Chi tiết thông báo lỗi từ SMTP/Push service nếu gửi thất bại</td>
 </tr>
 </tbody>
@@ -2885,64 +2885,64 @@
 <tr>
 <td style="text-align:left"><code>id</code></td>
 <td style="text-align:left"><code>INT8</code></td>
-<td style="text-align:center"><strong>PK</strong></td>
-<td style="text-align:left"><code>nextval('audit_logs_id_seq'::regclass)</code></td>
+<td style="text-align:center">PK</td>
+<td style="text-align:left">Tự tăng (Sequence)</td>
 <td style="text-align:left">Khóa chính (PK), mã bản ghi kiểm toán tuần tự tự tăng (BIGINT)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>actor_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → users(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) liên kết users(id), tác nhân thực hiện hành động</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>actor_type</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Loại tác nhân thực hiện thao tác (USER, SYSTEM_WORKER, API_KEY)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>action</code></td>
 <td style="text-align:left"><code>VARCHAR(100)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Hành động thực hiện (AUTH_LOGIN, REQUEST_CREATE, REQUEST_APPROVE, ASSET_GENERATE, EMERGENCY_REVOKE)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>entity_type</code></td>
 <td style="text-align:left"><code>VARCHAR(50)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Tên thực thể bị tác động (USER, REQUEST, CRYPTO_ASSET, POLICY, AUTH)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>entity_id</code></td>
 <td style="text-align:left"><code>VARCHAR(100)</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Mã định danh của bản ghi hoặc đối tượng chịu tác động</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>outcome</code></td>
 <td style="text-align:left"><code>VARCHAR(30)</code></td>
 <td style="text-align:center">NOT NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Kết quả thực thi (SUCCESS: Thành công, FAILED: Thất bại, BLOCKED: Bị chặn bởi SoD/Chính sách)</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>request_id</code></td>
 <td style="text-align:left"><code>UUID</code></td>
-<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:center">FK → requests(id), NULL</td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Khóa ngoại (FK) trỏ tới requests(id) nếu hành động phát sinh từ một đơn yêu cầu</td>
 </tr>
 <tr>
 <td style="text-align:left"><code>ip_address</code></td>
 <td style="text-align:left"><code>INET</code></td>
 <td style="text-align:center">NULL</td>
-<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">-</td>
 <td style="text-align:left">Địa chỉ IP nguồn nơi phát sinh yêu cầu</td>
 </tr>
 <tr>
@@ -3009,7 +3009,7 @@
 <ul>
 <li>Supabase Database được cấu hình tổng cộng <strong>48 chỉ mục (Indexes)</strong> tối ưu hóa:
 <ul>
-<li>Chỉ mục B-Tree trên toàn bộ các khóa ngoại (<code>department_id</code>, <code>owner_id</code>, <code>creator_id</code>, <code>policy_version_id</code>) giúp các câu lệnh <code>JOIN</code> giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt $O(\log N)$.</li>
+<li>Chỉ mục B-Tree trên toàn bộ các khóa ngoại (<code>department_id</code>, <code>owner_id</code>, <code>creator_id</code>, <code>policy_version_id</code>) giúp các câu lệnh <code>JOIN</code> giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt O(log N).</li>
 <li>Chỉ mục một phần (Partial Indexes) trên <code>requests(status)</code> và <code>notifications(read_at)</code> lọc nhanh các đơn <code>PENDING</code> và thông báo chưa đọc mà không cần quét toàn bộ bảng (Table Scan).</li>
 </ul>
 </li>
