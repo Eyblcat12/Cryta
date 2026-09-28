@@ -1,0 +1,1820 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BÁO CÁO ĐỒ ÁN: THIẾT KẾ HỆ THỐNG THÔNG TIN</title>
+    <!-- Mermaid CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        :root {
+            --primary: #1e3a8a;
+            --primary-light: #3b82f6;
+            --primary-bg: #eff6ff;
+            --text-main: #1f2937;
+            --text-muted: #4b5563;
+            --bg-page: #f1f5f9;
+            --bg-paper: #ffffff;
+            --border-color: #cbd5e1;
+            --table-header-bg: #f8fafc;
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', 'Liberation Serif', Times, serif;
+            font-size: 16px;
+            line-height: 1.65;
+            color: var(--text-main);
+            background-color: var(--bg-page);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Floating Top Toolbar */
+        .floating-nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .brand-title {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 13.5px;
+            font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #172554;
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-outline:hover {
+            background: #f8fafc;
+            color: var(--text-main);
+            border-color: #94a3b8;
+        }
+
+        /* Document Container (Paper style) */
+        .page-container {
+            max-width: 960px;
+            margin: 80px auto 40px auto;
+            background: var(--bg-paper);
+            padding: 50px 60px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            border-radius: 8px;
+        }
+
+        /* Cover Card */
+        .cover-card {
+            border: 3px double var(--primary);
+            padding: 40px 30px;
+            text-align: center;
+            margin-bottom: 50px;
+            border-radius: 4px;
+            background: #fff;
+        }
+
+        .cover-sub-header {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-muted);
+        }
+
+        .cover-inst {
+            font-size: 19px;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 4px 0;
+        }
+
+        .cover-dept {
+            font-size: 15px;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .cover-hr {
+            width: 140px;
+            height: 2px;
+            background: var(--primary);
+            margin: 14px auto 30px auto;
+        }
+
+        .cover-main-badge {
+            font-size: 24px;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .cover-subject {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+        }
+
+        .cover-topic-container {
+            border-top: 1.5px solid var(--border-color);
+            border-bottom: 1.5px solid var(--border-color);
+            padding: 20px 15px;
+            margin: 0 auto 35px auto;
+        }
+
+        .topic-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: #64748b;
+            margin-bottom: 6px;
+        }
+
+        .topic-title {
+            font-size: 20px;
+            font-weight: 900;
+            color: var(--primary);
+            margin: 0;
+            line-height: 1.4;
+            text-transform: uppercase;
+        }
+
+        .cover-info-section {
+            text-align: left;
+            margin: 25px 15px;
+        }
+
+        .info-row {
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
+
+        .info-title {
+            font-weight: 700;
+            display: inline-block;
+            width: 220px;
+        }
+
+        .cover-student-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+
+        .cover-student-table th {
+            background-color: var(--table-header-bg);
+            border: 1px solid var(--border-color);
+            padding: 9px 12px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .cover-student-table td {
+            border: 1px solid var(--border-color);
+            padding: 9px 12px;
+        }
+
+        .badge-role {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 700;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .badge-role.leader {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-role.member {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .cover-footer-text {
+            font-size: 14px;
+            font-weight: 700;
+            color: #64748b;
+            margin-top: 35px;
+        }
+
+        /* Content Styling */
+        p {
+            text-align: justify;
+            margin: 0 0 14px 0;
+            text-indent: 1.27cm;
+        }
+
+        h1 {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 40px 0 18px 0;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 28px 0 14px 0;
+        }
+
+        h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 20px 0 10px 0;
+        }
+
+        h4 {
+            font-size: 15px;
+            font-weight: 700;
+            font-style: italic;
+            color: #334155;
+            margin: 16px 0 8px 0;
+        }
+
+        /* Table container with copy button */
+        .table-container {
+            margin: 24px 0;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .table-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 14px;
+        }
+
+        .table-tag {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-copy-sm {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: all 0.15s ease;
+        }
+
+        .btn-copy-sm:hover {
+            background: var(--primary-bg);
+            color: var(--primary);
+            border-color: var(--primary-light);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-weight: 700;
+            border-bottom: 1.5px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        th:last-child {
+            border-right: none;
+        }
+
+        td {
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            padding: 9px 12px;
+            vertical-align: top;
+        }
+
+        td:last-child {
+            border-right: none;
+        }
+
+        tr:nth-child(even) td {
+            background-color: #fafbfc;
+        }
+
+        tr:hover td {
+            background-color: #f0f7ff;
+        }
+
+        /* Mermaid Wrapper */
+        .mermaid-wrapper {
+            margin: 28px 0;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        }
+
+        .diagram-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .diagram-tag {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+        }
+
+        .mermaid svg {
+            max-width: 100% !important;
+            height: auto !important;
+            margin: 10px auto;
+        }
+
+        em {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 6px;
+            margin-bottom: 20px;
+        }
+
+        ul, ol {
+            margin: 8px 0 16px 0;
+            padding-left: 32px;
+        }
+
+        li {
+            margin-bottom: 5px;
+            text-align: justify;
+        }
+
+        blockquote {
+            border-left: 4px solid var(--primary-light);
+            background-color: var(--primary-bg);
+            margin: 16px 0;
+            padding: 12px 18px;
+            border-radius: 0 6px 6px 0;
+        }
+
+        blockquote p {
+            margin: 0;
+            text-indent: 0;
+            color: #1e40af;
+            font-size: 14.5px;
+        }
+
+        code {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13.5px;
+            background-color: #f1f5f9;
+            color: #e11d48;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        pre code {
+            display: block;
+            background-color: #0f172a;
+            color: #f8fafc;
+            padding: 14px 18px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 30px 0;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #0f172a;
+            color: white;
+            padding: 14px 22px;
+            border-radius: 8px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.3s ease;
+            z-index: 2000;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media print {
+            .floating-nav, .btn-copy-sm, .diagram-actions, .table-header-bar {
+                display: none !important;
+            }
+            .page-container {
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Floating Top Bar -->
+    <div class="floating-nav">
+        <div class="brand-title">
+            <span>📑</span>
+            <span>Báo Cáo Đồ Án TKHTTT (Bản Trực Tuyến & Sao Chép Nhanh)</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline" onclick="window.scrollTo({ top: 0, behavior: 'smooth' })">⬆️ Lên đầu trang</button>
+            <button class="btn btn-outline" onclick="window.print()">🖨️ In / Xuất PDF</button>
+            <button class="btn btn-primary" onclick="copyFullDocument()">📋 Sao Chép Toàn Bộ Nội Dung Vào Word</button>
+        </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="page-container" id="report-content">
+        
+    <div class="cover-card" id="trang-bia">
+        <div class="cover-inner">
+            <div class="cover-sub-header">BỘ THÔNG TIN VÀ TRUYỀN THÔNG</div>
+            <div class="cover-inst">HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG</div>
+            <div class="cover-dept">KHOA CÔNG NGHỆ THÔNG TIN</div>
+            <div class="cover-hr"></div>
+
+            <div class="cover-main-badge">BÁO CÁO ĐỒ ÁN MÔN HỌC</div>
+            <div class="cover-subject">MÔN HỌC: THIẾT KẾ HỆ THỐNG THÔNG TIN</div>
+
+            <div class="cover-topic-container">
+                <div class="topic-label">ĐỀ TÀI:</div>
+                <h1 class="topic-title">HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA MÃ HÓA VÀ CHỨNG CHỈ SỐ DOANH NGHIỆP</h1>
+            </div>
+
+            <div class="cover-info-section">
+                <div class="info-row">
+                    <span class="info-title">Giảng viên hướng dẫn:</span>
+                    <span class="info-desc">ThS. [Giảng viên hướng dẫn]</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-title">Nhóm sinh viên thực hiện:</span>
+                    <span class="info-desc">Nhóm sinh viên</span>
+                </div>
+
+                <table class="cover-student-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">STT</th>
+                            <th style="width: 35%;">Họ và tên sinh viên</th>
+                            <th style="width: 20%;">Mã số SV (MSSV)</th>
+                            <th style="width: 20%;">Lớp</th>
+                            <th style="width: 15%;">Vai trò</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="text-align: center;">1</td>
+                            <td><strong>Hồ Ngọc Đức</strong></td>
+                            <td style="text-align: center;">N23DCAT012</td>
+                            <td style="text-align: center;">D23CQAT01-N</td>
+                            <td style="text-align: center;"><span class="badge-role leader">Trưởng nhóm</span></td>
+                        </tr>
+                        <tr>
+                            <td style="text-align: center;">2</td>
+                            <td><strong>Lê Hoàng Ngọc</strong></td>
+                            <td style="text-align: center;">N23DCAT048</td>
+                            <td style="text-align: center;">D23CQAT01-N</td>
+                            <td style="text-align: center;"><span class="badge-role member">Thành viên</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="cover-footer-text">
+                TP. HỒ CHÍ MINH, HỌC KỲ I — NĂM HỌC 2026
+            </div>
+        </div>
+    </div>
+    
+        <div class="report-body">
+            <h1>MỤC LỤC</h1>
+<ul>
+<li><a href="#danh-s%C3%A1ch-h%C3%ACnh-b%E1%BA%A3ng">DANH SÁCH HÌNH, BẢNG</a></li>
+<li><a href="#danh-m%E1%BB%A5c-t%E1%BB%AB-vi%E1%BA%BFt-t%E1%BA%AFt">DANH MỤC TỪ VIẾT TẮT</a></li>
+<li><a href="#ch%C6%B0%C6%A1ng-i-t%E1%BB%95ng-quan">CHƯƠNG I. TỔNG QUAN</a>
+<ul>
+<li><a href="#i-gi%E1%BB%9Bi-thi%E1%BB%87u-%C4%91%E1%BB%81-t%C3%A0i">I. Giới thiệu đề tài</a>
+<ul>
+<li><a href="#1-l%C3%BD-do-ch%E1%BB%8Dn-%C4%91%E1%BB%81-t%C3%A0i-v%C3%A0-t%C3%ADnh-c%E1%BA%A5p-thi%E1%BA%BFt">1. Lý do chọn đề tài và Tính cấp thiết</a></li>
+<li><a href="#2-m%E1%BB%A5c-ti%C3%AAu-c%E1%BB%A7a-%C4%91%E1%BB%81-t%C3%A0i">2. Mục tiêu của đề tài</a></li>
+<li><a href="#3-ph%E1%BA%A1m-vi-%C3%A1p-d%E1%BB%A5ng">3. Phạm vi áp dụng</a></li>
+<li><a href="#4-n%E1%BB%81n-t%E1%BA%A3ng-k%E1%BB%B9-thu%E1%BA%ADt-l%E1%BB%B1a-ch%E1%BB%8Dn">4. Nền tảng kỹ thuật lựa chọn</a></li>
+</ul>
+</li>
+<li><a href="#ii-c%C6%A1-s%E1%BB%9F-l%C3%BD-thuy%E1%BA%BFt">II. Cơ sở lý thuyết</a>
+<ul>
+<li><a href="#1-v%C3%B2ng-%C4%91%E1%BB%9Di-kh%C3%B3a-m%E1%BA%ADt-m%C3%A3-theo-chu%E1%BA%A9n-nist-sp-800-57">1. Vòng đời Khóa mật mã theo chuẩn NIST SP 800-57</a></li>
+<li><a href="#2-h%E1%BA%A1-t%E1%BA%A7ng-kh%C3%B3a-c%C3%B4ng-khai-pki-v%C3%A0-ch%E1%BB%A9ng-th%C6%B0-s%E1%BB%91-x509">2. Hạ tầng khóa công khai PKI và Chứng thư số X.509</a></li>
+<li><a href="#3-nguy%C3%AAn-t%E1%BA%AFc-ph%C3%A2n-t%C3%A1ch-tr%C3%A1ch-nhi%E1%BB%87m-separation-of-duties---sod">3. Nguyên tắc Phân tách Trách nhiệm (Separation of Duties - SoD)</a></li>
+<li><a href="#4-c%C6%A1-ch%E1%BA%BF-nh%E1%BA%ADt-k%C3%BD-ki%E1%BB%83m-to%C3%A1n-b%E1%BA%A5t-bi%E1%BA%BFn-audit-log-immutability">4. Cơ chế Nhật ký kiểm toán Bất biến (Audit Log Immutability)</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="#ch%C6%B0%C6%A1ng-ii-ph%C3%A2n-t%C3%ADch-n%E1%BB%99i-dung-y%C3%AAu-c%E1%BA%A7u">CHƯƠNG II. PHÂN TÍCH NỘI DUNG, YÊU CẦU</a>
+<ul>
+<li><a href="#i-gi%E1%BB%9Bi-thi%E1%BB%87u-quy-tr%C3%ACnh-1-%C4%91%C4%83ng-k%C3%BD--c%E1%BA%A5p-ph%C3%A1t-t%C3%A0i-s%E1%BA%A3n-m%E1%BA%ADt-m%C3%A3-m%E1%BB%9Bi">I. Giới thiệu Quy trình 1: Đăng ký &amp; Cấp phát tài sản mật mã mới</a></li>
+<li><a href="#ii-gi%E1%BB%9Bi-thi%E1%BB%87u-quy-tr%C3%ACnh-2-ph%C3%AA-duy%E1%BB%87t--ki%E1%BB%83m-so%C3%A1t-ph%C3%A2n-t%C3%A1ch-tr%C3%A1ch-nhi%E1%BB%87m-sod">II. Giới thiệu Quy trình 2: Phê duyệt &amp; Kiểm soát Phân tách Trách nhiệm (SoD)</a></li>
+<li><a href="#iii-gi%E1%BB%9Bi-thi%E1%BB%87u-quy-tr%C3%ACnh-3-%E1%BB%A9ng-ph%C3%B3-s%E1%BB%B1-c%E1%BB%91--thu-h%E1%BB%93i-kh%E1%BA%A9n-c%E1%BA%A5p-emergency-revocation">III. Giới thiệu Quy trình 3: Ứng phó sự cố &amp; Thu hồi Khẩn cấp (Emergency Revocation)</a></li>
+<li><a href="#iv-y%C3%AAu-c%E1%BA%A7u-ch%E1%BB%A9c-n%C4%83ng-nghi%E1%BB%87p-v%E1%BB%A5">IV. Yêu cầu chức năng nghiệp vụ</a>
+<ul>
+<li><a href="#1-ch%E1%BB%A9c-n%C4%83ng-c%E1%BB%A7a-%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-requester-nh%C3%A2n-vi%C3%AAn-nghi%E1%BB%87p-v%E1%BB%A5">1. Chức năng của đối tượng Requester (Nhân viên nghiệp vụ)</a></li>
+<li><a href="#2-ch%E1%BB%A9c-n%C4%83ng-c%E1%BB%A7a-%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-approver-qu%E1%BA%A3n-l%C3%BD--ng%C6%B0%E1%BB%9Di-ph%C3%AA-duy%E1%BB%87t">2. Chức năng của đối tượng Approver (Quản lý / Người phê duyệt)</a></li>
+<li><a href="#3-ch%E1%BB%A9c-n%C4%83ng-c%E1%BB%A7a-%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-ciso--security-admin-gi%C3%A1m-%C4%91%E1%BB%91c-b%E1%BA%A3o-m%E1%BA%ADt">3. Chức năng của đối tượng CISO / Security Admin (Giám đốc Bảo mật)</a></li>
+<li><a href="#4-ch%E1%BB%A9c-n%C4%83ng-c%E1%BB%A7a-%C4%91%E1%BB%91i-t%C6%B0%E1%BB%A3ng-system-admin-qu%E1%BA%A3n-tr%E1%BB%8B-vi%C3%AAn-h%E1%BB%87-th%E1%BB%91ng">4. Chức năng của đối tượng System Admin (Quản trị viên hệ thống)</a></li>
+</ul>
+</li>
+<li><a href="#v-y%C3%AAu-c%E1%BA%A7u-ch%E1%BB%A9c-n%C4%83ng-h%E1%BB%87-th%E1%BB%91ng-v%C3%A0-y%C3%AAu-c%E1%BA%A7u-ch%E1%BA%A5t-l%C6%B0%E1%BB%A3ng">V. Yêu cầu chức năng hệ thống và Yêu cầu chất lượng</a></li>
+</ul>
+</li>
+<li><a href="#ch%C6%B0%C6%A1ng-iii-ph%C3%A2n-t%C3%ADch-thi%E1%BA%BFt-k%E1%BA%BF-h%E1%BB%87-th%E1%BB%91ng">CHƯƠNG III. PHÂN TÍCH THIẾT KẾ HỆ THỐNG</a>
+<ul>
+<li><a href="#i-s%C6%A1-%C4%91%E1%BB%93-use-case">I. Sơ đồ Use Case</a></li>
+<li><a href="#ii-s%C6%A1-%C4%91%E1%BB%93-tr%E1%BA%A1ng-th%C3%A1i-state-diagram">II. Sơ đồ trạng thái (State Diagram)</a></li>
+<li><a href="#iii-s%C6%A1-%C4%91%E1%BB%93-tu%E1%BA%A7n-t%E1%BB%B1-sequence-diagram">III. Sơ đồ tuần tự (Sequence Diagram)</a></li>
+<li><a href="#iv-s%C6%A1-%C4%91%E1%BB%93-ho%E1%BA%A1t-%C4%91%E1%BB%99ng-activity-diagram">IV. Sơ đồ hoạt động (Activity Diagram)</a></li>
+<li><a href="#v-thi%E1%BA%BFt-k%E1%BA%BF-c%C6%A1-s%E1%BB%9F-d%E1%BB%AF-li%E1%BB%87u">V. Thiết kế Cơ sở Dữ liệu</a></li>
+</ul>
+</li>
+<li><a href="#ch%C6%B0%C6%A1ng-iv-ph%C3%A1t-tri%E1%BB%83n--th%E1%BB%B1c-thi">CHƯƠNG IV. PHÁT TRIỂN / THỰC THI</a>
+<ul>
+<li><a href="#i-m%C3%A0n-h%C3%ACnh-%C4%91%C4%83ng-nh%E1%BA%ADp--%C4%91%E1%BB%95i-m%E1%BA%ADt-kh%E1%BA%A9u-b%E1%BA%AFt-bu%E1%BB%99c">I. Màn hình Đăng nhập &amp; Đổi mật khẩu bắt buộc</a></li>
+<li><a href="#ii-m%C3%A0n-h%C3%ACnh-kh%C3%B4ng-gian-l%C3%A0m-vi%E1%BB%87c-c%C3%A1-nh%C3%A2n-user-dashboard">II. Màn hình Không gian làm việc cá nhân (User Dashboard)</a></li>
+<li><a href="#iii-m%C3%A0n-h%C3%ACnh-h%C3%A0ng-%C4%91%E1%BB%A3i-duy%E1%BB%87t-ph%C3%B2ng-ban-approval-queue--quy%E1%BA%BFt-%C4%91%E1%BB%8Bnh">III. Màn hình Hàng đợi duyệt phòng ban (Approval Queue) &amp; Quyết định</a></li>
+<li><a href="#iv-m%C3%A0n-h%C3%ACnh-b%E1%BA%A3ng-th%C3%B4ng-b%C3%A1o-n%E1%BB%95i-notification-popover">IV. Màn hình Bảng thông báo nổi (Notification Popover)</a></li>
+<li><a href="#v-m%C3%A0n-h%C3%ACnh-qu%E1%BA%A3n-tr%E1%BB%8B-ch%C3%ADnh-s%C3%A1ch--thu-h%E1%BB%93i-kh%E1%BA%A9n-c%E1%BA%A5p">V. Màn hình Quản trị Chính sách &amp; Thu hồi khẩn cấp</a></li>
+<li><a href="#vi-m%C3%A0n-h%C3%ACnh-nh%E1%BA%ADt-k%C3%BD-ki%E1%BB%83m-to%C3%A1n-b%E1%BA%A5t-bi%E1%BA%BFn-audit-logs">VI. Màn hình Nhật ký kiểm toán bất biến (Audit Logs)</a></li>
+</ul>
+</li>
+<li><a href="#ch%C6%B0%C6%A1ng-v-k%E1%BA%BFt-lu%E1%BA%ADn">CHƯƠNG V. KẾT LUẬN</a>
+<ul>
+<li><a href="#i-k%E1%BA%BFt-qu%E1%BA%A3-%C4%91%C3%A3-th%E1%BB%B1c-hi%E1%BB%87n">I. Kết quả đã thực hiện</a></li>
+<li><a href="#ii-%C6%B0u-khuy%E1%BA%BFt-%C4%91i%E1%BB%83m">II. Ưu khuyết điểm</a></li>
+<li><a href="#iii-h%C6%B0%E1%BB%9Bng-m%E1%BB%9F-r%E1%BB%99ng-trong-t%C6%B0%C6%A1ng-lai">III. Hướng mở rộng trong tương lai</a></li>
+</ul>
+</li>
+<li><a href="#t%C3%A0i-li%E1%BB%87u-tham-kh%E1%BA%A3o">TÀI LIỆU THAM KHẢO</a></li>
+</ul>
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>DANH SÁCH HÌNH, BẢNG</h1>
+<h3>Danh sách Hình vẽ</h3>
+<ul>
+<li><strong>Hình 3.1:</strong> Sơ đồ Use Case tổng quát của hệ thống (15 Use Cases phân theo 4 nhóm Actor).</li>
+<li><strong>Hình 3.2:</strong> Sơ đồ Máy trạng thái Yêu cầu (Request State Machine).</li>
+<li><strong>Hình 3.3:</strong> Sơ đồ Máy trạng thái Tài sản Mật mã (Asset State Machine).</li>
+<li><strong>Hình 3.4:</strong> Sơ đồ Tuần tự luồng Xác thực &amp; Đổi mật khẩu bắt buộc (UC-01).</li>
+<li><strong>Hình 3.5:</strong> Sơ đồ Tuần tự luồng Phê duyệt &amp; Kiểm soát Phân tách Trách nhiệm SoD (UC-02 &amp; UC-07).</li>
+<li><strong>Hình 3.6:</strong> Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10).</li>
+<li><strong>Hình 3.7:</strong> Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 &amp; UC-UI-01).</li>
+<li><strong>Hình 3.8:</strong> Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt.</li>
+<li><strong>Hình 3.9:</strong> Sơ đồ Thực thể Liên kết (ERD) 15 bảng cơ sở dữ liệu.</li>
+<li><strong>Hình 4.1:</strong> Giao diện Đăng nhập và Hộp thoại Đổi mật khẩu bắt buộc.</li>
+<li><strong>Hình 4.2:</strong> Giao diện Dashboard cá nhân của Requester và Bảng tài sản mật mã.</li>
+<li><strong>Hình 4.3:</strong> Giao diện Hàng đợi duyệt của Approver và Thanh quyết định duyệt đơn.</li>
+<li><strong>Hình 4.4:</strong> Giao diện Bảng thông báo nổi Notification Popover trên thanh Header.</li>
+<li><strong>Hình 4.5:</strong> Giao diện Quản trị Chính sách (Policy Versioning) và Nút Thu hồi khẩn cấp của CISO.</li>
+<li><strong>Hình 4.6:</strong> Giao diện Tra cứu Nhật ký kiểm toán bất biến (Audit Logs Console).</li>
+</ul>
+<h3>Danh sách Bảng biểu</h3>
+<ul>
+<li><strong>Bảng 1.1:</strong> So sánh các giải pháp quản lý khóa truyền thống và hệ thống đề xuất.</li>
+<li><strong>Bảng 2.1:</strong> Bảng yêu cầu chức năng nghiệp vụ của đối tượng Requester (Nhân viên).</li>
+<li><strong>Bảng 2.2:</strong> Bảng yêu cầu chức năng nghiệp vụ của đối tượng Approver (Quản lý).</li>
+<li><strong>Bảng 2.3:</strong> Bảng yêu cầu chức năng nghiệp vụ của đối tượng CISO (Giám đốc Bảo mật).</li>
+<li><strong>Bảng 2.4:</strong> Bảng yêu cầu chức năng nghiệp vụ của đối tượng System Admin (Quản trị viên).</li>
+<li><strong>Bảng 3.1:</strong> Bảng cấu trúc CSDL <code>users</code> (Thông tin tài khoản).</li>
+<li><strong>Bảng 3.2:</strong> Bảng cấu trúc CSDL <code>crypto_assets</code> (Siêu dữ liệu tài sản mật mã).</li>
+<li><strong>Bảng 3.3:</strong> Bảng cấu trúc CSDL <code>requests</code> (Đơn yêu cầu nghiệp vụ).</li>
+<li><strong>Bảng 3.4:</strong> Bảng cấu trúc CSDL <code>audit_logs</code> (Nhật ký kiểm toán bất biến).</li>
+<li><strong>Bảng 3.5:</strong> Bảng cấu trúc CSDL <code>notifications</code> (Thông báo ứng dụng).</li>
+</ul>
+<hr />
+<h1>DANH MỤC TỪ VIẾT TẮT</h1>
+
+        <div class="table-container" id="table-wrapper-1">
+            <div class="table-header-bar">
+                <span class="table-tag">Bảng dữ liệu</span>
+                <button class="btn-copy-sm" onclick="copyTable(1)">📋 Sao chép bảng vào Word</button>
+            </div>
+            <table>
+<thead>
+<tr>
+<th style="text-align:left">Từ viết tắt</th>
+<th style="text-align:left">Tên tiếng Anh đầy đủ</th>
+<th style="text-align:left">Ý nghĩa / Giải thích trong hệ thống</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>KMS</strong></td>
+<td style="text-align:left">Key Management Service</td>
+<td style="text-align:left">Hệ thống quản lý vòng đời khóa mật mã</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>PKI</strong></td>
+<td style="text-align:left">Public Key Infrastructure</td>
+<td style="text-align:left">Hạ tầng khóa công khai quản lý chứng thư số</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>SoD</strong></td>
+<td style="text-align:left">Separation of Duties</td>
+<td style="text-align:left">Nguyên tắc phân tách trách nhiệm (người tạo không được tự duyệt)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>RBAC</strong></td>
+<td style="text-align:left">Role-Based Access Control</td>
+<td style="text-align:left">Cơ chế kiểm soát truy cập dựa trên vai trò</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>CISO</strong></td>
+<td style="text-align:left">Chief Information Security Officer</td>
+<td style="text-align:left">Giám đốc an toàn thông tin của tổ chức</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>JWT</strong></td>
+<td style="text-align:left">JSON Web Token</td>
+<td style="text-align:left">Tiêu chuẩn mã hóa phiên xác thực người dùng</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>CA</strong></td>
+<td style="text-align:left">Certificate Authority</td>
+<td style="text-align:left">Tổ chức chứng thực chữ ký số</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>CSR</strong></td>
+<td style="text-align:left">Certificate Signing Request</td>
+<td style="text-align:left">Tệp yêu cầu cấp chứng thư số gửi lên CA</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>AES</strong></td>
+<td style="text-align:left">Advanced Encryption Standard</td>
+<td style="text-align:left">Chuẩn mã hóa đối xứng khối an toàn (AES-256-GCM)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>RSA</strong></td>
+<td style="text-align:left">Rivest–Shamir–Adleman</td>
+<td style="text-align:left">Thuật toán mật mã bất đối xứng phổ biến (RSA-2048/4096)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>ECDSA</strong></td>
+<td style="text-align:left">Elliptic Curve Digital Signature Algorithm</td>
+<td style="text-align:left">Thuật toán chữ ký số trên đường cong Elliptic (P-256)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>ERD</strong></td>
+<td style="text-align:left">Entity Relationship Diagram</td>
+<td style="text-align:left">Sơ đồ biểu diễn thực thể và mối quan hệ CSDL</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>API</strong></td>
+<td style="text-align:left">Application Programming Interface</td>
+<td style="text-align:left">Giao diện lập trình ứng dụng RESTful</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>UI/UX</strong></td>
+<td style="text-align:left">User Interface / User Experience</td>
+<td style="text-align:left">Giao diện và trải nghiệm người dùng</td>
+</tr>
+</tbody>
+</table>
+        </div>
+        
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>CHƯƠNG I. TỔNG QUAN</h1>
+<h2>I. Giới thiệu đề tài</h2>
+<h3>1. Lý do chọn đề tài và Tính cấp thiết</h3>
+<p>Trong môi trường công nghệ hiện nay, việc ứng dụng mã hóa dữ liệu và chữ ký số là nền tảng cốt lõi trong các doanh nghiệp để đảm bảo tính bí mật, toàn vẹn và chống chối bỏ. Các tổ chức thường xuyên phải phát hành và quản lý hàng trăm cặp khóa SSH, khóa mã hóa cơ sở dữ liệu (AES), chứng chỉ SSL/TLS cho máy chủ web và chứng thư số ký hóa đơn điện tử.</p>
+<p>Tuy nhiên, tại nhiều doanh nghiệp, công tác quản lý tài sản mật mã vẫn đang gặp phải các vấn đề nghiêm trọng sau:</p>
+<ol>
+<li><strong>Quản lý phân tán và thủ công:</strong> Khóa và chứng chỉ được lưu trữ rải rác trên máy tính cá nhân, chia sẻ qua tin nhắn nội bộ hoặc ghi chép vào file Excel. Điều này dẫn đến nguy cơ rò rỉ khóa bí mật (Private Key) mà người quản lý không hay biết.</li>
+<li><strong>Sự cố gián đoạn do hết hạn chứng chỉ:</strong> Chứng chỉ SSL/TLS hoặc chứng thư số hết hạn đột ngột mà không có cảnh báo trước, khiến website bị trình duyệt cảnh báo không an toàn, dịch vụ thanh toán bị đình trệ.</li>
+<li><strong>Thiếu cơ chế kiểm soát quyền hạn (SoD):</strong> Lập trình viên có thể tự do tạo khóa và đưa vào môi trường production mà không qua sự xem xét, đánh giá rủi ro từ Trưởng phòng.</li>
+<li><strong>Không có quy trình ứng phó rò rỉ khẩn cấp:</strong> Khi phát hiện máy chủ bị tấn công hoặc khóa bí mật bị đẩy nhầm lên kho mã nguồn công khai (GitHub), người quản trị bảo mật (CISO) không có công cụ thu hồi tài sản mật mã tức thời trên toàn hệ thống.</li>
+</ol>
+<p>Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lựa chọn đề tài: <strong>&quot;Xây dựng Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp&quot;</strong> cho đồ án môn học Thiết kế Hệ thống Thông tin nhằm cung cấp một giải pháp quản trị tập trung, an toàn, minh bạch và tự động hóa cao.</p>
+<h3>2. Mục tiêu của đề tài</h3>
+<ul>
+<li><strong>Chuẩn hóa quy trình nghiệp vụ:</strong> Xây dựng quy trình nghiệp vụ khép kín từ lúc nộp đơn xin cấp phát, quản lý phân luồng phê duyệt theo phòng ban, tự động sinh khóa/chứng chỉ, gia hạn tài sản, cho đến thu hồi khi hết nhu cầu.</li>
+<li><strong>Thực thi nguyên tắc Phân tách Trách nhiệm (SoD):</strong> Ngăn chặn tuyệt đối hành vi người tạo đơn tự phê duyệt đơn của mình; quản lý chỉ được duyệt trong phạm vi phòng ban mình phụ trách; quản trị viên không can thiệp phê duyệt đơn nghiệp vụ.</li>
+<li><strong>Cung cấp cơ chế Thu hồi Khẩn cấp (Emergency Revocation):</strong> Trao quyền cho CISO thu hồi tức thời tài sản bị rò rỉ mà không cần thông qua bước lập đơn và chờ duyệt thông thường.</li>
+<li><strong>Lưu vết kiểm toán bất biến (Audit Log Immutability):</strong> Ghi nhận đầy đủ vết thao tác người dùng, đảm bảo dữ liệu nhật ký không thể bị sửa hoặc xóa kể cả từ người quản trị.</li>
+<li><strong>Tự động hóa cảnh báo:</strong> Tự động quét và phát thông báo In-app cùng email cảnh báo trước 30 ngày đối với các tài sản sắp hết hiệu lực.</li>
+</ul>
+<h3>3. Phạm vi áp dụng</h3>
+<ul>
+<li><strong>Phạm vi tổ chức:</strong> Phù hợp áp dụng cho các cơ quan, doanh nghiệp có nhiều bộ phận phòng ban (như Phòng Công nghệ Thông tin, Phòng Kế toán - Tài chính, Khối Vận hành hệ thống).</li>
+<li><strong>Phạm vi tài sản quản lý:</strong>
+<ul>
+<li><em>Khóa đối xứng (Symmetric Key):</em> AES-128, AES-256 (phục vụ mã hóa dữ liệu cơ sở dữ liệu, sao lưu).</li>
+<li><em>Cặp khóa bất đối xứng (Asymmetric Key Pair):</em> RSA-2048, RSA-4096, ECDSA P-256 (phục vụ ký số, xác thực SSH, phân quyền máy chủ).</li>
+<li><em>Chứng chỉ số (Digital Certificate):</em> Chứng chỉ X.509 SSL/TLS cho dịch vụ web, chứng thư ký số nội bộ.</li>
+</ul>
+</li>
+<li><strong>Giới hạn phạm vi (MVP):</strong> Hệ thống quản lý tập trung siêu dữ liệu (metadata), thuật toán, thời hạn và trạng thái; lưu trữ khóa công khai để người dùng tải về; khóa bí mật được quản lý mô phỏng thông qua nhà cung cấp mật mã nội bộ an toàn (Mock Crypto Provider).</li>
+</ul>
+<h3>4. Nền tảng kỹ thuật lựa chọn</h3>
+<ul>
+<li><strong>Phía Máy chủ (Backend):</strong> Sử dụng <strong>NestJS (Node.js/TypeScript)</strong> theo mô hình kiến trúc phân tầng (Controller - Service - Module), thiết kế chuẩn RESTful API, tài liệu hóa tự động bằng OpenAPI/Swagger UI (<code>/docs</code>).</li>
+<li><strong>Phía Giao diện (Frontend):</strong> Ứng dụng Single Page Application (SPA) xây dựng bằng <strong>React 19, TypeScript và Vite</strong>, thiết kế giao diện theo phong cách Dashboard hiện đại, tích hợp Bảng thông báo nổi (<code>NotificationPopover</code>).</li>
+<li><strong>Cơ sở Dữ liệu (Database):</strong> Hệ quản trị <strong>PostgreSQL 15</strong> (lưu trữ đám mây Supabase), tận dụng các ràng buộc CHECK, Foreign Key và Database Trigger để thực thi logic SoD và tính bất biến của nhật ký kiểm toán ở tầng vật lý.</li>
+</ul>
+<hr />
+<h2>II. Cơ sở lý thuyết</h2>
+<h3>1. Vòng đời Khóa mật mã theo chuẩn NIST SP 800-57</h3>
+<p>Theo hướng dẫn của Viện Tiêu chuẩn và Kỹ thuật Quốc gia Hoa Kỳ (NIST Special Publication 800-57 Part 1), vòng đời của một tài sản mật mã gồm các trạng thái chuẩn:</p>
+<ul>
+<li><em>Pre-activation (Chờ kích hoạt):</em> Tài sản đã được tạo nhưng chưa đưa vào sử dụng thực tế.</li>
+<li><em>Active (Đang hoạt động):</em> Khóa hoặc chứng chỉ đang được sử dụng hợp pháp để mã hóa, giải mã hoặc ký số.</li>
+<li><em>Expiring Soon (Sắp hết hạn):</em> Tài sản bước vào giai đoạn chuyển tiếp (thường là 30 ngày trước ngày hết hạn) để phát cảnh báo cho chủ sở hữu gia hạn.</li>
+<li><em>Expired (Đã hết hạn):</em> Quá thời hạn hiệu lực, tài sản không được phép dùng để sinh chữ ký mới.</li>
+<li><em>Revoked (Bị thu hồi):</em> Tài sản bị hủy bỏ hiệu lực trước hạn do nghi ngờ lộ khóa bí mật hoặc thay đổi nhân sự.</li>
+<li><em>Superseded (Đã thay thế):</em> Tài sản cũ được thay thế bởi một tài sản kế nhiệm sau quy trình gia hạn.</li>
+</ul>
+<h3>2. Hạ tầng khóa công khai PKI và Chứng thư số X.509</h3>
+<p>PKI là tập hợp các phần mềm, phần cứng, con người và quy trình cần thiết để phát hành, quản lý và thu hồi chứng chỉ số. Chứng thư số X.509 liên kết danh tính của một thực thể (tên máy chủ, email, cá nhân) với một khóa công khai (Public Key), được ký xác thực bởi một Tổ chức Chứng thực (CA). Khi cấp chứng chỉ, hệ thống luôn phải tạo và liên kết kèm theo một cặp khóa (Key Pair).</p>
+<h3>3. Nguyên tắc Phân tách Trách nhiệm (Separation of Duties - SoD)</h3>
+<p>SoD là nguyên tắc căn bản trong thiết kế hệ thống thông tin nhằm giảm thiểu rủi ro gian lận nội bộ bằng cách chia nhỏ các tác vụ nhạy cảm cho nhiều người cùng tham gia:</p>
+<ul>
+<li><em>Quy tắc 1:</em> Người tạo đơn yêu cầu tuyệt đối không được tự phê duyệt đơn của mình (<code>creator_id != approver_id</code>).</li>
+<li><em>Quy tắc 2:</em> Quản lý phòng ban chỉ được duyệt các đơn thuộc phạm vi đơn vị mình quản lý (<code>department_scope</code>).</li>
+<li><em>Quy tắc 3:</em> Quản trị viên hệ thống (Admin) và CISO có quyền cấu hình chính sách nhưng không được quyền duyệt đơn xin cấp phát tài sản nghiệp vụ.</li>
+</ul>
+<h3>4. Cơ chế Nhật ký kiểm toán Bất biến (Audit Log Immutability)</h3>
+<p>Để phục vụ việc điều tra sự cố an toàn thông tin và chống chối bỏ trách nhiệm, bảng <code>audit_logs</code> phải được thiết kế theo cơ chế <strong>Chỉ ghi thêm (Append-only)</strong>:</p>
+<ul>
+<li>Mọi hành vi xác thực, tạo đơn, duyệt đơn, thu hồi khẩn cấp đều được ghi lại với dấu thời gian chính xác (<code>created_at = NOW()</code>), địa chỉ IP và mã định danh người thực hiện (<code>actor_id</code>).</li>
+<li>Trigger CSDL <code>trg_audit_log_immutable</code> sẽ chặn đứng bất kỳ câu lệnh <code>UPDATE</code> hoặc <code>DELETE</code> nào tác động lên bảng nhật ký, ngăn ngừa việc xóa dấu vết sau khi tấn công.</li>
+</ul>
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>CHƯƠNG II. PHÂN TÍCH NỘI DUNG, YÊU CẦU</h1>
+<h2>I. Giới thiệu Quy trình 1: Đăng ký &amp; Cấp phát tài sản mật mã mới</h2>
+<p>Quy trình cấp phát tài sản mật mã là luồng nghiệp vụ cơ bản diễn ra giữa Nhân viên nghiệp vụ (Requester) và Trưởng phòng ban (Approver):</p>
+<ol>
+<li><strong>Nộp đơn:</strong> Nhân viên (ví dụ lập trình viên cần khóa RSA ký commit) truy cập hệ thống, chọn loại tài sản cần xin cấp, chọn chính sách mật mã áp dụng (Policy Version), nhập mục đích sử dụng và thời hạn mong muốn.</li>
+<li><strong>Kiểm tra sơ bộ:</strong> Hệ thống tự động kiểm tra tính hợp lệ của tham số đầu vào. Nếu thời hạn vượt quá mức tối đa mà chính sách cho phép, hệ thống từ chối ngay tại chỗ (<code>422 POLICY_VIOLATION</code>). Nếu hợp lệ, đơn được lưu ở trạng thái <code>PENDING</code>.</li>
+<li><strong>Phát thông báo:</strong> Hệ thống tự động tạo một thông báo <code>REQUEST_SUBMITTED</code> gửi đến quả chuông của các Trưởng phòng có phạm vi phụ trách phòng ban của nhân viên đó.</li>
+<li><strong>Phê duyệt:</strong> Trưởng phòng xem xét chi tiết lý do và bấm &quot;Phê duyệt&quot;.</li>
+<li><strong>Cấp phát ngầm:</strong> Tiến trình nền (Worker) nhận tín hiệu đơn đã duyệt, tự động sinh khóa mật mã trong CSDL, cập nhật tài sản thành <code>ACTIVE</code>, hoàn tất đơn (<code>COMPLETED</code>) và bắn thông báo <code>REQUEST_APPROVED</code> về cho người tạo đơn.</li>
+<li><strong>Sử dụng:</strong> Nhân viên tải tệp Public Key dạng PEM về máy tính để tích hợp vào ứng dụng.</li>
+</ol>
+<h2>II. Giới thiệu Quy trình 2: Phê duyệt &amp; Kiểm soát Phân tách Trách nhiệm (SoD)</h2>
+<p>Quy trình phê duyệt đòi hỏi sự chặt chẽ về thẩm quyền và ranh giới trách nhiệm:</p>
+<ol>
+<li><strong>Phân định phạm vi (Approver Scopes):</strong> Trưởng phòng IT (<code>it.manager</code>) chỉ nhìn thấy các đơn xin cấp khóa của nhân viên thuộc phòng IT; Kế toán trưởng (<code>fin.manager</code>) chỉ nhìn thấy các đơn chứng chỉ của nhân viên phòng Kế toán.</li>
+<li><strong>Ngăn chặn xung đột lợi ích:</strong> Trong trường hợp Trưởng phòng IT có nhu cầu sử dụng khóa và nộp đơn xin cấp, hệ thống tự động khóa quyền duyệt của Trưởng phòng đối với chính đơn đó. Nếu người này cố tình gửi lệnh duyệt qua API, cả tầng logic Backend lẫn Trigger CSDL <code>trg_check_sod_rule</code> sẽ lập tức chặn lại và ném lỗi vi phạm SoD (<code>SOD_VIOLATION</code>).</li>
+<li><strong>Ghi nhận quyết định:</strong> Mọi thao tác duyệt hoặc từ chối đều bắt buộc ghi nhận vào bảng <code>request_decisions</code> kèm lời phê hoặc lý do từ chối cụ thể để lưu vết kiểm toán.</li>
+</ol>
+<h2>III. Giới thiệu Quy trình 3: Ứng phó sự cố &amp; Thu hồi Khẩn cấp (Emergency Revocation)</h2>
+<p>Khi xảy ra sự cố bảo mật (nhân viên bị mất máy tính, hoặc lộ khóa bí mật ra ngoài Internet), quy trình nộp đơn thu hồi và chờ trưởng phòng duyệt thông thường sẽ mất nhiều thời gian, tạo điều kiện cho kẻ xấu lợi dụng khóa để giải mã hoặc giả mạo dữ liệu.</p>
+<ol>
+<li><strong>Kích hoạt khẩn cấp:</strong> CISO hoặc Quản trị viên truy cập bảng điều khiển an toàn, chọn tài sản bị rò rỉ và nhấn nút &quot;Thu hồi khẩn cấp&quot; (<code>POST /api/v1/assets/:id/revoke</code>).</li>
+<li><strong>Xác thực quyền hạn:</strong> Hệ thống kiểm tra quyền <code>ADMIN</code>. Người dùng thường và Quản lý phòng ban bị chặn ngay lập tức (<code>403 ADMIN_REQUIRED</code>).</li>
+<li><strong>Vô hiệu hóa tức thời:</strong> Hệ thống cập nhật trạng thái tài sản thành <code>REVOKED</code> ngay lập tức trong cơ sở dữ liệu mà không cần thông qua bước lập đơn hay chờ duyệt.</li>
+<li><strong>Cảnh báo và Lưu vết:</strong> Hệ thống phát thông báo cảnh báo đỏ (<code>ASSET_REVOKED</code>) đến chủ sở hữu tài sản và ghi một bản ghi Audit Log đặc biệt với cờ <code>emergency = true</code>.</li>
+</ol>
+<hr />
+<h2>IV. Yêu cầu chức năng nghiệp vụ</h2>
+<p>Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ của hệ thống được phân loại theo 4 nhóm đối tượng sử dụng:</p>
+<h3>1. Chức năng của đối tượng Requester (Nhân viên nghiệp vụ)</h3>
+
+        <div class="table-container" id="table-wrapper-2">
+            <div class="table-header-bar">
+                <span class="table-tag">Bảng dữ liệu</span>
+                <button class="btn-copy-sm" onclick="copyTable(2)">📋 Sao chép bảng vào Word</button>
+            </div>
+            <table>
+<thead>
+<tr>
+<th style="text-align:center">STT</th>
+<th style="text-align:left">Công việc</th>
+<th style="text-align:center">Loại công việc</th>
+<th style="text-align:left">Quy định / Công thức liên quan</th>
+<th style="text-align:left">Biểu mẫu liên quan</th>
+<th style="text-align:left">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><strong>1</strong></td>
+<td style="text-align:left">Đăng nhập hệ thống</td>
+<td style="text-align:center">Tra cứu</td>
+<td style="text-align:left">- Email đúng định dạng và tài khoản ở trạng thái <code>ACTIVE</code><br/>- Mật khẩu so khớp Bcrypt salt 10<br/>- Khóa tạm thời 15 phút nếu thử sai quá 10 lần liên tiếp</td>
+<td style="text-align:left">Form Đăng nhập</td>
+<td style="text-align:left">UC-01</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>2</strong></td>
+<td style="text-align:left">Đổi mật khẩu bắt buộc</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Kích hoạt khi cờ <code>must_change_password = true</code><br/>- Mật khẩu mới tối thiểu 6 ký tự<br/>- Tăng <code>token_version</code> để thu hồi toàn bộ phiên đăng nhập cũ</td>
+<td style="text-align:left">Dialog Đổi mật khẩu</td>
+<td style="text-align:left">UC-01</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>3</strong></td>
+<td style="text-align:left">Tạo yêu cầu cấp mới Khóa/Cert</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Chọn loại tài sản: <code>KEY_PAIR</code>, <code>SYMMETRIC_KEY</code>, <code>CERTIFICATE</code><br/>- Thuật toán và thời hạn phải phù hợp với Policy được chọn<br/>- <code>validity_days &lt;= max_validity_days</code></td>
+<td style="text-align:left">Modal Tạo yêu cầu</td>
+<td style="text-align:left">UC-02</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>4</strong></td>
+<td style="text-align:left">Yêu cầu Gia hạn tài sản</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Chỉ gia hạn tài sản do mình sở hữu (<code>owner_id = current_user.id</code>)<br/>- Tài sản ở trạng thái <code>ACTIVE</code>, <code>EXPIRING_SOON</code> hoặc <code>EXPIRED</code></td>
+<td style="text-align:left">Form Gia hạn tài sản</td>
+<td style="text-align:left">UC-03</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>5</strong></td>
+<td style="text-align:left">Yêu cầu Thu hồi thông thường</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Bắt buộc cung cấp lý do: <code>KEY_COMPROMISE</code>, <code>DEVICE_LOST</code>, <code>CESSATION_OF_OPERATION</code>, <code>OTHER</code><br/>- Tài sản mục tiêu chưa bị thu hồi trước đó</td>
+<td style="text-align:left">Dialog Thu hồi</td>
+<td style="text-align:left">UC-03</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>6</strong></td>
+<td style="text-align:left">Theo dõi trạng thái đơn</td>
+<td style="text-align:center">Tra cứu</td>
+<td style="text-align:left">- Chỉ tra cứu các đơn do chính mình tạo ra<br/>- Hiển thị đầy đủ tiến độ: <code>PENDING</code>, <code>APPROVED</code>, <code>REJECTED</code>, <code>CANCELLED</code></td>
+<td style="text-align:left">Bảng Yêu cầu gần đây</td>
+<td style="text-align:left">UC-04</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>7</strong></td>
+<td style="text-align:left">Hủy yêu cầu chờ duyệt</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Chỉ hủy được đơn của mình khi đang ở trạng thái <code>PENDING</code><br/>- Đơn sau khi hủy chuyển sang <code>CANCELLED</code> và tự gỡ khỏi hàng đợi duyệt</td>
+<td style="text-align:left">Nút Hủy trên hàng đơn</td>
+<td style="text-align:left">UC-04</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>8</strong></td>
+<td style="text-align:left">Xem danh sách tài sản cá nhân</td>
+<td style="text-align:center">Trích xuất</td>
+<td style="text-align:left">- Chỉ hiển thị tài sản do mình sở hữu (<code>owner_id = user.id</code>)<br/>- Hỗ trợ bộ lọc theo trạng thái và thanh tìm kiếm nhanh</td>
+<td style="text-align:left">Bảng Tài sản của tôi</td>
+<td style="text-align:left">UC-05</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>9</strong></td>
+<td style="text-align:left">Tải Public Key / Chứng chỉ</td>
+<td style="text-align:center">Trích xuất</td>
+<td style="text-align:left">- Xuất tệp khóa công khai hoặc chứng chỉ định dạng PEM<br/>- Tuyệt đối không bao giờ xuất khóa bí mật (Private Key)</td>
+<td style="text-align:left">Nút Tải xuống tài sản</td>
+<td style="text-align:left">UC-05</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>10</strong></td>
+<td style="text-align:left">Xem Bảng thông báo nổi</td>
+<td style="text-align:center">Tra cứu</td>
+<td style="text-align:left">- Quả chuông trên Header hiển thị chấm đỏ khi có tin chưa đọc<br/>- Click chuông mở Notification Popover hiển thị 15 thông báo mới nhất</td>
+<td style="text-align:left">Notification Popover</td>
+<td style="text-align:left">UC-12</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>11</strong></td>
+<td style="text-align:left">Đánh dấu đã đọc thông báo</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Bấm nút &quot;Đánh dấu đã đọc&quot; trên Popover để cập nhật <code>read_at = NOW()</code><br/>- Chấm đỏ cảnh báo trên quả chuông tắt ngay lập tức</td>
+<td style="text-align:left">Nút Đánh dấu đã đọc</td>
+<td style="text-align:left">UC-12</td>
+</tr>
+</tbody>
+</table>
+        </div>
+        
+<h3>2. Chức năng của đối tượng Approver (Quản lý / Người phê duyệt)</h3>
+
+        <div class="table-container" id="table-wrapper-3">
+            <div class="table-header-bar">
+                <span class="table-tag">Bảng dữ liệu</span>
+                <button class="btn-copy-sm" onclick="copyTable(3)">📋 Sao chép bảng vào Word</button>
+            </div>
+            <table>
+<thead>
+<tr>
+<th style="text-align:center">STT</th>
+<th style="text-align:left">Công việc</th>
+<th style="text-align:center">Loại công việc</th>
+<th style="text-align:left">Quy định / Công thức liên quan</th>
+<th style="text-align:left">Biểu mẫu liên quan</th>
+<th style="text-align:left">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><strong>1</strong></td>
+<td style="text-align:left">Xem hàng đợi chờ duyệt</td>
+<td style="text-align:center">Tra cứu</td>
+<td style="text-align:left">- Chỉ hiển thị các đơn <code>PENDING</code> thuộc các phòng ban mà Approver được phân công quản lý (<code>approver_scopes</code>)</td>
+<td style="text-align:left">Hàng đợi duyệt đơn</td>
+<td style="text-align:left">UC-06</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>2</strong></td>
+<td style="text-align:left">Phê duyệt đơn yêu cầu</td>
+<td style="text-align:center">Xử lý</td>
+<td style="text-align:left">- Bắt buộc thỏa mãn SoD: người duyệt khác người nộp đơn (<code>approver_id != creator_id</code>)<br/>- Đơn chuyển <code>APPROVED</code>, kích hoạt worker sinh khóa ngầm</td>
+<td style="text-align:left">Thanh quyết định đơn</td>
+<td style="text-align:left">UC-07</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>3</strong></td>
+<td style="text-align:left">Từ chối đơn yêu cầu</td>
+<td style="text-align:center">Xử lý</td>
+<td style="text-align:left">- Bắt buộc nhập lời phê từ chối (Comment)<br/>- Đơn chuyển trạng thái <code>REJECTED</code>, gửi thông báo về cho Requester</td>
+<td style="text-align:left">Hộp thoại Từ chối</td>
+<td style="text-align:left">UC-07</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>4</strong></td>
+<td style="text-align:left">Báo cáo tài sản phòng ban</td>
+<td style="text-align:center">Trích xuất</td>
+<td style="text-align:left">- Thống kê tổng số tài sản phòng ban, số đơn tồn đọng, thời gian chờ duyệt trung bình của nhân viên</td>
+<td style="text-align:left">Approver Dashboard</td>
+<td style="text-align:left">UC-08</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>5</strong></td>
+<td style="text-align:left">Xem lịch sử xử lý đơn</td>
+<td style="text-align:center">Trích xuất</td>
+<td style="text-align:left">- Tra cứu danh sách các đơn đã được duyệt hoặc từ chối gần đây trong phạm vi phòng ban của mình</td>
+<td style="text-align:left">Bảng Lịch sử xử lý</td>
+<td style="text-align:left">UC-08</td>
+</tr>
+</tbody>
+</table>
+        </div>
+        
+<h3>3. Chức năng của đối tượng CISO / Security Admin (Giám đốc Bảo mật)</h3>
+
+        <div class="table-container" id="table-wrapper-4">
+            <div class="table-header-bar">
+                <span class="table-tag">Bảng dữ liệu</span>
+                <button class="btn-copy-sm" onclick="copyTable(4)">📋 Sao chép bảng vào Word</button>
+            </div>
+            <table>
+<thead>
+<tr>
+<th style="text-align:center">STT</th>
+<th style="text-align:left">Công việc</th>
+<th style="text-align:center">Loại công việc</th>
+<th style="text-align:left">Quy định / Công thức liên quan</th>
+<th style="text-align:left">Biểu mẫu liên quan</th>
+<th style="text-align:left">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><strong>1</strong></td>
+<td style="text-align:left">Ban hành Chính sách mới</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Định nghĩa thuật toán cho phép (RSA, AES, ECDSA), độ dài khóa tối thiểu, thời hạn tối đa, số ngày cảnh báo trước</td>
+<td style="text-align:left">Modal Chính sách mới</td>
+<td style="text-align:left">UC-09</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>2</strong></td>
+<td style="text-align:left">Nâng cấp phiên bản Policy</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Tạo version mới (v2, v3) cho chính sách hiện hành<br/>- Đánh dấu version mới là <code>ACTIVE</code>, version cũ chuyển lưu trữ</td>
+<td style="text-align:left">Modal Cập nhật Policy</td>
+<td style="text-align:left">UC-09</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>3</strong></td>
+<td style="text-align:left">Thu hồi Tài sản Khẩn cấp</td>
+<td style="text-align:center">Xử lý</td>
+<td style="text-align:left">- Quyền hạn tối cao vô hiệu hóa tức thời bất kỳ tài sản nào trên toàn hệ thống thành <code>REVOKED</code> không qua phê duyệt</td>
+<td style="text-align:left">Dialog Thu hồi khẩn</td>
+<td style="text-align:left">UC-10</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>4</strong></td>
+<td style="text-align:left">Tra cứu Nhật ký kiểm toán</td>
+<td style="text-align:center">Tra cứu</td>
+<td style="text-align:left">- Tra cứu dòng thời gian toàn bộ các sự kiện kiểm toán<br/>- Hỗ trợ lọc theo hành động, tác nhân, kết quả và ngày tạo</td>
+<td style="text-align:left">Bảng Audit Log</td>
+<td style="text-align:left">UC-11</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>5</strong></td>
+<td style="text-align:left">Giám sát Dashboard an toàn</td>
+<td style="text-align:center">Trích xuất</td>
+<td style="text-align:left">- Theo dõi biểu đồ tỷ lệ loại tài sản toàn công ty, tài sản sắp hết hạn, trạng thái kết nối các dịch vụ nền</td>
+<td style="text-align:left">Admin Dashboard</td>
+<td style="text-align:left">UC-12</td>
+</tr>
+</tbody>
+</table>
+        </div>
+        
+<h3>4. Chức năng của đối tượng System Admin (Quản trị viên hệ thống)</h3>
+
+        <div class="table-container" id="table-wrapper-5">
+            <div class="table-header-bar">
+                <span class="table-tag">Bảng dữ liệu</span>
+                <button class="btn-copy-sm" onclick="copyTable(5)">📋 Sao chép bảng vào Word</button>
+            </div>
+            <table>
+<thead>
+<tr>
+<th style="text-align:center">STT</th>
+<th style="text-align:left">Công việc</th>
+<th style="text-align:center">Loại công việc</th>
+<th style="text-align:left">Quy định / Công thức liên quan</th>
+<th style="text-align:left">Biểu mẫu liên quan</th>
+<th style="text-align:left">Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><strong>1</strong></td>
+<td style="text-align:left">Quản lý danh mục Phòng ban</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Xem danh mục, thêm phòng ban mới, quản lý mã định danh phòng ban phục vụ cho việc phân luồng duyệt</td>
+<td style="text-align:left">Danh mục phòng ban</td>
+<td style="text-align:left">UC-13</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>2</strong></td>
+<td style="text-align:left">Tạo tài khoản người dùng</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Nhập email, họ tên, gán phòng ban, cấp mật khẩu khởi tạo<br/>- Mặc định bật cờ <code>must_change_password = true</code></td>
+<td style="text-align:left">Modal Thêm User</td>
+<td style="text-align:left">UC-14</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>3</strong></td>
+<td style="text-align:left">Khóa / Kích hoạt tài khoản</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Chuyển trạng thái người dùng thành <code>INACTIVE</code><br/>- Vô hiệu hóa ngay lập tức mọi phiên đăng nhập và token hiện có</td>
+<td style="text-align:left">Nút Khóa/Mở tài khoản</td>
+<td style="text-align:left">UC-14</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>4</strong></td>
+<td style="text-align:left">Phân vai trò người dùng</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Gán các vai trò <code>USER</code>, <code>APPROVER</code>, <code>ADMIN</code><br/>- Hệ thống ngăn chặn việc gỡ vai trò Admin cuối cùng</td>
+<td style="text-align:left">Modal Phân quyền</td>
+<td style="text-align:left">UC-15</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>5</strong></td>
+<td style="text-align:left">Phân luồng Scopes duyệt</td>
+<td style="text-align:center">Lưu trữ</td>
+<td style="text-align:left">- Gán danh sách các phòng ban mà một Approver được quyền xem và phê duyệt yêu cầu</td>
+<td style="text-align:left">Modal Gán Scopes</td>
+<td style="text-align:left">UC-15</td>
+</tr>
+</tbody>
+</table>
+        </div>
+        
+<hr />
+<h2>V. Yêu cầu chức năng hệ thống và Yêu cầu chất lượng</h2>
+<h3>1. Yêu cầu chức năng hệ thống</h3>
+<ul>
+<li><strong>Quản lý phiên làm việc tập trung:</strong> Phiên đăng nhập được duy trì thông qua cặp token JWT: Access Token (thời hạn 15 phút) và Refresh Token được lưu trữ trong HttpOnly Cookie có cờ <code>Secure</code>, chống tấn công XSS.</li>
+<li><strong>Tiến trình chạy ngầm (Background Worker):</strong> Định kỳ mỗi giờ quét kiểm tra toàn bộ bảng <code>crypto_assets</code>:
+<ul>
+<li>Nếu <code>expires_at &lt;= NOW() + 30 days</code> và trạng thái đang là <code>ACTIVE</code> $\rightarrow$ Chuyển sang <code>EXPIRING_SOON</code> và gửi thông báo cảnh báo.</li>
+<li>Nếu <code>expires_at &lt;= NOW()</code> và chưa được gia hạn $\rightarrow$ Tự động chuyển vĩnh viễn sang <code>EXPIRED</code>.</li>
+</ul>
+</li>
+<li><strong>Ghép nối khóa tự động:</strong> Khi phê duyệt một đơn cấp chứng chỉ số, hệ thống tự động sinh ngầm một cặp khóa bất đối xứng và lưu vào trường <code>certificates.public_key_asset_id</code>.</li>
+</ul>
+<h3>2. Yêu cầu chất lượng (Phi chức năng)</h3>
+<ul>
+<li><strong>Hiệu năng và Tốc độ đáp ứng:</strong> Thời gian phản hồi của các API truy vấn danh sách dưới 500ms; hỗ trợ phân trang dữ liệu ở mức CSDL (<code>LIMIT...OFFSET</code>) để đảm bảo không bị suy giảm hiệu năng khi số lượng bản ghi tăng cao.</li>
+<li><strong>Tính toàn vẹn và Bất biến:</strong> Mọi thao tác thay đổi trạng thái đều được bọc trong Database Transaction. Bảng <code>audit_logs</code> có Trigger bảo vệ tính bất biến, không thể bị xóa hay chỉnh sửa nội dung.</li>
+<li><strong>Tính khả dụng và Trải nghiệm người dùng:</strong> Giao diện thiết kế theo chuẩn Responsive Web Design, tương thích từ màn hình điện thoại di động (chiều rộng 375px) đến màn hình máy tính để bàn; hỗ trợ chế độ Dark Mode bảo vệ mắt.</li>
+</ul>
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>CHƯƠNG III. PHÂN TÍCH THIẾT KẾ HỆ THỐNG</h1>
+<h2>I. Sơ đồ Use Case</h2>
+<p>Sơ đồ Use Case tổng quát của hệ thống được phân rã thành 15 Ca sử dụng cốt lõi theo 4 nhóm tác nhân chính, áp dụng mô hình phân hệ chức năng và quan hệ kế thừa tác nhân (Actor Generalization) để đảm bảo cấu trúc trực quan, rành mạch và không bị chồng chéo:</p>
+
+        <div class="mermaid-wrapper" id="diagram-1">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 1</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(1)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+flowchart LR
+    classDef actorStyle fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef commonStyle fill:#fff3e0,stroke:#e65100,stroke-width:1.5px;
+    classDef ucStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:1.5px;
+
+    %% --- CÁC TÁC NHÂN (ACTORS) ---
+    USER["👤 Người dùng chung<br/>(System User)"]:::actorStyle
+    REQ["👨‍💻 Requester<br/>(Nhân viên)"]:::actorStyle
+    APP["👔 Approver<br/>(Quản lý)"]:::actorStyle
+    CISO["🛡️ CISO<br/>(Giám đốc ATTT)"]:::actorStyle
+    ADMIN["⚙️ System Admin<br/>(Quản trị viên)"]:::actorStyle
+
+    %% Quan hệ Kế thừa Tác nhân
+    USER -.->|Kế thừa| REQ
+    USER -.->|Kế thừa| APP
+    USER -.->|Kế thừa| CISO
+    USER -.->|Kế thừa| ADMIN
+
+    %% --- RANH GIỚI HỆ THỐNG VÀ CÁC PHÂN HỆ ---
+    subgraph SystemBoundary ["HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA VÀ CHỨNG CHỈ SỐ"]
+        direction TB
+
+        subgraph G_COMMON ["1. Chức năng Xác thực & Thông báo dùng chung"]
+            UC01(["UC-01: Đăng nhập & Đổi mật khẩu bắt buộc"]):::commonStyle
+            UC12(["UC-12: Bảng thông báo nổi Notification Popover"]):::commonStyle
+        end
+
+        subgraph G_REQ ["2. Phân hệ Quản lý Yêu cầu & Tài sản cá nhân"]
+            direction TB
+            UC02(["UC-02: Tạo yêu cầu cấp mới Khóa/Cert"]):::ucStyle
+            UC03(["UC-03: Yêu cầu Gia hạn / Thu hồi tài sản"]):::ucStyle
+            UC04(["UC-04: Theo dõi tiến độ & Hủy đơn PENDING"]):::ucStyle
+            UC05(["UC-05: Xem tài sản cá nhân & Tải Public Key PEM"]):::ucStyle
+        end
+
+        subgraph G_APP ["3. Phân hệ Phê duyệt & Kiểm soát SoD"]
+            direction TB
+            UC06(["UC-06: Xem Hàng đợi duyệt theo Scope phòng ban"]):::ucStyle
+            UC07(["UC-07: Phê duyệt / Từ chối đơn (SoD)"]):::ucStyle
+            UC08(["UC-08: Thống kê & Báo cáo phê duyệt phòng ban"]):::ucStyle
+        end
+
+        subgraph G_CISO ["4. Phân hệ Quản trị Chính sách & Xử lý Khẩn cấp"]
+            direction TB
+            UC09(["UC-09: Ban hành & Nâng cấp phiên bản Chính sách"]):::ucStyle
+            UC10(["UC-10: Thu hồi Khẩn cấp trực tiếp (Emergency Revoke)"]):::ucStyle
+            UC11(["UC-11: Tra cứu Nhật ký kiểm toán Bất biến"]):::ucStyle
+        end
+
+        subgraph G_ADMIN ["5. Phân hệ Quản trị Người dùng & Hệ thống"]
+            direction TB
+            UC13(["UC-13: Quản lý Danh mục Phòng ban tổ chức"]):::ucStyle
+            UC14(["UC-14: Quản lý Người dùng & Khóa tài khoản"]):::ucStyle
+            UC15(["UC-15: Phân quyền Vai trò & Gán Scope duyệt"]):::ucStyle
+        end
+    end
+
+    %% --- LIÊN KẾT TÁC NHÂN ĐẾN TỪNG PHÂN HỆ ---
+    USER --> UC01
+    USER --> UC12
+
+    REQ --> UC02
+    REQ --> UC03
+    REQ --> UC04
+    REQ --> UC05
+
+    APP --> UC06
+    APP --> UC07
+    APP --> UC08
+
+    CISO --> UC09
+    CISO --> UC10
+    CISO --> UC11
+
+    ADMIN --> UC13
+    ADMIN --> UC14
+    ADMIN --> UC15
+</pre>
+        </div>
+        
+<p><em>Hình 3.1: Sơ đồ Use Case tổng quát của hệ thống</em></p>
+<blockquote>
+<p><strong>Ghi chú về thiết kế Sơ đồ Use Case:</strong></p>
+<ul>
+<li><strong>Quan hệ Kế thừa (Actor Generalization):</strong> Cả 4 đối tượng <code>Requester</code>, <code>Approver</code>, <code>CISO</code> và <code>System Admin</code> đều kế thừa từ tác nhân chung <code>Người dùng chung (System User)</code>, do đó tự động thừa hưởng 2 chức năng căn bản là <code>UC-01</code> (Đăng nhập, đổi mật khẩu) và <code>UC-12</code> (Nhận và đọc thông báo nổi qua quả chuông).</li>
+<li><strong>Phân định ranh giới trách nhiệm:</strong> Mỗi tác nhân chuyên biệt chỉ kết nối trực tiếp đến phân hệ chức năng tương ứng của mình, đảm bảo tuân thủ nguyên tắc tối thiểu quyền hạn (Least Privilege) và nguyên tắc phân tách trách nhiệm (SoD), đồng thời giúp biểu đồ không bị chồng chéo đường nối.</li>
+</ul>
+</blockquote>
+<hr />
+<h2>II. Sơ đồ trạng thái (State Diagram)</h2>
+<h3>1. Máy trạng thái Đơn yêu cầu (Request State Machine)</h3>
+<p>Đơn yêu cầu tuân thủ chu trình chuyển đổi trạng thái một chiều nghiêm ngặt:</p>
+
+        <div class="mermaid-wrapper" id="diagram-2">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 2</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(2)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+stateDiagram-v2
+    [*] --> PENDING: User nộp đơn (CREATE/RENEW/REVOKE)
+    
+    PENDING --> CANCELLED: User chủ động hủy đơn
+    PENDING --> REJECTED: Approver từ chối kèm lý do
+    PENDING --> APPROVED: Approver phê duyệt đơn
+    
+    APPROVED --> PROCESSING: Worker nhận đơn xử lý
+    PROCESSING --> COMPLETED: Sinh tài sản thành công
+    PROCESSING --> FAILED: Lỗi hệ thống mật mã
+    
+    CANCELLED --> [*]
+    REJECTED --> [*]
+    COMPLETED --> [*]
+    FAILED --> [*]
+</pre>
+        </div>
+        
+<p><em>Hình 3.2: Sơ đồ Máy trạng thái Đơn yêu cầu (Request State Machine)</em></p>
+<h3>2. Máy trạng thái Tài sản Mật mã (Asset State Machine)</h3>
+<p>Tài sản mật mã sau khi sinh ra sẽ chuyển trạng thái tự động theo thời gian hoặc theo quyết định quản trị:</p>
+
+        <div class="mermaid-wrapper" id="diagram-3">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 3</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(3)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+stateDiagram-v2
+    [*] --> ACTIVE: Sinh khóa / cấp chứng chỉ thành công
+    
+    ACTIVE --> EXPIRING_SOON: Còn dưới 30 ngày trước hạn
+    EXPIRING_SOON --> EXPIRED: Quá ngày hết hạn hiệu lực
+    
+    EXPIRING_SOON --> SUPERSEDED: Gia hạn thành công (thay thế bởi khóa mới)
+    ACTIVE --> SUPERSEDED: Gia hạn trước hạn thành công
+    
+    ACTIVE --> REVOKED: Thu hồi thường hoặc Thu hồi Khẩn cấp
+    EXPIRING_SOON --> REVOKED: Thu hồi do lộ khóa
+    
+    REVOKED --> [*]
+    EXPIRED --> [*]
+    SUPERSEDED --> [*]
+</pre>
+        </div>
+        
+<p><em>Hình 3.3: Sơ đồ Máy trạng thái Tài sản Mật mã (Asset State Machine)</em></p>
+<hr />
+<h2>III. Sơ đồ tuần tự (Sequence Diagram)</h2>
+<h3>1. Sơ đồ Tuần tự luồng Xác thực &amp; Đổi mật khẩu bắt buộc (UC-01)</h3>
+
+        <div class="mermaid-wrapper" id="diagram-4">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 4</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(4)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Người dùng (User / Approver / Admin)
+    participant UI as React Frontend
+    participant API as Backend (Auth Module)
+    participant DB as PostgreSQL (Supabase)
+
+    U->>UI: 1. Nhập email & mật khẩu (Password@123)
+    UI->>API: 2. POST /api/v1/auth/login
+    API->>DB: 3. Kiểm tra số lần thử sai (< 10) & Lấy password hash
+    API->>API: 4. So khớp mật khẩu với bcrypt
+    API->>DB: 5. Reset failed_login_attempts = 0
+    API-->>UI: 6. 200 OK + JWT Access Token + HttpOnly Refresh Cookie
+    
+    alt Nếu cờ must_change_password == true
+        UI->>U: 7. Bật hộp thoại "Đổi mật khẩu lần đầu" (Bắt buộc)
+        U->>UI: 8. Nhập mật khẩu mới
+        UI->>API: 9. POST /api/v1/auth/change-password
+        API->>DB: 10. Update password hash, must_change_password = false, token_version++
+        API->>DB: 11. Ghi log AUTH_CHANGE_PASSWORD
+        API-->>UI: 12. 200 OK (Cập nhật phiên mới)
+    end
+    UI->>U: 13. Điều hướng vào Dashboard tương ứng theo Role
+</pre>
+        </div>
+        
+<p><em>Hình 3.4: Sơ đồ Tuần tự luồng Đăng nhập &amp; Đổi mật khẩu bắt buộc</em></p>
+<h3>2. Sơ đồ Tuần tự luồng Phê duyệt &amp; Kiểm soát Phân tách Trách nhiệm SoD (UC-07)</h3>
+
+        <div class="mermaid-wrapper" id="diagram-5">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 5</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(5)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor U as Requester (User)
+    participant API as Backend API
+    participant DB as PostgreSQL
+    actor A as Approver (Manager)
+    participant W as Provisioning Worker
+    participant KP as Crypto Provider
+
+    U->>API: 1. POST /requests (Tạo yêu cầu cấp mới)
+    API->>DB: 2. Validate policy + Lưu đơn PENDING
+    API->>DB: 3. Ghi log REQUEST_CREATED + Bắn NOTIFICATIONS cho Approver
+    API-->>U: 4. 201 Created
+
+    A->>API: 5. POST /requests/{id}/decision (Phê duyệt / Từ chối)
+    API->>DB: 6. Kiểm tra quyền, Scope phòng ban, SoD (creator != approver)
+    API->>DB: 7. Atomic update PENDING -> APPROVED / REJECTED
+    API->>DB: 8. Insert request_decisions + Audit Log DECISION_*
+    API-->>A: 9. 200 OK
+
+    opt Nếu đơn APPROVED
+        W->>DB: 10. Polling đơn APPROVED (FOR UPDATE SKIP LOCKED)
+        W->>KP: 11. Tự động sinh Khóa / Cặp Khóa / Chứng chỉ
+        W->>DB: 12. Insert crypto_assets (ACTIVE) + Liên kết Public Key
+        W->>DB: 13. Update request -> COMPLETED + Bắn thông báo cho Requester
+    end
+</pre>
+        </div>
+        
+<p><em>Hình 3.5: Sơ đồ Tuần tự luồng Phê duyệt và Cấp phát SoD</em></p>
+<h3>3. Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10)</h3>
+
+        <div class="mermaid-wrapper" id="diagram-6">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 6</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(6)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor C as CISO (ciso@congty.com)
+    participant UI as React Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+    actor Owner as Chủ sở hữu tài sản
+
+    C->>UI: 1. Phát hiện sự cố lộ khóa bí mật trên máy chủ
+    C->>UI: 2. Chọn tài sản -> Bấm "Thu hồi khẩn cấp" (Emergency Revoke)
+    C->>UI: 3. Nhập lý do: "Nghi ngờ rò rỉ Private Key trên GitHub"
+    UI->>API: 4. POST /api/v1/assets/:id/revoke
+    API->>DB: 5. Kiểm tra quyền ADMIN (Chặn ngay lập tức nếu không phải Admin)
+    API->>DB: 6. Cập nhật TRỰC TIẾP crypto_assets.status = 'REVOKED' (Không qua tạo đơn duyệt)
+    API->>DB: 7. INSERT notifications (type: 'ASSET_REVOKED') gửi cho Owner
+    API->>DB: 8. Ghi Audit Log EMERGENCY_REVOKE (emergency: true)
+    Note over DB: Trigger trg_audit_log_immutable bảo vệ bản ghi log vĩnh viễn
+    API-->>UI: 9. 200 OK -> Tài sản bị vô hiệu hóa toàn mạng
+    DB-->>Owner: 10. Chủ sở hữu nhận cảnh báo đỏ thu hồi tài sản trên Popover
+</pre>
+        </div>
+        
+<p><em>Hình 3.6: Sơ đồ Tuần tự luồng Thu hồi Khẩn cấp trực tiếp</em></p>
+<h3>4. Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 &amp; UC-UI-01)</h3>
+
+        <div class="mermaid-wrapper" id="diagram-7">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 7</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(7)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor A as Người dùng (User / Approver / Admin)
+    participant UI as React Frontend (Header)
+    participant Pop as NotificationPopover Component
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+
+    DB-->>UI: 1. Có thông báo mới (read_at IS NULL)
+    UI->>UI: 2. Quả chuông trên Header bật chấm đỏ (.has-alert)
+    A->>UI: 3. Click vào quả chuông
+    UI->>Pop: 4. Xổ bảng NotificationPopover (Hiển thị 15 tin mới, badge unread)
+    
+    alt Người dùng đánh dấu đã đọc
+        A->>Pop: 5a. Bấm nút "Đánh dấu đã đọc"
+        Pop->>API: 6a. PATCH /api/v1/notifications/read-all
+        API->>DB: 7a. UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL
+        API-->>Pop: 8a. 200 OK ({ updated: N })
+        Pop->>UI: 9a. Tắt chấm đỏ trên chuông, unreadCount = 0
+    else Người dùng click vào một thông báo cụ thể
+        A->>Pop: 5b. Click dòng thông báo
+        Pop->>UI: 6b. Đóng Popover & Tự động cuộn đến bảng dữ liệu (Deep-link)
+    else Người dùng click ra ngoài hoặc bấm Escape
+        A->>UI: 5c. Click vùng ngoài hoặc bấm phím Escape
+        UI->>Pop: 6c. Tự động đóng Popover
+    end
+</pre>
+        </div>
+        
+<p><em>Hình 3.7: Sơ đồ Tuần tự luồng tương tác Bảng thông báo nổi</em></p>
+<hr />
+<h2>IV. Sơ đồ hoạt động (Activity Diagram)</h2>
+
+        <div class="mermaid-wrapper" id="diagram-8">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 8</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(8)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+flowchart TD
+    Start([Bắt đầu]) --> Login[Đăng nhập hệ thống]
+    Login --> CheckRole{Vai trò người dùng?}
+    
+    CheckRole -->|Requester| CreateReq[Điền form xin cấp Khóa/Cert]
+    CreateReq --> ValPolicy{Tham số hợp lệ với Policy?}
+    ValPolicy -->|Không| ShowErr[Báo lỗi vi phạm chính sách]
+    ShowErr --> CreateReq
+    ValPolicy -->|Hợp lệ| SaveReq[Lưu đơn PENDING]
+    SaveReq --> PushNoti[Gửi thông báo tới Approver phòng ban]
+    
+    CheckRole -->|Approver| ViewQueue[Xem Hàng đợi duyệt phòng ban]
+    PushNoti --> ViewQueue
+    ViewQueue --> OpenDetail[Mở chi tiết đơn yêu cầu]
+    OpenDetail --> CheckSoD{Người duyệt trùng người tạo?}
+    CheckSoD -->|Trùng SoD| BlockApprove[Vô hiệu hóa nút duyệt - Báo lỗi SoD]
+    CheckSoD -->|Khác người tạo| Decision{Quyết định duyệt?}
+    
+    Decision -->|Từ chối| RejectReq[Nhập lời phê từ chối -> REJECTED]
+    RejectReq --> NotiReject[Gửi thông báo từ chối cho Requester]
+    NotiReject --> End([Kết thúc])
+    
+    Decision -->|Đồng ý| ApproveReq[Cập nhật APPROVED]
+    ApproveReq --> WorkerGen[Worker sinh Khóa ngầm]
+    WorkerGen --> SaveAsset[Lưu crypto_assets trạng thái ACTIVE]
+    SaveAsset --> CompleteReq[Cập nhật đơn COMPLETED]
+    CompleteReq --> NotiSuccess[Gửi thông báo thành công cho Requester]
+    NotiSuccess --> DownloadKey[Requester tải Public Key PEM]
+    DownloadKey --> End
+</pre>
+        </div>
+        
+<p><em>Hình 3.8: Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt</em></p>
+<hr />
+<h2>V. Thiết kế Cơ sở Dữ liệu</h2>
+<h3>1. Mô hình Thực thể Liên kết (ERD)</h3>
+
+        <div class="mermaid-wrapper" id="diagram-9">
+            <div class="diagram-actions">
+                <span class="diagram-tag">Sơ đồ 9</span>
+                <button class="btn-copy-sm" onclick="copyDiagramSVG(9)">📋 Sao chép mã Mermaid</button>
+            </div>
+            <pre class="mermaid">
+erDiagram
+    DEPARTMENTS ||--o{ USERS : "thuộc về"
+    USERS ||--o{ USER_ROLES : "gán vai trò"
+    ROLES ||--o{ USER_ROLES : "định nghĩa"
+    USERS ||--o{ APPROVER_SCOPES : "quản lý duyệt"
+    DEPARTMENTS ||--o{ APPROVER_SCOPES : "phạm vi duyệt"
+    
+    USERS ||--o{ CRYPTO_ASSETS : "sở hữu"
+    DEPARTMENTS ||--o{ CRYPTO_ASSETS : "quản lý tài sản"
+    POLICY_VERSIONS ||--o{ CRYPTO_ASSETS : "áp dụng chính sách"
+    CRYPTO_ASSETS ||--o| CRYPTOGRAPHIC_KEYS : "chi tiết khóa"
+    CRYPTO_ASSETS ||--o| CERTIFICATES : "chi tiết chứng chỉ"
+    CRYPTO_ASSETS ||--o| CERTIFICATES : "public_key_asset_id"
+    CRYPTO_ASSETS ||--o| CRYPTO_ASSETS : "replaces_asset_id"
+    
+    USERS ||--o{ REQUESTS : "tạo đơn"
+    DEPARTMENTS ||--o{ REQUESTS : "thuộc phòng ban"
+    CRYPTO_ASSETS ||--o{ REQUESTS : "tài sản mục tiêu"
+    REQUESTS ||--o| REQUEST_DECISIONS : "kết quả duyệt"
+    USERS ||--o{ REQUEST_DECISIONS : "người phê duyệt"
+    
+    USERS ||--o{ AUDIT_LOGS : "thực hiện"
+    USERS ||--o{ NOTIFICATIONS : "nhận thông báo"
+</pre>
+        </div>
+        
+<p><em>Hình 3.9: Sơ đồ Thực thể Liên kết CSDL (ERD)</em></p>
+<h3>2. Cấu trúc chi tiết các bảng cơ sở dữ liệu quan trọng</h3>
+<h4>Bảng <code>users</code> (Quản lý tài khoản)</h4>
+<ul>
+<li><code>id</code> (UUID, PK): Mã người dùng duy nhất.</li>
+<li><code>email</code> (VARCHAR(255), UNIQUE, NOT NULL): Tên đăng nhập email.</li>
+<li><code>password_hash</code> (VARCHAR(255), NOT NULL): Mật khẩu băm Bcrypt.</li>
+<li><code>display_name</code> (VARCHAR(120), NOT NULL): Họ và tên hiển thị.</li>
+<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban trực thuộc.</li>
+<li><code>status</code> (VARCHAR(20), CHECK <code>ACTIVE</code>, <code>INACTIVE</code>): Trạng thái hoạt động.</li>
+<li><code>must_change_password</code> (BOOLEAN, DEFAULT TRUE): Cờ ép đổi mật khẩu lần đầu.</li>
+<li><code>failed_login_attempts</code> (INT, DEFAULT 0): Số lần thử sai liên tiếp.</li>
+<li><code>lockout_until</code> (TIMESTAMPTZ, NULL): Hạn khóa tài khoản nếu vượt ngưỡng 10 lần.</li>
+<li><code>token_version</code> (INT, DEFAULT 1): Số hiệu phiên dùng để thu hồi token hàng loạt.</li>
+</ul>
+<h4>Bảng <code>crypto_assets</code> (Siêu dữ liệu tài sản mật mã)</h4>
+<ul>
+<li><code>id</code> (UUID, PK): Mã tài sản duy nhất.</li>
+<li><code>asset_code</code> (VARCHAR(64), UNIQUE, NOT NULL): Mã tài sản định dạng chuẩn (ví dụ: <code>KEY-2026-001</code>).</li>
+<li><code>name</code> (VARCHAR(150), NOT NULL): Tên mô tả tài sản.</li>
+<li><code>type</code> (VARCHAR(30), CHECK <code>KEY_PAIR</code>, <code>SYMMETRIC_KEY</code>, <code>CERTIFICATE</code>): Loại tài sản.</li>
+<li><code>status</code> (VARCHAR(30), CHECK <code>ACTIVE</code>, <code>EXPIRING_SOON</code>, <code>EXPIRED</code>, <code>REVOKED</code>, <code>SUPERSEDED</code>): Trạng thái tài sản.</li>
+<li><code>algorithm</code> (VARCHAR(40), NOT NULL): Thuật toán mật mã (ví dụ: <code>RSA_4096</code>, <code>AES_256_GCM</code>).</li>
+<li><code>owner_id</code> (UUID, FK <code>users.id</code>): Chủ sở hữu tài sản.</li>
+<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban sở hữu.</li>
+<li><code>policy_version_id</code> (UUID, FK <code>policy_versions.id</code>): Phiên bản chính sách áp dụng.</li>
+<li><code>replaces_asset_id</code> (UUID, FK <code>crypto_assets.id</code>): Khóa cũ được thay thế (nếu gia hạn).</li>
+<li><code>created_at, expires_at</code> (TIMESTAMPTZ, NOT NULL): Ngày cấp và ngày hết hạn.</li>
+</ul>
+<h4>Bảng <code>requests</code> (Đơn yêu cầu nghiệp vụ)</h4>
+<ul>
+<li><code>id</code> (UUID, PK): Mã đơn yêu cầu.</li>
+<li><code>type</code> (VARCHAR(30), CHECK <code>CREATE</code>, <code>RENEW</code>, <code>REVOKE</code>): Loại đơn.</li>
+<li><code>status</code> (VARCHAR(30), CHECK <code>PENDING</code>, <code>APPROVED</code>, <code>REJECTED</code>, <code>PROCESSING</code>, <code>COMPLETED</code>, <code>CANCELLED</code>): Trạng thái đơn.</li>
+<li><code>creator_id</code> (UUID, FK <code>users.id</code>): Người nộp đơn.</li>
+<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban nộp đơn.</li>
+<li><code>target_asset_id</code> (UUID, FK <code>crypto_assets.id</code>): Tài sản cần gia hạn hoặc thu hồi.</li>
+<li><code>reason</code> (TEXT, NOT NULL): Lý do nghiệp vụ.</li>
+<li><code>parameters</code> (JSONB, NOT NULL): Tham số kỹ thuật (thuật toán, độ dài khóa, thời hạn).</li>
+<li><code>emergency</code> (BOOLEAN, DEFAULT FALSE): Đánh dấu đơn khẩn cấp.</li>
+</ul>
+<h4>Bảng <code>audit_logs</code> (Nhật ký kiểm toán bất biến)</h4>
+<ul>
+<li><code>id</code> (UUID, PK): Mã bản ghi kiểm toán.</li>
+<li><code>action</code> (VARCHAR(64), NOT NULL): Tên hành động (<code>AUTH_LOGIN</code>, <code>REQUEST_CREATED</code>, <code>EMERGENCY_REVOKE</code>,...).</li>
+<li><code>actor_id</code> (UUID, FK <code>users.id</code>): Người thực hiện hành động.</li>
+<li><code>resource_type</code> (VARCHAR(40), NOT NULL): Loại tài nguyên chịu tác động (<code>REQUEST</code>, <code>ASSET</code>, <code>POLICY</code>, <code>USER</code>).</li>
+<li><code>resource_id</code> (VARCHAR(64), NULL): ID của tài nguyên.</li>
+<li><code>status</code> (VARCHAR(20), CHECK <code>SUCCESS</code>, <code>FAILED</code>): Kết quả thực hiện.</li>
+<li><code>details</code> (JSONB, NULL): Chi tiết thông số hoặc dữ liệu trước/sau.</li>
+<li><code>created_at</code> (TIMESTAMPTZ, DEFAULT NOW()): Dấu thời gian bất biến.</li>
+</ul>
+<h4>Bảng <code>notifications</code> (Thông báo ứng dụng In-app)</h4>
+<ul>
+<li><code>id</code> (UUID, PK): Mã thông báo.</li>
+<li><code>recipient_id</code> (UUID, FK <code>users.id</code>): Người nhận.</li>
+<li><code>type</code> (VARCHAR(40), CHECK): Loại thông báo (<code>REQUEST_SUBMITTED</code>, <code>REQUEST_APPROVED</code>, <code>REQUEST_REJECTED</code>, <code>ASSET_EXPIRING</code>, <code>ASSET_REVOKED</code>).</li>
+<li><code>channel</code> (VARCHAR(20), CHECK <code>IN_APP</code>, <code>EMAIL</code>): Kênh truyền tải.</li>
+<li><code>read_at</code> (TIMESTAMPTZ, NULL): Thời điểm đã đọc (NULL nếu chưa đọc).</li>
+</ul>
+<h3>3. Ràng buộc toàn vẹn &amp; Triggers tầng CSDL</h3>
+<ul>
+<li><strong>Trigger <code>trg_check_sod_rule</code>:</strong> Kích hoạt trước khi ghi nhận vào <code>request_decisions</code>. Nếu <code>approver_id = requests.creator_id</code>, trigger sẽ chủ động ném ngoại lệ <code>RAISE EXCEPTION 'SOD_VIOLATION: Approver cannot approve own request'</code> để rollback toàn bộ transaction.</li>
+<li><strong>Trigger <code>trg_audit_log_immutable</code>:</strong> Kích hoạt trước câu lệnh <code>UPDATE</code> hoặc <code>DELETE</code> trên bảng <code>audit_logs</code>. Trigger trả về ngoại lệ <code>AUDIT_LOG_IMMUTABLE</code>, cấm tuyệt đối mọi hành vi sửa xóa lịch sử kiểm toán.</li>
+</ul>
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>CHƯƠNG IV. PHÁT TRIỂN / THỰC THI</h1>
+<p>Dưới đây là hình ảnh và đặc tả chi tiết các màn hình chức năng chính đã được nhóm chúng em xây dựng hoàn chỉnh và đang vận hành thực tế:</p>
+<h2>I. Màn hình Đăng nhập &amp; Đổi mật khẩu bắt buộc</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Cho phép người dùng đăng nhập bằng tài khoản email công ty. Hệ thống hiển thị sẵn danh sách tài khoản mẫu theo từng vai trò để thuận tiện kiểm thử. Khi đăng nhập bằng tài khoản được tạo mới hoặc reset mật khẩu, cờ <code>must_change_password = true</code> sẽ kích hoạt hộp thoại <code>PasswordChangeDialog</code> bắt buộc người dùng nhập mật khẩu mới trước khi truy cập ứng dụng.</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.1)</em></li>
+</ul>
+<h2>II. Màn hình Không gian làm việc cá nhân (User Dashboard)</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Dành cho nhân viên nghiệp vụ (vai trò USER như <code>dev.nguyen</code>). Cung cấp bảng thống kê số lượng tài sản sở hữu, thẻ cảnh báo nếu có chứng chỉ sắp hết hạn trong 30 ngày, bảng quản lý tài sản có bộ lọc trạng thái và nút &quot;Tải xuống&quot; để xuất Public Key dạng PEM. Phía dưới là danh sách các yêu cầu cấp phát gần đây kèm nút &quot;Hủy đơn&quot; đối với các yêu cầu đang ở trạng thái <code>PENDING</code>.</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.2)</em></li>
+</ul>
+<h2>III. Màn hình Hàng đợi duyệt phòng ban (Approval Queue) &amp; Quyết định</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Dành cho Quản lý phòng ban (vai trò APPROVER như <code>it.manager</code>). Hệ thống tự động lọc và hiển thị danh sách các đơn chờ duyệt trong phạm vi phụ trách (<code>approver_scopes</code>). Màn hình hiển thị chi tiết thông tin người gửi, thuật toán, mục đích sử dụng. Phía dưới là thanh quyết định với 2 lựa chọn: &quot;Từ chối&quot; (mở modal nhập lý do) và &quot;Phê duyệt yêu cầu&quot; (tự động kích hoạt worker sinh khóa).</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.3)</em></li>
+</ul>
+<h2>IV. Màn hình Bảng thông báo nổi (Notification Popover)</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Được tích hợp trực tiếp vào biểu tượng quả chuông trên thanh Header. Khi có thông báo mới (yêu cầu được duyệt, đơn mới cần duyệt, tài sản sắp hết hạn), chuông hiển thị chấm đỏ cảnh báo (<code>.has-alert</code>). Khi bấm vào chuông, bảng <code>NotificationPopover</code> xổ xuống mượt mà hiển thị 15 tin mới nhất với icon phân loại màu sắc (Xanh: Duyệt; Đỏ: Từ chối/Thu hồi; Vàng: Sắp hết hạn). Có nút &quot;Đánh dấu đã đọc&quot; để xóa chấm đỏ tức thì.</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.4)</em></li>
+</ul>
+<h2>V. Màn hình Quản trị Chính sách &amp; Thu hồi khẩn cấp</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Dành cho Giám đốc An toàn Thông tin (CISO) và Quản trị viên (<code>ciso@congty.com</code>). Cho phép tạo mới chính sách mật mã hoặc nâng cấp phiên bản (Policy Versioning v1/v2) siết chặt thời hạn sử dụng. Đặc biệt, CISO có thể chọn bất kỳ tài sản nào bị nghi ngờ rò rỉ khóa và nhấn nút &quot;Thu hồi khẩn cấp&quot; để lập tức chuyển trạng thái tài sản sang <code>REVOKED</code> mà không cần qua quy trình duyệt đơn.</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.5)</em></li>
+</ul>
+<h2>VI. Màn hình Nhật ký kiểm toán bất biến (Audit Logs)</h2>
+<ul>
+<li><strong>Mô tả chức năng:</strong> Cho phép Quản trị viên tra cứu toàn bộ vết thao tác trên hệ thống. Dữ liệu được sắp xếp theo dòng thời gian giảm dần, hiển thị rõ thời điểm, tác nhân, hành động (<code>AUTH_LOGIN</code>, <code>REQUEST_CREATED</code>, <code>EMERGENCY_REVOKE</code>), địa chỉ IP và kết quả thực thi (<code>SUCCESS</code>/<code>FAILED</code>). Có bộ lọc nhanh theo loại hành vi và kết quả.</li>
+<li><strong>Minh chứng giao diện:</strong> <em>(Hình 4.6)</em></li>
+</ul>
+<hr />
+<div style="page-break-after: always;"></div>
+<h1>CHƯƠNG V. KẾT LUẬN</h1>
+<h2>I. Kết quả đã thực hiện</h2>
+<p>Sau thời gian nghiêm túc nghiên cứu, phân tích và triển khai, nhóm chúng em đã hoàn thành toàn diện đề tài <strong>&quot;Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp&quot;</strong>. Các kết quả chính đạt được bao gồm:</p>
+<ol>
+<li><strong>Phân tích thiết kế hoàn chỉnh:</strong> Xây dựng đầy đủ tài liệu phân tích hệ thống gồm 15 Use Cases, mô hình ERD chuẩn hóa, các sơ đồ tuần tự và sơ đồ máy trạng thái.</li>
+<li><strong>Thực thi triệt để nguyên tắc SoD:</strong> Đảm bảo tính minh bạch trong phê duyệt, ngăn chặn triệt để hành vi tự duyệt đơn ở cả 3 tầng (UI, Backend, Database Trigger).</li>
+<li><strong>Hiện thực hóa tính năng Thu hồi Khẩn cấp:</strong> Cung cấp công cụ hữu hiệu cho CISO vô hiệu hóa ngay lập tức các tài sản bị rò rỉ khóa mà không bị cản trở bởi thủ tục duyệt đơn.</li>
+<li><strong>Nâng cao trải nghiệm người dùng với Bảng thông báo nổi:</strong> Quả chuông trên Header cảnh báo tức thời tin chưa đọc, hỗ trợ thao tác đọc nhanh và điều hướng tiện lợi.</li>
+<li><strong>Đảm bảo chất lượng bằng kiểm thử tự động:</strong> Toàn bộ 15 Use Cases và 6 quy trình nghiệp vụ đều vượt qua các kịch bản kiểm thử tự động với tỷ lệ thành công 100%.</li>
+</ol>
+<h2>II. Ưu khuyết điểm</h2>
+<h3>1. Ưu điểm</h3>
+<ul>
+<li><strong>Tính thực tiễn cao:</strong> Đáp ứng chính xác nhu cầu quản trị tài sản mật mã đang rất cấp thiết tại các tổ chức, doanh nghiệp.</li>
+<li><strong>Kiến trúc phân tầng sạch sẽ:</strong> Backend NestJS dạng modular, dễ bảo trì và mở rộng; Frontend React thiết kế component hóa rõ ràng.</li>
+<li><strong>Bảo mật đa lớp:</strong> Mật khẩu mã hóa Bcrypt, phiên làm việc an toàn với JWT và HttpOnly Cookie, bảo vệ toàn vẹn bằng Database Triggers.</li>
+</ul>
+<h3>2. Khuyết điểm / Điểm hạn chế</h3>
+<ul>
+<li><strong>Mô phỏng vật liệu khóa:</strong> Hiện tại hệ thống đang quản lý vật liệu khóa thông qua bộ điều hợp mô phỏng (Mock Crypto Provider), chưa tích hợp thiết bị phần cứng bảo mật chuyên dụng ngoài đời thực.</li>
+<li><strong>Xác thực đa yếu tố:</strong> Chưa tích hợp xác thực 2 bước (MFA/OTP qua điện thoại) đối với các thao tác đặc biệt nhạy cảm như thu hồi khẩn cấp.</li>
+</ul>
+<h2>III. Hướng mở rộng trong tương lai</h2>
+<ul>
+<li><strong>Kết nối Thiết bị Bảo mật Phần cứng (HSM):</strong> Tích hợp với các thiết bị HSM vật lý hoặc dịch vụ quản lý khóa đám mây (AWS KMS, HashiCorp Vault) đạt chuẩn FIPS 140-2 Level 3 để bảo vệ Private Key an toàn tuyệt đối.</li>
+<li><strong>Hỗ trợ Giao thức ACME (Automatic Certificate Management Environment):</strong> Tự động phát hành và gia hạn chứng chỉ SSL cho các máy chủ web (Nginx/Apache) tương tự cơ chế của Let's Encrypt.</li>
+<li><strong>Ứng dụng Blockchain / Hash-chain:</strong> Xâu chuỗi các bản ghi nhật ký kiểm toán bằng hàm băm mật mã (Hash-chain) để hỗ trợ kiểm toán độc lập từ bên thứ ba.</li>
+</ul>
+<hr />
+<h1>TÀI LIỆU THAM KHẢO</h1>
+<ol>
+<li><strong>Barker, E. (2020).</strong> <em>Recommendation for Key Management: Part 1 – General</em> (NIST Special Publication 800-57 Part 1 Rev. 5). National Institute of Standards and Technology.</li>
+<li><strong>Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., &amp; Polk, W. (2008).</strong> <em>Internet X.509 Public Key Infrastructure Certificate and Certificate Revocation List (CRL) Profile</em> (RFC 5280). Internet Engineering Task Force (IETF).</li>
+<li><strong>International Organization for Standardization. (2022).</strong> <em>Information security, cybersecurity and privacy protection — Information security management systems — Requirements</em> (ISO/IEC 27001:2022).</li>
+<li><strong>NestJS Framework Documentation. (2026).</strong> <em>Architecture, Dependency Injection, Modules &amp; Guards</em>. Truy cập từ: https://docs.nestjs.com/</li>
+<li><strong>PostgreSQL Global Development Group. (2026).</strong> <em>PostgreSQL 16 Documentation: Triggers, Constraints &amp; Transaction Isolation</em>. Truy cập từ: https://www.postgresql.org/docs/</li>
+<li><strong>React Documentation. (2026).</strong> <em>React 19 Components, State &amp; Hooks</em>. Truy cập từ: https://react.dev/</li>
+</ol>
+
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toastBox">
+        <span>✅</span>
+        <span id="toastMsg">Đã sao chép vào bộ nhớ tạm!</span>
+    </div>
+
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+            sequence: { useMaxWidth: true, showSequenceNumbers: true }
+        });
+
+        function showToast(message) {
+            const toast = document.getElementById('toastBox');
+            const msgSpan = document.getElementById('toastMsg');
+            msgSpan.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2800);
+        }
+
+        // Copy Table to Clipboard as Rich HTML (Ready for Word paste)
+        async function copyTable(index) {
+            const tableWrapper = document.getElementById('table-wrapper-' + index);
+            const table = tableWrapper.querySelector('table');
+            if (!table) return;
+
+            try {
+                const blobHtml = new Blob([table.outerHTML], { type: 'text/html' });
+                const blobText = new Blob([table.innerText], { type: 'text/plain' });
+                const data = [new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText
+                })];
+                await navigator.clipboard.write(data);
+                showToast('Đã sao chép bảng! Bạn có thể dán (Ctrl+V) ngay vào Word.');
+            } catch(err) {
+                // Fallback selection copy
+                const range = document.createRange();
+                range.selectNode(table);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                showToast('Đã sao chép bảng vào Clipboard!');
+            }
+        }
+
+        // Copy Mermaid diagram source or SVG
+        async function copyDiagramSVG(index) {
+            const wrapper = document.getElementById('diagram-' + index);
+            const pre = wrapper.querySelector('pre.mermaid');
+            const textToCopy = pre ? pre.textContent.trim() : '';
+            try {
+                await navigator.clipboard.writeText(textToCopy);
+                showToast('Đã sao chép mã Mermaid của sơ đồ ' + index + '!');
+            } catch(err) {
+                showToast('Không thể sao chép tự động, vui lòng thử lại.');
+            }
+        }
+
+        // Copy Full Document as Rich HTML for Word
+        async function copyFullDocument() {
+            const container = document.getElementById('report-content');
+            try {
+                // Clone container to clean up buttons before copying
+                const clone = container.cloneNode(true);
+                clone.querySelectorAll('.table-header-bar, .diagram-actions').forEach(el => el.remove());
+
+                const blobHtml = new Blob([clone.innerHTML], { type: 'text/html' });
+                const blobText = new Blob([clone.innerText], { type: 'text/plain' });
+                const data = [new ClipboardItem({
+                    'text/html': blobHtml,
+                    'text/plain': blobText
+                })];
+                await navigator.clipboard.write(data);
+                showToast('Đã sao chép toàn bộ báo cáo! Bạn có thể dán (Ctrl+V) thẳng vào Word.');
+            } catch(err) {
+                const range = document.createRange();
+                range.selectNode(container);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                showToast('Đã sao chép toàn bộ nội dung!');
+            }
+        }
+    </script>
+</body>
+</html>
