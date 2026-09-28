@@ -11,7 +11,7 @@
 <br/>
 
 ### ĐỀ TÀI:
-# HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA MÃ HÓA VÀ CHỨNG CHỈ SỐ DOANH NGHIỆP (CRYTA)
+# HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA MÃ HÓA VÀ CHỨNG CHỈ SỐ DOANH NGHIỆP
 
 <br/>
 
@@ -83,7 +83,7 @@
 # DANH SÁCH HÌNH, BẢNG
 
 ### Danh sách Hình vẽ
-- **Hình 3.1:** Sơ đồ Use Case tổng quát của hệ thống Cryta (15 Use Cases phân theo 4 nhóm Actor).
+- **Hình 3.1:** Sơ đồ Use Case tổng quát của hệ thống (15 Use Cases phân theo 4 nhóm Actor).
 - **Hình 3.2:** Sơ đồ Máy trạng thái Yêu cầu (Request State Machine).
 - **Hình 3.3:** Sơ đồ Máy trạng thái Tài sản Mật mã (Asset State Machine).
 - **Hình 3.4:** Sơ đồ Tuần tự luồng Xác thực & Đổi mật khẩu bắt buộc (UC-01).
@@ -100,7 +100,7 @@
 - **Hình 4.6:** Giao diện Tra cứu Nhật ký kiểm toán bất biến (Audit Logs Console).
 
 ### Danh sách Bảng biểu
-- **Bảng 1.1:** So sánh các giải pháp quản lý khóa truyền thống và hệ thống Cryta.
+- **Bảng 1.1:** So sánh các giải pháp quản lý khóa truyền thống và hệ thống đề xuất.
 - **Bảng 2.1:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng Requester (Nhân viên).
 - **Bảng 2.2:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng Approver (Quản lý).
 - **Bảng 2.3:** Bảng yêu cầu chức năng nghiệp vụ của đối tượng CISO (Giám đốc Bảo mật).
@@ -149,7 +149,7 @@ Tuy nhiên, tại nhiều doanh nghiệp, công tác quản lý tài sản mật
 3. **Thiếu cơ chế kiểm soát quyền hạn (SoD):** Lập trình viên có thể tự do tạo khóa và đưa vào môi trường production mà không qua sự xem xét, đánh giá rủi ro từ Trưởng phòng.
 4. **Không có quy trình ứng phó rò rỉ khẩn cấp:** Khi phát hiện máy chủ bị tấn công hoặc khóa bí mật bị đẩy nhầm lên kho mã nguồn công khai (GitHub), người quản trị bảo mật (CISO) không có công cụ thu hồi tài sản mật mã tức thời trên toàn hệ thống.
 
-Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lựa chọn đề tài: **"Xây dựng Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp (Cryta)"** cho đồ án môn học Thiết kế Hệ thống Thông tin nhằm cung cấp một giải pháp quản trị tập trung, an toàn, minh bạch và tự động hóa cao.
+Xuất phát từ những bài toán thực tế đó, nhóm chúng em đã lựa chọn đề tài: **"Xây dựng Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp"** cho đồ án môn học Thiết kế Hệ thống Thông tin nhằm cung cấp một giải pháp quản trị tập trung, an toàn, minh bạch và tự động hóa cao.
 
 ### 2. Mục tiêu của đề tài
 - **Chuẩn hóa quy trình nghiệp vụ:** Xây dựng quy trình nghiệp vụ khép kín từ lúc nộp đơn xin cấp phát, quản lý phân luồng phê duyệt theo phòng ban, tự động sinh khóa/chứng chỉ, gia hạn tài sản, cho đến thu hồi khi hết nhu cầu.
@@ -230,7 +230,7 @@ Khi xảy ra sự cố bảo mật (nhân viên bị mất máy tính, hoặc l�
 
 ## IV. Yêu cầu chức năng nghiệp vụ
 
-Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ của hệ thống Cryta được phân loại theo 4 nhóm đối tượng sử dụng:
+Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ của hệ thống được phân loại theo 4 nhóm đối tượng sử dụng:
 
 ### 1. Chức năng của đối tượng Requester (Nhân viên nghiệp vụ)
 
@@ -302,71 +302,92 @@ Dưới đây là bảng chuẩn hóa các yêu cầu chức năng nghiệp vụ
 
 ## I. Sơ đồ Use Case
 
-Sơ đồ Use Case tổng quát của hệ thống Cryta được phân rã thành 15 Ca sử dụng cốt lõi theo 4 nhóm tác nhân chính:
+Sơ đồ Use Case tổng quát của hệ thống được phân rã thành 15 Ca sử dụng cốt lõi theo 4 nhóm tác nhân chính, áp dụng mô hình phân hệ chức năng và quan hệ kế thừa tác nhân (Actor Generalization) để đảm bảo cấu trúc trực quan, rành mạch và không bị chồng chéo:
 
 ```mermaid
 flowchart LR
-    REQ["Requester (User)"]
-    APP["Approver (Manager)"]
-    CISO["CISO (Security Admin)"]
-    ADMIN["System Admin"]
-    SYS["System Background Job"]
+    classDef actorStyle fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;
+    classDef commonStyle fill:#fff3e0,stroke:#e65100,stroke-width:1.5px;
+    classDef ucStyle fill:#f3e5f5,stroke:#4a148c,stroke-width:1.5px;
 
-    subgraph Cryta["Hệ thống Quản lý Vòng đời Khóa & Chứng chỉ số"]
-        UC01["UC-01 Đăng nhập & Đổi mật khẩu"]
-        UC02["UC-02 Tạo yêu cầu cấp mới"]
-        UC03["UC-03 Yêu cầu gia hạn / thu hồi"]
-        UC04["UC-04 Theo dõi & Hủy đơn PENDING"]
-        UC05["UC-05 Xem tài sản cá nhân & Tải Khóa"]
-        
-        UC06["UC-06 Xem hàng đợi duyệt theo Scope"]
-        UC07["UC-07 Phê duyệt / Từ chối kèm nhận xét"]
-        UC08["UC-08 Báo cáo tài sản & Dashboard duyệt"]
-        
-        UC09["UC-09 Ban hành & Versioning Policy"]
-        UC10["UC-10 Thu hồi Tài sản Khẩn cấp"]
-        UC11["UC-11 Tra cứu Audit Log Bất biến"]
-        UC12["UC-12 Giám sát Dashboard toàn cục"]
-        
-        UC13["UC-13 Quản lý Phòng ban & Danh mục"]
-        UC14["UC-14 Quản trị Người dùng & Trạng thái"]
-        UC15["UC-15 Cấp quyền Role & Phân luồng Scopes"]
-        
-        UCNOTI["Hệ thống Chuông & Popover Thông báo"]
-        UCSYS1["Quét & Cảnh báo Sắp Hết Hạn"]
-        UCSYS2["Tự động Chuyển trạng thái EXPIRED"]
+    %% --- CÁC TÁC NHÂN (ACTORS) ---
+    USER["👤 Người dùng chung<br/>(System User)"]:::actorStyle
+    REQ["👨‍💻 Requester<br/>(Nhân viên)"]:::actorStyle
+    APP["👔 Approver<br/>(Quản lý)"]:::actorStyle
+    CISO["🛡️ CISO<br/>(Giám đốc ATTT)"]:::actorStyle
+    ADMIN["⚙️ System Admin<br/>(Quản trị viên)"]:::actorStyle
+
+    %% Quan hệ Kế thừa Tác nhân
+    USER -.->|Kế thừa| REQ
+    USER -.->|Kế thừa| APP
+    USER -.->|Kế thừa| CISO
+    USER -.->|Kế thừa| ADMIN
+
+    %% --- RANH GIỚI HỆ THỐNG VÀ CÁC PHÂN HỆ ---
+    subgraph SystemBoundary ["HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA VÀ CHỨNG CHỈ SỐ"]
+        direction TB
+
+        subgraph G_COMMON ["1. Chức năng Xác thực & Thông báo dùng chung"]
+            UC01(["UC-01: Đăng nhập & Đổi mật khẩu bắt buộc"]):::commonStyle
+            UC12(["UC-12: Bảng thông báo nổi Notification Popover"]):::commonStyle
+        end
+
+        subgraph G_REQ ["2. Phân hệ Quản lý Yêu cầu & Tài sản cá nhân"]
+            direction TB
+            UC02(["UC-02: Tạo yêu cầu cấp mới Khóa/Cert"]):::ucStyle
+            UC03(["UC-03: Yêu cầu Gia hạn / Thu hồi tài sản"]):::ucStyle
+            UC04(["UC-04: Theo dõi tiến độ & Hủy đơn PENDING"]):::ucStyle
+            UC05(["UC-05: Xem tài sản cá nhân & Tải Public Key PEM"]):::ucStyle
+        end
+
+        subgraph G_APP ["3. Phân hệ Phê duyệt & Kiểm soát SoD"]
+            direction TB
+            UC06(["UC-06: Xem Hàng đợi duyệt theo Scope phòng ban"]):::ucStyle
+            UC07(["UC-07: Phê duyệt / Từ chối đơn (SoD)"]):::ucStyle
+            UC08(["UC-08: Thống kê & Báo cáo phê duyệt phòng ban"]):::ucStyle
+        end
+
+        subgraph G_CISO ["4. Phân hệ Quản trị Chính sách & Xử lý Khẩn cấp"]
+            direction TB
+            UC09(["UC-09: Ban hành & Nâng cấp phiên bản Chính sách"]):::ucStyle
+            UC10(["UC-10: Thu hồi Khẩn cấp trực tiếp (Emergency Revoke)"]):::ucStyle
+            UC11(["UC-11: Tra cứu Nhật ký kiểm toán Bất biến"]):::ucStyle
+        end
+
+        subgraph G_ADMIN ["5. Phân hệ Quản trị Người dùng & Hệ thống"]
+            direction TB
+            UC13(["UC-13: Quản lý Danh mục Phòng ban tổ chức"]):::ucStyle
+            UC14(["UC-14: Quản lý Người dùng & Khóa tài khoản"]):::ucStyle
+            UC15(["UC-15: Phân quyền Vai trò & Gán Scope duyệt"]):::ucStyle
+        end
     end
 
-    REQ --> UC01
+    %% --- LIÊN KẾT TÁC NHÂN ĐẾN TỪNG PHÂN HỆ ---
+    USER --> UC01
+    USER --> UC12
+
     REQ --> UC02
     REQ --> UC03
     REQ --> UC04
     REQ --> UC05
-    REQ -.-> UCNOTI
 
-    APP --> UC01
     APP --> UC06
     APP --> UC07
     APP --> UC08
-    APP -.-> UCNOTI
 
-    CISO --> UC01
     CISO --> UC09
     CISO --> UC10
     CISO --> UC11
-    CISO --> UC12
-    CISO -.-> UCNOTI
 
-    ADMIN --> UC01
-    ADMIN --> UC11
     ADMIN --> UC13
     ADMIN --> UC14
     ADMIN --> UC15
-
-    SYS --> UCSYS1
-    SYS --> UCSYS2
 ```
-*Hình 3.1: Sơ đồ Use Case tổng quát hệ thống Cryta*
+*Hình 3.1: Sơ đồ Use Case tổng quát của hệ thống*
+
+> **Ghi chú về thiết kế Sơ đồ Use Case:**
+> - **Quan hệ Kế thừa (Actor Generalization):** Cả 4 đối tượng `Requester`, `Approver`, `CISO` và `System Admin` đều kế thừa từ tác nhân chung `Người dùng chung (System User)`, do đó tự động thừa hưởng 2 chức năng căn bản là `UC-01` (Đăng nhập, đổi mật khẩu) và `UC-12` (Nhận và đọc thông báo nổi qua quả chuông).
+> - **Phân định ranh giới trách nhiệm:** Mỗi tác nhân chuyên biệt chỉ kết nối trực tiếp đến phân hệ chức năng tương ứng của mình, đảm bảo tuân thủ nguyên tắc tối thiểu quyền hạn (Least Privilege) và nguyên tắc phân tách trách nhiệm (SoD), đồng thời giúp biểu đồ không bị chồng chéo đường nối.
 
 ---
 
@@ -706,7 +727,7 @@ Dưới đây là hình ảnh và đặc tả chi tiết các màn hình chức 
 # CHƯƠNG V. KẾT LUẬN
 
 ## I. Kết quả đã thực hiện
-Sau thời gian nghiêm túc nghiên cứu, phân tích và triển khai, nhóm chúng em đã hoàn thành toàn diện đề tài **"Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp (Cryta)"**. Các kết quả chính đạt được bao gồm:
+Sau thời gian nghiêm túc nghiên cứu, phân tích và triển khai, nhóm chúng em đã hoàn thành toàn diện đề tài **"Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp"**. Các kết quả chính đạt được bao gồm:
 1. **Phân tích thiết kế hoàn chỉnh:** Xây dựng đầy đủ tài liệu phân tích hệ thống gồm 15 Use Cases, mô hình ERD chuẩn hóa, các sơ đồ tuần tự và sơ đồ máy trạng thái.
 2. **Thực thi triệt để nguyên tắc SoD:** Đảm bảo tính minh bạch trong phê duyệt, ngăn chặn triệt để hành vi tự duyệt đơn ở cả 3 tầng (UI, Backend, Database Trigger).
 3. **Hiện thực hóa tính năng Thu hồi Khẩn cấp:** Cung cấp công cụ hữu hiệu cho CISO vô hiệu hóa ngay lập tức các tài sản bị rò rỉ khóa mà không bị cản trở bởi thủ tục duyệt đơn.
