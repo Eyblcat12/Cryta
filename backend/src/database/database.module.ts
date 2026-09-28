@@ -8,13 +8,19 @@ export { DATABASE_POOL } from './database.constants';
 @Module({
   providers: [{
     provide: DATABASE_POOL,
-    useFactory: () => new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
-      idleTimeoutMillis: 30_000,
-      statement_timeout: 10_000,
-      application_name: 'crypta-api',
-    }),
+    useFactory: () => {
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: Number(process.env.DATABASE_POOL_SIZE ?? 10),
+        idleTimeoutMillis: 30_000,
+        statement_timeout: 10_000,
+        application_name: 'crypta-api',
+      });
+      pool.on('error', (err) => {
+        console.warn('[DatabasePool] Idle client error caught:', err.message);
+      });
+      return pool;
+    },
   }, MigrationService],
   exports: [DATABASE_POOL],
 })
