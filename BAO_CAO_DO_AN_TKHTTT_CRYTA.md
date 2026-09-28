@@ -62,10 +62,7 @@
   - [II. Sơ đồ trạng thái (State Diagram)](#ii-sơ-đồ-trạng-thái-state-diagram)
   - [III. Sơ đồ tuần tự (Sequence Diagram)](#iii-sơ-đồ-tuần-tự-sequence-diagram)
   - [IV. Sơ đồ hoạt động (Activity Diagram)](#iv-sơ-đồ-hoạt-động-activity-diagram)
-  - [V. Sơ đồ lớp (Class Diagram)](#v-sơ-đồ-lớp-class-diagram)
-  - [VI. Thiết kế Cơ sở Dữ liệu](#vi-thiết-kế-cơ-sở-dữ-liệu)
-  - [VII. Thiết kế giao diện](#vii-thiết-kế-giao-diện)
-  - [VIII. Thiết kế xử lý & Thuật toán bảo mật](#viii-thiết-kế-xử-lý--thuật-toán-bảo-mật)
+  - [V. Thiết kế Cơ sở Dữ liệu](#v-thiết-kế-cơ-sở-dữ-liệu)
 - [CHƯƠNG IV. PHÁT TRIỂN / THỰC THI](#chương-iv-phát-triển--thực-thi)
   - [I. Màn hình Đăng nhập & Đổi mật khẩu bắt buộc](#i-màn-hình-đăng-nhập--đổi-mật-khẩu-bắt-buộc)
   - [II. Màn hình Không gian làm việc cá nhân (User Dashboard)](#ii-màn-hình-không-gian-làm-việc-cá-nhân-user-dashboard)
@@ -90,13 +87,11 @@
 - **Hình 3.2:** Sơ đồ Máy trạng thái Yêu cầu (Request State Machine).
 - **Hình 3.3:** Sơ đồ Máy trạng thái Tài sản Mật mã (Asset State Machine).
 - **Hình 3.4:** Sơ đồ Tuần tự luồng Xác thực & Đổi mật khẩu bắt buộc (UC-01).
-- **Hình 3.5:** Sơ đồ Tuần tự luồng Tạo yêu cầu cấp mới Khóa/Chứng chỉ (UC-02).
-- **Hình 3.6:** Sơ đồ Tuần tự luồng Phê duyệt & Kiểm soát Phân tách Trách nhiệm SoD (UC-07).
-- **Hình 3.7:** Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10).
-- **Hình 3.8:** Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 & UC-UI-01).
-- **Hình 3.9:** Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt.
-- **Hình 3.10:** Sơ đồ Lớp miền nghiệp vụ (Domain Class Diagram).
-- **Hình 3.11:** Sơ đồ Thực thể Liên kết (ERD) 15 bảng cơ sở dữ liệu.
+- **Hình 3.5:** Sơ đồ Tuần tự luồng Phê duyệt & Kiểm soát Phân tách Trách nhiệm SoD (UC-02 & UC-07).
+- **Hình 3.6:** Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10).
+- **Hình 3.7:** Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 & UC-UI-01).
+- **Hình 3.8:** Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt.
+- **Hình 3.9:** Sơ đồ Thực thể Liên kết (ERD) 15 bảng cơ sở dữ liệu.
 - **Hình 4.1:** Giao diện Đăng nhập và Hộp thoại Đổi mật khẩu bắt buộc.
 - **Hình 4.2:** Giao diện Dashboard cá nhân của Requester và Bảng tài sản mật mã.
 - **Hình 4.3:** Giao diện Hàng đợi duyệt của Approver và Thanh quyết định duyệt đơn.
@@ -484,7 +479,7 @@ sequenceDiagram
         W->>DB: 13. Update request -> COMPLETED + Bắn thông báo cho Requester
     end
 ```
-*Hình 3.6: Sơ đồ Tuần tự luồng Phê duyệt và Cấp phát SoD*
+*Hình 3.5: Sơ đồ Tuần tự luồng Phê duyệt và Cấp phát SoD*
 
 ### 3. Sơ đồ Tuần tự luồng Thu hồi Tài sản Khẩn cấp (UC-10)
 
@@ -509,7 +504,7 @@ sequenceDiagram
     API-->>UI: 9. 200 OK -> Tài sản bị vô hiệu hóa toàn mạng
     DB-->>Owner: 10. Chủ sở hữu nhận cảnh báo đỏ thu hồi tài sản trên Popover
 ```
-*Hình 3.7: Sơ đồ Tuần tự luồng Thu hồi Khẩn cấp trực tiếp*
+*Hình 3.6: Sơ đồ Tuần tự luồng Thu hồi Khẩn cấp trực tiếp*
 
 ### 4. Sơ đồ Tuần tự luồng Bảng thông báo nổi Notification Popover (UC-12 & UC-UI-01)
 
@@ -541,7 +536,7 @@ sequenceDiagram
         UI->>Pop: 6c. Tự động đóng Popover
     end
 ```
-*Hình 3.8: Sơ đồ Tuần tự luồng tương tác Bảng thông báo nổi*
+*Hình 3.7: Sơ đồ Tuần tự luồng tương tác Bảng thông báo nổi*
 
 ---
 
@@ -578,109 +573,11 @@ flowchart TD
     NotiSuccess --> DownloadKey[Requester tải Public Key PEM]
     DownloadKey --> End
 ```
-*Hình 3.9: Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt*
+*Hình 3.8: Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt*
 
 ---
 
-## V. Sơ đồ lớp (Class Diagram)
-
-```mermaid
-classDiagram
-    class User {
-        +UUID id
-        +string email
-        +string displayName
-        +string status
-        +boolean mustChangePassword
-        +login(password)
-        +changePassword(newPass)
-    }
-
-    class Department {
-        +UUID id
-        +string code
-        +string name
-    }
-
-    class Role {
-        +string name
-        +string description
-    }
-
-    class ApproverScope {
-        +UUID id
-        +UUID userId
-        +UUID departmentId
-    }
-
-    class CryptoAsset {
-        +UUID id
-        +string assetCode
-        +string type
-        +string status
-        +string algorithm
-        +DateTime expiresAt
-        +downloadPublicKey()
-    }
-
-    class Request {
-        +UUID id
-        +string type
-        +string status
-        +string reason
-        +JSON parameters
-        +boolean emergency
-        +cancel()
-    }
-
-    class RequestDecision {
-        +UUID id
-        +string decision
-        +string comment
-        +DateTime decidedAt
-    }
-
-    class PolicyVersion {
-        +UUID id
-        +int version
-        +string algorithm
-        +int maxValidityDays
-        +boolean isActive
-    }
-
-    class AuditLog {
-        +UUID id
-        +string action
-        +string status
-        +JSON details
-        +DateTime createdAt
-    }
-
-    class Notification {
-        +UUID id
-        +string type
-        +string channel
-        +DateTime readAt
-        +markAsRead()
-    }
-
-    User "1" --> "*" CryptoAsset : owns
-    User "*" --> "1" Department : belongs to
-    User "*" --> "*" Role : has
-    User "1" --> "*" ApproverScope : manages
-    Department "1" <-- "*" ApproverScope : scoped in
-    User "1" --> "*" Request : creates
-    Request "1" --> "0..1" RequestDecision : evaluated by
-    ApproverScope ..> Request : filters queue
-    PolicyVersion "1" <-- "*" CryptoAsset : governed by
-    CryptoAsset "1" <-- "*" Notification : notifies about
-    User "1" --> "*" AuditLog : acts in
-```
-*Hình 3.10: Sơ đồ Lớp miền nghiệp vụ (Domain Class Diagram)*
-
----
-
-## VI. Thiết kế Cơ sở Dữ liệu
+## V. Thiết kế Cơ sở Dữ liệu
 
 ### 1. Mô hình Thực thể Liên kết (ERD)
 
@@ -709,7 +606,7 @@ erDiagram
     USERS ||--o{ AUDIT_LOGS : "thực hiện"
     USERS ||--o{ NOTIFICATIONS : "nhận thông báo"
 ```
-*Hình 3.11: Sơ đồ Thực thể Liên kết CSDL (ERD)*
+*Hình 3.9: Sơ đồ Thực thể Liên kết CSDL (ERD)*
 
 ### 2. Cấu trúc chi tiết các bảng cơ sở dữ liệu quan trọng
 
