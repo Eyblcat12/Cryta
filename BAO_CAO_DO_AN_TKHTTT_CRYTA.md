@@ -563,35 +563,28 @@ sequenceDiagram
 ## IV. Sơ đồ hoạt động (Activity Diagram)
 
 ```mermaid
-flowchart TD
-    Start([Bắt đầu]) --> Login[Đăng nhập hệ thống]
-    Login --> CheckRole{Vai trò người dùng?}
+flowchart LR
+    Start([● Bắt đầu]) --> CreateReq[1. Requester nộp đơn xin cấp]
+    CreateReq --> ValPolicy{Policy hợp lệ?}
     
-    CheckRole -->|Requester| CreateReq[Điền form xin cấp Khóa/Cert]
-    CreateReq --> ValPolicy{Tham số hợp lệ với Policy?}
-    ValPolicy -->|Không| ShowErr[Báo lỗi vi phạm chính sách]
-    ShowErr --> CreateReq
-    ValPolicy -->|Hợp lệ| SaveReq[Lưu đơn PENDING]
-    SaveReq --> PushNoti[Gửi thông báo tới Approver phòng ban]
+    ValPolicy -->|Không| ShowErr[Báo lỗi vi phạm]
+    ShowErr -.->|Sửa lại| CreateReq
+    ValPolicy -->|Hợp lệ| SaveReq[2. Lưu PENDING & Báo Approver]
     
-    CheckRole -->|Approver| ViewQueue[Xem Hàng đợi duyệt phòng ban]
-    PushNoti --> ViewQueue
-    ViewQueue --> OpenDetail[Mở chi tiết đơn yêu cầu]
-    OpenDetail --> CheckSoD{Người duyệt trùng người tạo?}
-    CheckSoD -->|Trùng SoD| BlockApprove[Vô hiệu hóa nút duyệt - Báo lỗi SoD]
-    CheckSoD -->|Khác người tạo| Decision{Quyết định duyệt?}
+    SaveReq --> ViewQueue[3. Approver mở Hàng đợi]
+    ViewQueue --> CheckSoD{Trùng người tạo?<br/>SoD check}
     
-    Decision -->|Từ chối| RejectReq[Nhập lời phê từ chối -> REJECTED]
-    RejectReq --> NotiReject[Gửi thông báo từ chối cho Requester]
-    NotiReject --> End([Kết thúc])
+    CheckSoD -->|Vi phạm| BlockApprove[Báo lỗi SoD: Cấm tự duyệt]
+    CheckSoD -->|Hợp lệ| Decision{Quyết định duyệt?}
     
-    Decision -->|Đồng ý| ApproveReq[Cập nhật APPROVED]
-    ApproveReq --> WorkerGen[Worker sinh Khóa ngầm]
-    WorkerGen --> SaveAsset[Lưu crypto_assets trạng thái ACTIVE]
-    SaveAsset --> CompleteReq[Cập nhật đơn COMPLETED]
-    CompleteReq --> NotiSuccess[Gửi thông báo thành công cho Requester]
-    NotiSuccess --> DownloadKey[Requester tải Public Key PEM]
-    DownloadKey --> End
+    Decision -->|Từ chối| RejectReq[4a. Cập nhật REJECTED]
+    RejectReq --> EndFail([◉ Kết thúc])
+    
+    Decision -->|Đồng ý| ApproveReq[4b. Cập nhật APPROVED]
+    ApproveReq --> WorkerGen[5. Worker tự động sinh Khóa ngầm]
+    WorkerGen --> SaveAsset[6. Kích hoạt ACTIVE & Ghi Audit Log]
+    SaveAsset --> DownloadKey[7. Requester tải Public Key PEM]
+    DownloadKey --> EndOk([◉ Hoàn thành])
 ```
 *Hình 3.8: Sơ đồ Hoạt động luồng xử lý đơn cấp phát và phê duyệt*
 
