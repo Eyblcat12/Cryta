@@ -313,6 +313,34 @@ Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu tron
 
 **Tiền điều kiện:** Tài khoản tồn tại trong bảng `users`, trạng thái `status = 'ACTIVE'`.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Người dùng (User / Approver / Admin)
+    participant UI as React Frontend
+    participant API as Backend (Auth Module)
+    participant DB as PostgreSQL (Supabase)
+
+    U->>UI: 1. Nhập email & mật khẩu (Password@123)
+    UI->>API: 2. POST /api/v1/auth/login
+    API->>DB: 3. Kiểm tra số lần thử sai (< 10) & Lấy password hash
+    API->>API: 4. So khớp mật khẩu với bcrypt
+    API->>DB: 5. Reset failed_login_attempts = 0
+    API-->>UI: 6. 200 OK + JWT Access Token + HttpOnly Refresh Cookie
+    
+    alt Nếu cờ must_change_password == true
+        UI->>U: 7. Bật hộp thoại "Đổi mật khẩu lần đầu" (Bắt buộc)
+        U->>UI: 8. Nhập mật khẩu mới
+        UI->>API: 9. POST /api/v1/auth/change-password
+        API->>DB: 10. Update password hash, must_change_password = false, token_version++
+        API->>DB: 11. Ghi log AUTH_CHANGE_PASSWORD
+        API-->>UI: 12. 200 OK (Cập nhật phiên mới)
+    end
+    UI->>U: 13. Điều hướng vào Dashboard tương ứng theo Role
+```
+
 **Luồng chính:**
 1. Người dùng nhập email và mật khẩu tại màn hình Đăng nhập.
 2. Backend kiểm tra số lần đăng nhập sai liên tiếp (`failed_login_attempts < 10`); nếu quá hạn trả về `ACCOUNT_LOCKED`.
@@ -331,6 +359,29 @@ Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu tron
 
 **Tiền điều kiện:** User đang ở trạng thái `ACTIVE` và đã đăng nhập; chọn Policy Version hợp lệ.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Requester (dev.nguyen)
+    participant UI as React Frontend
+    participant API as Backend (Requests Module)
+    participant DB as PostgreSQL (Supabase)
+    actor A as Approver (it.manager)
+
+    R->>UI: 1. Mở modal "Tạo yêu cầu mới"
+    R->>UI: 2. Chọn loại tài sản, thuật toán, thời hạn & lý do
+    UI->>API: 3. POST /api/v1/requests
+    API->>DB: 4. Kiểm tra tham số theo Policy Version hiện hành
+    API->>DB: 5. INSERT requests (status = 'PENDING')
+    API->>DB: 6. INSERT notifications ('REQUEST_SUBMITTED') cho Approver trong Scope
+    API->>DB: 7. Ghi Audit Log REQUEST_CREATED
+    API-->>UI: 8. 201 Created (Mã yêu cầu)
+    UI->>R: 9. Hiển thị Toast thông báo tạo đơn thành công
+    DB-->>A: 10. Quả chuông trên Header của Approver sáng chấm đỏ (.has-alert)
+```
+
 **Luồng chính:**
 1. User nhấn "Yêu cầu cấp phát" trên Dashboard.
 2. User chọn loại tài sản (`KEY_PAIR`, `SYMMETRIC_KEY`, `CERTIFICATE`), mục đích sử dụng, thuật toán mong muốn và thời hạn.
@@ -348,6 +399,27 @@ Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu tron
 
 ### 5.4. Đặc tả chi tiết UC-03 — Yêu cầu Gia hạn / Thu hồi thông thường (Renew / Revoke)
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Requester (Chủ sở hữu tài sản)
+    participant UI as React Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+
+    R->>UI: 1. Chọn tài sản cá nhân -> Bấm "Gia hạn" hoặc "Thu hồi"
+    UI->>R: 2. Mở form: nhập lý do nghiệp vụ & mức độ khẩn cấp
+    R->>UI: 3. Xác nhận gửi yêu cầu
+    UI->>API: 4. POST /api/v1/requests (type = RENEW / REVOKE, target_asset_id)
+    API->>DB: 5. Xác thực owner_id == current_user.id & status tài sản hợp lệ
+    API->>DB: 6. INSERT requests (PENDING, liên kết target_asset_id)
+    API->>DB: 7. Bắn thông báo REQUEST_SUBMITTED cho Quản lý phòng ban
+    API->>DB: 8. Ghi Audit Log REQUEST_CREATED
+    API-->>UI: 9. 201 Created -> Hiển thị đơn đang chờ duyệt
+```
+
 **Luồng gia hạn (Renew):**
 - Chỉ chủ sở hữu (`owner_id`) mới có quyền yêu cầu gia hạn tài sản của mình.
 - Tài sản phải ở trạng thái `ACTIVE`, `EXPIRING_SOON` hoặc `EXPIRED`.
@@ -363,6 +435,29 @@ Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu tron
 
 **Tiền điều kiện:** Đơn yêu cầu do chính User tạo ra và đang ở trạng thái `PENDING`.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor R as Requester (dev.nguyen)
+    participant UI as React Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+
+    R->>UI: 1. Xem danh sách "Yêu cầu gần đây"
+    UI->>API: 2. GET /api/v1/requests
+    API->>DB: 3. SELECT * FROM requests WHERE creator_id = user.id
+    DB-->>UI: 4. Trả về danh sách đơn kèm trạng thái PENDING
+    R->>UI: 5. Bấm nút "Hủy đơn" trên yêu cầu PENDING
+    UI->>API: 6. POST /api/v1/requests/:id/cancel
+    API->>DB: 7. Kiểm tra creator_id == user.id và status == 'PENDING'
+    API->>DB: 8. UPDATE requests SET status = 'CANCELLED'
+    API->>DB: 9. Ghi Audit Log REQUEST_CANCELLED
+    API-->>UI: 10. 200 OK -> Cập nhật trạng thái CANCELLED trên UI
+    Note over DB,UI: Đơn lập tức biến mất khỏi Hàng đợi duyệt của Approver
+```
+
 **Luồng chính:**
 1. User truy cập tab "Yêu cầu gần đây" trên Dashboard cá nhân.
 2. Hệ thống hiển thị chi tiết tiến độ xử lý, thời gian nộp, chính sách áp dụng và trạng thái `PENDING`.
@@ -377,6 +472,8 @@ Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu tron
 ---
 
 ### 5.6. Đặc tả chi tiết UC-07 — Phê duyệt / Từ chối yêu cầu (Approve / Reject kèm SoD)
+
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
 
 ```mermaid
 sequenceDiagram
@@ -417,6 +514,27 @@ sequenceDiagram
 
 **Tiền điều kiện:** Tác nhân có vai trò `ADMIN` hoặc `CISO`.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as CISO / Security Admin
+    participant UI as React Frontend (Admin Console)
+    participant API as Backend (Policies Module)
+    participant DB as PostgreSQL (Supabase)
+
+    C->>UI: 1. Bấm "Thêm phiên bản chính sách mới"
+    C->>UI: 2. Nhập tham số: Thuật toán (RSA), Key size (4096), Max validity (30 ngày)
+    UI->>API: 3. POST /api/v1/policies/:policyId/versions
+    API->>DB: 4. Kiểm tra quyền ADMIN (Chặn vai trò USER / APPROVER)
+    API->>DB: 5. INSERT policy_versions (version = N+1, is_active = true)
+    API->>DB: 6. UPDATE policy_versions cũ thành is_active = false
+    API->>DB: 7. Ghi Audit Log POLICY_VERSION_CREATED
+    API-->>UI: 8. 201 Created -> Hiển thị thẻ Version v2 (Active)
+    Note over API,DB: Từ thời điểm này, mọi đơn cấp mới vượt quá 30 ngày sẽ bị chặn
+```
+
 **Luồng chính:**
 1. CISO tạo danh mục chính sách mới (`POST /api/v1/policies`) hoặc nâng cấp phiên bản cho chính sách hiện có (`POST /api/v1/policies/:policyId/versions`).
 2. Cấu hình các tham số bắt buộc: `algorithm` (ví dụ `RSA`, `AES`, `ECDSA`), `min_key_size` (ví dụ 2048), `max_validity_days` (ví dụ 90 ngày), số ngày cảnh báo trước (`notify_before_days`).
@@ -430,6 +548,30 @@ sequenceDiagram
 **Ý nghĩa bài toán:** Trong an toàn thông tin, khi một máy chủ bị tấn công hoặc khóa bí mật bị nghi ngờ rò rỉ, CISO cần có quyền thu hồi tài sản mật mã **ngay lập tức** mà không cần qua quy trình tạo đơn và chờ Trưởng phòng duyệt.
 
 **Tiền điều kiện:** Tác nhân có vai trò `ADMIN` / `CISO`.
+
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as CISO (ciso@congty.com)
+    participant UI as React Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+    actor Owner as Chủ sở hữu tài sản
+
+    C->>UI: 1. Phát hiện sự cố lộ khóa bí mật trên máy chủ
+    C->>UI: 2. Chọn tài sản -> Bấm "Thu hồi khẩn cấp" (Emergency Revoke)
+    C->>UI: 3. Nhập lý do: "Nghi ngờ rò rỉ Private Key trên GitHub"
+    UI->>API: 4. POST /api/v1/assets/:id/revoke
+    API->>DB: 5. Kiểm tra quyền ADMIN (Chặn ngay lập tức nếu không phải Admin)
+    API->>DB: 6. Cập nhật TRỰC TIẾP crypto_assets.status = 'REVOKED' (Không qua tạo đơn duyệt)
+    API->>DB: 7. INSERT notifications (type: 'ASSET_REVOKED') gửi cho Owner
+    API->>DB: 8. Ghi Audit Log EMERGENCY_REVOKE (emergency: true)
+    Note over DB: Trigger trg_audit_log_immutable bảo vệ bản ghi log vĩnh viễn
+    API-->>UI: 9. 200 OK -> Tài sản bị vô hiệu hóa toàn mạng
+    DB-->>Owner: 10. Chủ sở hữu nhận cảnh báo đỏ thu hồi tài sản trên Popover
+```
 
 **Luồng chính:**
 1. CISO chọn tài sản bị rò rỉ trên giao diện Quản trị và bấm nút "Thu hồi khẩn cấp" (`POST /api/v1/assets/:id/revoke`).
@@ -445,6 +587,28 @@ sequenceDiagram
 
 **Tiền điều kiện:** Tác nhân có vai trò `ADMIN`.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as CISO / Security Admin
+    participant UI as React Frontend
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+    actor Attacker as Kẻ xấu / Phần mềm độc hại
+
+    C->>UI: 1. Truy cập tab "Audit Log"
+    UI->>API: 2. GET /api/v1/audit-logs (Kèm filter: action, result, date)
+    API->>DB: 3. SELECT * FROM audit_logs ORDER BY created_at DESC
+    DB-->>UI: 4. Hiển thị dòng thời gian kiểm toán bất biến
+    
+    Note over Attacker,DB: Thử nghiệm kịch bản tấn công xóa dấu vết
+    Attacker->>DB: 5. Gửi lệnh SQL: DELETE / UPDATE audit_logs
+    DB->>DB: 6. Trigger trg_audit_log_immutable phát hiện can thiệp
+    DB-->>Attacker: 7. ERROR: AUDIT_LOG_IMMUTABLE (Rollback toàn bộ giao dịch)
+```
+
 **Luồng chính:**
 1. Quản trị viên truy cập mục Audit Log trên Admin Console (`GET /api/v1/audit-logs`).
 2. Hệ thống hiển thị danh sách dòng thời gian các sự kiện: Thời gian, Tác nhân (`actor_id`), Hành động (`action`), Loại tài nguyên (`resource_type`), Địa chỉ IP và Kết quả (`SUCCESS` / `FAILED`).
@@ -456,6 +620,37 @@ sequenceDiagram
 ### 5.10. Đặc tả chi tiết UC-12 & UC-UI-01 — Hệ thống Chuông thông báo & Bảng thông báo nổi (Notification Bell & Popover)
 
 **Tiền điều kiện:** Mọi người dùng đã đăng nhập hệ thống (`USER`, `APPROVER`, `ADMIN`).
+
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Người dùng (User / Approver / Admin)
+    participant UI as React Frontend (Header)
+    participant Pop as NotificationPopover Component
+    participant API as Backend API
+    participant DB as PostgreSQL (Supabase)
+
+    DB-->>UI: 1. Có thông báo mới (read_at IS NULL)
+    UI->>UI: 2. Quả chuông trên Header bật chấm đỏ (.has-alert)
+    A->>UI: 3. Click vào quả chuông
+    UI->>Pop: 4. Xổ bảng NotificationPopover (Hiển thị 15 tin mới, badge unread)
+    
+    alt Người dùng đánh dấu đã đọc
+        A->>Pop: 5a. Bấm nút "Đánh dấu đã đọc"
+        Pop->>API: 6a. PATCH /api/v1/notifications/read-all
+        API->>DB: 7a. UPDATE notifications SET read_at = NOW() WHERE read_at IS NULL
+        API-->>Pop: 8a. 200 OK ({ updated: N })
+        Pop->>UI: 9a. Tắt chấm đỏ trên chuông, unreadCount = 0
+    else Người dùng click vào một thông báo cụ thể
+        A->>Pop: 5b. Click dòng thông báo
+        Pop->>UI: 6b. Đóng Popover & Tự động cuộn đến bảng dữ liệu (Deep-link)
+    else Người dùng click ra ngoài hoặc bấm Escape
+        A->>UI: 5c. Click vùng ngoài hoặc bấm phím Escape
+        UI->>Pop: 6c. Tự động đóng Popover
+    end
+```
 
 **Luồng chính:**
 1. Khi có sự kiện liên quan (yêu cầu mới cần duyệt, yêu cầu được duyệt/từ chối, tài sản sắp hết hạn, tài sản bị thu hồi), hệ thống tự động sinh bản ghi trong bảng `notifications`.
@@ -472,13 +667,38 @@ sequenceDiagram
 
 **Tiền điều kiện:** Tác nhân có vai trò `ADMIN`.
 
+**Sơ đồ luồng xử lý (Workflow Sequence Diagram):**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Adm as System Admin
+    participant UI as React Frontend (Admin Console)
+    participant API as Backend (Users Module)
+    participant DB as PostgreSQL (Supabase)
+
+    Adm->>UI: 1. Bấm "Thêm người dùng mới"
+    UI->>API: 2. POST /api/v1/users (email, displayName, departmentId, password)
+    API->>DB: 3. INSERT users (status: 'ACTIVE', must_change_password: true)
+    API-->>UI: 4. 201 Created
+    
+    Adm->>UI: 5. Chọn User -> Mở modal "Phân quyền & Scopes"
+    Adm->>UI: 6. Chọn vai trò: APPROVER & Gán phòng ban duyệt: [Phòng IT, Phòng KT]
+    UI->>API: 7. PUT /api/v1/users/:id/access
+    API->>DB: 8. Cập nhật bảng user_roles & approver_scopes
+    API->>DB: 9. Ghi Audit Log ROLE_ASSIGNED & SCOPE_ASSIGNED
+    API-->>UI: 10. 200 OK -> User được kích hoạt quyền duyệt theo Scope
+```
+
 **Luồng chính:**
 1. **Tạo tài khoản mới (UC-14):** Admin nhập email, họ tên, phòng ban ban đầu và mật khẩu tạm thời (`POST /api/v1/users`). Tài khoản mặc định kích hoạt cờ `must_change_password = true`.
 2. **Kích hoạt / Vô hiệu hóa tài khoản (UC-14):** Admin có thể chuyển trạng thái user thành `INACTIVE` (`PATCH /api/v1/users/:id/status`). Người dùng bị vô hiệu hóa sẽ lập tức bị chặn đăng nhập và từ chối mọi token hiện có.
 3. **Phân vai trò & Luồng duyệt Scopes (UC-15):** Admin thiết lập danh sách vai trò (`USER`, `APPROVER`, `ADMIN`) và gán danh sách phòng ban được quyền duyệt (`approver_scopes`) thông qua endpoint `PUT /api/v1/users/:id/access`.
 4. Ràng buộc SoD: Hệ thống ngăn chặn việc vô hiệu hóa tài khoản Quản trị viên cuối cùng của hệ thống. Mọi thao tác thay đổi quyền hạn đều được ghi vết kiểm toán với đầy đủ trạng thái trước và sau.
 
-### 5.6. Acceptance Criteria chung cho Use Case
+---
+
+### 5.12. Acceptance Criteria chung cho Use Case
 
 - Mọi endpoint từ chối request không có authentication.
 - Quyền được kiểm tra ở backend, không phụ thuộc vào việc ẩn nút frontend.
