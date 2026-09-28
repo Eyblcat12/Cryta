@@ -20,9 +20,8 @@
 
 | STT | Họ và tên sinh viên | Mã số sinh viên (MSSV) | Lớp sinh viên | Vai trò trong nhóm |
 | :-: | :--- | :-: | :-: | :-: |
-| 1 | [Họ và tên thành viên 01] | [MSSV 01] | [Lớp 01] | Trưởng nhóm |
-| 2 | [Họ và tên thành viên 02] | [MSSV 02] | [Lớp 02] | Thành viên |
-| 3 | [Họ và tên thành viên 03] | [MSSV 03] | [Lớp 03] | Thành viên |
+| 1 | Hồ Ngọc Đức | N23DCAT012 | D23CQAT01-N | Trưởng nhóm |
+| 2 | Lê Hoàng Ngọc | N23DCAT048 | D23CQAT01-N | Thành viên |
 
 <br/>
 
