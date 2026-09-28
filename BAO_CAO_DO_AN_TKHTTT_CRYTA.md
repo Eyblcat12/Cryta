@@ -618,64 +618,318 @@ erDiagram
 ```
 *Hình 3.9: Sơ đồ Thực thể Liên kết CSDL (ERD)*
 
-### 2. Cấu trúc chi tiết các bảng cơ sở dữ liệu quan trọng
+### 2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (Trích xuất từ Supabase)
 
-#### Bảng `users` (Quản lý tài khoản)
-- `id` (UUID, PK): Mã người dùng duy nhất.
-- `email` (VARCHAR(255), UNIQUE, NOT NULL): Tên đăng nhập email.
-- `password_hash` (VARCHAR(255), NOT NULL): Mật khẩu băm Bcrypt.
-- `display_name` (VARCHAR(120), NOT NULL): Họ và tên hiển thị.
-- `department_id` (UUID, FK `departments.id`): Phòng ban trực thuộc.
-- `status` (VARCHAR(20), CHECK `ACTIVE`, `INACTIVE`): Trạng thái hoạt động.
-- `must_change_password` (BOOLEAN, DEFAULT TRUE): Cờ ép đổi mật khẩu lần đầu.
-- `failed_login_attempts` (INT, DEFAULT 0): Số lần thử sai liên tiếp.
-- `lockout_until` (TIMESTAMPTZ, NULL): Hạn khóa tài khoản nếu vượt ngưỡng 10 lần.
-- `token_version` (INT, DEFAULT 1): Số hiệu phiên dùng để thu hồi token hàng loạt.
+Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên nền tảng **PostgreSQL (Supabase Cloud)** với 15 bảng nghiệp vụ chính, được thiết kế chuẩn hóa mức 3NF và tích hợp các ràng buộc khóa ngoại (Foreign Key), chỉ mục (Index) và cơ chế khóa phiên bản lạc quan (Optimistic Concurrency Control). Dưới đây là đặc tả chi tiết 100% các cột và kiểu dữ liệu thực tế đang vận hành:
 
-#### Bảng `crypto_assets` (Siêu dữ liệu tài sản mật mã)
-- `id` (UUID, PK): Mã tài sản duy nhất.
-- `asset_code` (VARCHAR(64), UNIQUE, NOT NULL): Mã tài sản định dạng chuẩn (ví dụ: `KEY-2026-001`).
-- `name` (VARCHAR(150), NOT NULL): Tên mô tả tài sản.
-- `type` (VARCHAR(30), CHECK `KEY_PAIR`, `SYMMETRIC_KEY`, `CERTIFICATE`): Loại tài sản.
-- `status` (VARCHAR(30), CHECK `ACTIVE`, `EXPIRING_SOON`, `EXPIRED`, `REVOKED`, `SUPERSEDED`): Trạng thái tài sản.
-- `algorithm` (VARCHAR(40), NOT NULL): Thuật toán mật mã (ví dụ: `RSA_4096`, `AES_256_GCM`).
-- `owner_id` (UUID, FK `users.id`): Chủ sở hữu tài sản.
-- `department_id` (UUID, FK `departments.id`): Phòng ban sở hữu.
-- `policy_version_id` (UUID, FK `policy_versions.id`): Phiên bản chính sách áp dụng.
-- `replaces_asset_id` (UUID, FK `crypto_assets.id`): Khóa cũ được thay thế (nếu gia hạn).
-- `created_at, expires_at` (TIMESTAMPTZ, NOT NULL): Ngày cấp và ngày hết hạn.
+#### 1. Bảng `departments` — Quản lý Danh mục Phòng ban Tổ chức
 
-#### Bảng `requests` (Đơn yêu cầu nghiệp vụ)
-- `id` (UUID, PK): Mã đơn yêu cầu.
-- `type` (VARCHAR(30), CHECK `CREATE`, `RENEW`, `REVOKE`): Loại đơn.
-- `status` (VARCHAR(30), CHECK `PENDING`, `APPROVED`, `REJECTED`, `PROCESSING`, `COMPLETED`, `CANCELLED`): Trạng thái đơn.
-- `creator_id` (UUID, FK `users.id`): Người nộp đơn.
-- `department_id` (UUID, FK `departments.id`): Phòng ban nộp đơn.
-- `target_asset_id` (UUID, FK `crypto_assets.id`): Tài sản cần gia hạn hoặc thu hồi.
-- `reason` (TEXT, NOT NULL): Lý do nghiệp vụ.
-- `parameters` (JSONB, NOT NULL): Tham số kỹ thuật (thuật toán, độ dài khóa, thời hạn).
-- `emergency` (BOOLEAN, DEFAULT FALSE): Đánh dấu đơn khẩn cấp.
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `DEPARTMENTS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `4` bản ghi.
 
-#### Bảng `audit_logs` (Nhật ký kiểm toán bất biến)
-- `id` (UUID, PK): Mã bản ghi kiểm toán.
-- `action` (VARCHAR(64), NOT NULL): Tên hành động (`AUTH_LOGIN`, `REQUEST_CREATED`, `EMERGENCY_REVOKE`,...).
-- `actor_id` (UUID, FK `users.id`): Người thực hiện hành động.
-- `resource_type` (VARCHAR(40), NOT NULL): Loại tài nguyên chịu tác động (`REQUEST`, `ASSET`, `POLICY`, `USER`).
-- `resource_id` (VARCHAR(64), NULL): ID của tài nguyên.
-- `status` (VARCHAR(20), CHECK `SUCCESS`, `FAILED`): Kết quả thực hiện.
-- `details` (JSONB, NULL): Chi tiết thông số hoặc dữ liệu trước/sau.
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW()): Dấu thời gian bất biến.
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của phòng ban (UUID v4 tự sinh) |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã viết tắt phòng ban (ví dụ: SEC, DEV, OPS, FIN), là giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên đầy đủ của phòng ban (ví dụ: An toàn thông tin, Phát triển phần mềm) |
+| `is_active` | `BOOL` | NOT NULL | `true` | Trạng thái kích hoạt (TRUE: đang hoạt động, FALSE: tạm ngừng) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian tạo phòng ban trong hệ thống |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian cập nhật thông tin phòng ban gần nhất |
 
-#### Bảng `notifications` (Thông báo ứng dụng In-app)
-- `id` (UUID, PK): Mã thông báo.
-- `recipient_id` (UUID, FK `users.id`): Người nhận.
-- `type` (VARCHAR(40), CHECK): Loại thông báo (`REQUEST_SUBMITTED`, `REQUEST_APPROVED`, `REQUEST_REJECTED`, `ASSET_EXPIRING`, `ASSET_REVOKED`).
-- `channel` (VARCHAR(20), CHECK `IN_APP`, `EMAIL`): Kênh truyền tải.
-- `read_at` (TIMESTAMPTZ, NULL): Thời điểm đã đọc (NULL nếu chưa đọc).
+---
 
-### 3. Ràng buộc toàn vẹn & Triggers tầng CSDL
-- **Trigger `trg_check_sod_rule`:** Kích hoạt trước khi ghi nhận vào `request_decisions`. Nếu `approver_id = requests.creator_id`, trigger sẽ chủ động ném ngoại lệ `RAISE EXCEPTION 'SOD_VIOLATION: Approver cannot approve own request'` để rollback toàn bộ transaction.
-- **Trigger `trg_audit_log_immutable`:** Kích hoạt trước câu lệnh `UPDATE` hoặc `DELETE` trên bảng `audit_logs`. Trigger trả về ngoại lệ `AUDIT_LOG_IMMUTABLE`, cấm tuyệt đối mọi hành vi sửa xóa lịch sử kiểm toán.
+#### 2. Bảng `roles` — Quản lý Danh mục Vai trò Hệ thống (RBAC)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `ROLES` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của vai trò hệ thống |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã vai trò chuẩn hóa (ADMIN, CISO, APPROVER, USER), giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên mô tả vai trò (Quản trị viên, Giám đốc ATTT, Quản lý phê duyệt, Người dùng) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian khởi tạo vai trò trong hệ thống |
+
+---
+
+#### 3. Bảng `users` — Quản lý Thông tin Tài khoản & Trạng thái Bảo mật
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USERS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của người dùng |
+| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới departments(id), xác định phòng ban trực thuộc |
+| `email` | `VARCHAR(255)` | NOT NULL | `*None*` | Địa chỉ email công vụ dùng làm tên đăng nhập, là duy nhất (UNIQUE) |
+| `password_hash` | `VARCHAR(255)` | NOT NULL | `*None*` | Chuỗi băm mật khẩu bảo mật sử dụng giải thuật Bcrypt với salt rounds chuẩn |
+| `display_name` | `VARCHAR(255)` | NOT NULL | `*None*` | Họ và tên đầy đủ hiển thị trên giao diện người dùng |
+| `status` | `VARCHAR(30)` | NOT NULL | `'ACTIVE'` | Trạng thái tài khoản (ACTIVE: hoạt động, SUSPENDED: tạm khóa, INACTIVE: ngừng dùng) |
+| `token_version` | `INT4` | NOT NULL | `1` | Phiên bản token (dùng để vô hiệu hóa tức thời toàn bộ JWT token khi đổi mật khẩu/bị khóa) |
+| `failed_login_attempts` | `INT4` | NOT NULL | `0` | Số lần đăng nhập sai liên tiếp (tự reset về 0 khi đúng, khóa khi vượt ngưỡng 10) |
+| `locked_until` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm tài khoản bị khóa tạm thời nếu đăng nhập sai quá số lần quy định |
+| `must_change_password` | `BOOL` | NOT NULL | `false` | Cờ bắt buộc đổi mật khẩu lần đầu (TRUE khi tài khoản vừa tạo hoặc reset mật khẩu) |
+| `last_login_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm đăng nhập thành công gần nhất vào hệ thống |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm khởi tạo tài khoản trong cơ sở dữ liệu |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm chỉnh sửa thông tin tài khoản gần nhất |
+
+---
+
+#### 4. Bảng `user_roles` — Phân quyền Người dùng theo Vai trò (Quan hệ N-N)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `USER_ROLES` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `12` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `user_id` | `UUID` | **PK**, **FK** $\to$ `users.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết tới users(id) |
+| `role_id` | `UUID` | **PK**, **FK** $\to$ `roles.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết tới roles(id) |
+| `assigned_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), ghi nhận quản trị viên thực hiện gán quyền |
+| `assigned_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian phân quyền vai trò cho người dùng |
+
+---
+
+#### 5. Bảng `auth_sessions` — Quản lý Phiên Đăng nhập & Refresh Token
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUTH_SESSIONS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `70` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh phiên đăng nhập |
+| `user_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), xác định chủ sở hữu phiên |
+| `token_hash` | `BPCHAR(64)` | UNIQUE, NOT NULL | `*None*` | Mã băm an toàn SHA-256 của Refresh Token (chống lộ token gốc khi bị rò rỉ DB) |
+| `user_agent` | `VARCHAR(500)` | NULL | `*None*` | Thông tin trình duyệt và hệ điều hành của client đăng nhập |
+| `ip_address` | `INET` | NULL | `*None*` | Địa chỉ IP client khi khởi tạo phiên làm việc |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm hết hạn hiệu lực của phiên đăng nhập (mặc định 30 ngày) |
+| `last_used_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm sử dụng token để lấy Access Token mới gần nhất |
+| `revoked_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm phiên bị thu hồi (người dùng bấm Đăng xuất hoặc Admin cưỡng chế khóa) |
+| `replaced_by` | `UUID` | **FK** $\to$ `auth_sessions.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới auth_sessions(id) của phiên mới thay thế phiên này trong chu trình Token Rotation |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm đăng nhập khởi tạo phiên làm việc |
+
+---
+
+#### 6. Bảng `approver_scopes` — Cấu hình Phạm vi Phê duyệt theo Phòng ban của Approver
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `APPROVER_SCOPES` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `3` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `user_id` | `UUID` | **PK**, **FK** $\to$ `users.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết users(id), người dùng giữ vai trò Approver |
+| `department_id` | `UUID` | **PK**, **FK** $\to$ `departments.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết departments(id), phòng ban mà Approver có quyền xét duyệt |
+| `assigned_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới users(id) của quản trị viên đã gán phạm vi duyệt |
+| `assigned_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm phê duyệt thiết lập phạm vi phụ trách phòng ban |
+
+---
+
+#### 7. Bảng `policies` — Danh mục Chính sách Mật mã Doanh nghiệp
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICIES` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `6` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh duy nhất của chính sách mật mã |
+| `code` | `VARCHAR(50)` | UNIQUE, NOT NULL | `*None*` | Mã chính sách (ví dụ: POL-RSA, POL-ECC, POL-AES), giá trị duy nhất (UNIQUE) |
+| `name` | `VARCHAR(255)` | NOT NULL | `*None*` | Tên mô tả chính sách bảo mật mật mã doanh nghiệp |
+| `is_active` | `BOOL` | NOT NULL | `true` | Trạng thái hiệu lực của chính sách (TRUE: đang áp dụng, FALSE: ngưng dùng) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian tạo danh mục chính sách |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian cập nhật chính sách |
+
+---
+
+#### 8. Bảng `policy_versions` — Phiên bản Cấu hình Tham số Chính sách (Versioning)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `POLICY_VERSIONS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `9` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh phiên bản cụ thể của chính sách |
+| `policy_id` | `UUID` | **FK** $\to$ `policies.id`, UNIQUE, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới policies(id), chính sách cha |
+| `version` | `INT4` | UNIQUE, NOT NULL | `*None*` | Số hiệu phiên bản tăng dần (v1, v2, v3...) |
+| `configuration` | `JSONB` | NOT NULL | `*None*` | Cấu hình quy chuẩn tham số dưới dạng JSONB (thuật toán, min key size, max TTL, ngưỡng cảnh báo gia hạn) |
+| `changed_by` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người ban hành phiên bản mới (CISO) |
+| `effective_from` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm chính sách bắt đầu có hiệu lực pháp lý bắt buộc trong hệ thống |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian lưu phiên bản chính sách |
+
+---
+
+#### 9. Bảng `crypto_assets` — Siêu dữ liệu Quản lý Vòng đời Tài sản Mật mã
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTO_ASSETS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `20` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của tài sản mật mã |
+| `asset_code` | `VARCHAR(100)` | UNIQUE, NOT NULL | `*None*` | Mã tài sản chuẩn hóa (ví dụ: KEY-2026-001, CERT-2026-002), giá trị duy nhất (UNIQUE) |
+| `asset_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại tài sản mật mã (KEY: Khóa mật mã, CERTIFICATE: Chứng chỉ số) |
+| `owner_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới users(id), người tạo và sở hữu tài sản |
+| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết tới departments(id), phòng ban quản lý tài sản |
+| `policy_version_id` | `UUID` | **FK** $\to$ `policy_versions.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết policy_versions(id), chính sách áp dụng cho tài sản |
+| `purpose` | `VARCHAR(255)` | NOT NULL | `*None*` | Mục đích sử dụng thực tế (ví dụ: Production TLS/SSL, Database Encryption, API Signing) |
+| `status` | `VARCHAR(30)` | NOT NULL | `'REGISTERED'` | Trạng thái vòng đời (ACTIVE, EXPIRING_SOON, EXPIRED, REVOKED, SUPERSEDED) |
+| `valid_from` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm bắt đầu có hiệu lực của tài sản mật mã |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL | `*None*` | Thời điểm hết hạn hiệu lực theo quy định chính sách |
+| `replaces_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) tự liên kết crypto_assets(id), trỏ tới khóa cũ nếu đây là bản gia hạn |
+| `provider_reference` | `VARCHAR(255)` | NULL | `*None*` | Mã tham chiếu định danh tài sản từ HSM/KMS ngoài (hoặc Mock provider) |
+| `version` | `INT4` | NOT NULL | `1` | Phiên bản tài sản phục vụ kiểm soát xung đột ghi đè dữ liệu (OCC) |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm tạo và phát hành tài sản |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm cập nhật thông tin tài sản gần nhất |
+
+---
+
+#### 10. Bảng `cryptographic_keys` — Chi tiết Khóa Mật mã Đối xứng & Bất đối xứng
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CRYPTOGRAPHIC_KEYS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `13` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `asset_id` | `UUID` | **PK**, **FK** $\to$ `crypto_assets.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
+| `algorithm` | `VARCHAR(50)` | NOT NULL | `*None*` | Thuật toán mật mã (RSA, ECDSA, AES_GCM, Ed25519) |
+| `key_size` | `INT4` | NOT NULL | `*None*` | Độ dài khóa tính bằng bit (ví dụ: 2048, 4096, 256, 384) |
+| `usage` | `VARCHAR(100)` | NOT NULL | `*None*` | Mục đích sử dụng khóa cho phép (SIGN, ENCRYPT, DECRYPT, VERIFY, KEY_EXCHANGE) |
+| `public_key_fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Mã băm đại diện (Fingerprint SHA-256) của Khóa công khai, giá trị duy nhất (UNIQUE) |
+
+---
+
+#### 11. Bảng `certificates` — Chi tiết Chứng chỉ Số X.509
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `CERTIFICATES` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `7` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `asset_id` | `UUID` | **PK**, **FK** $\to$ `crypto_assets.id` | `*None*` | Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id) |
+| `serial_number` | `VARCHAR(100)` | UNIQUE, NOT NULL | `*None*` | Số sê-ri duy nhất của chứng chỉ số do CA cấp (UNIQUE) |
+| `subject_dn` | `VARCHAR(500)` | NOT NULL | `*None*` | Tên phân biệt chủ thể (Distinguished Name, ví dụ: CN=api.congty.com, O=Doanh Nghiep) |
+| `issuer_dn` | `VARCHAR(500)` | NOT NULL | `*None*` | Tên phân biệt cơ quan chứng thực cấp phát (Issuer CA DN) |
+| `fingerprint` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Mã băm vân tay toàn vẹn (SHA-256 Fingerprint) của chứng chỉ số (UNIQUE) |
+| `public_key_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới crypto_assets(id) của cặp khóa dùng làm public key trong cert |
+
+---
+
+#### 12. Bảng `requests` — Đơn Yêu cầu Vòng đời Mật mã (Cấp mới / Gia hạn / Thu hồi)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUESTS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `25` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh duy nhất của đơn yêu cầu |
+| `request_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại yêu cầu nghiệp vụ (CREATE: cấp mới, RENEW: gia hạn, REVOKE: thu hồi) |
+| `creator_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người lập và nộp đơn |
+| `department_id` | `UUID` | **FK** $\to$ `departments.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết departments(id), phòng ban phát sinh yêu cầu |
+| `policy_version_id` | `UUID` | **FK** $\to$ `policy_versions.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết policy_versions(id), phiên bản chính sách áp dụng để thẩm tra |
+| `target_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản đích cần thao tác (dùng cho RENEW/REVOKE) |
+| `result_asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản mới được sinh ra sau khi đơn hoàn tất |
+| `status` | `VARCHAR(30)` | NOT NULL | `'PENDING'` | Trạng thái đơn (PENDING, APPROVED, REJECTED, PROCESSING, COMPLETED, CANCELLED) |
+| `reason` | `TEXT` | NOT NULL | `*None*` | Lý do nộp đơn (bắt buộc nhập để phục vụ thẩm định và kiểm toán) |
+| `emergency` | `BOOL` | NOT NULL | `false` | Cờ đánh dấu yêu cầu khẩn cấp (TRUE: ưu tiên xử lý / CISO duyệt tức thời) |
+| `requested_parameters` | `JSONB` | NOT NULL | `'{}'` | Thông số kỹ thuật đề xuất dạng JSONB (thuật toán, độ dài khóa, thời hạn ngày, SAN) |
+| `version` | `INT4` | NOT NULL | `1` | Phiên bản số (dùng cơ chế Optimistic Concurrency Control chống xung đột ghi đè dữ liệu) |
+| `submitted_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm nộp đơn yêu cầu |
+| `completed_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm đơn được xử lý hoàn tất (hoặc bị hủy) |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm cập nhật đơn gần nhất |
+
+---
+
+#### 13. Bảng `request_decisions` — Quyết định Thẩm định & Phê duyệt Đơn (Tuân thủ SoD)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `REQUEST_DECISIONS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `16` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), định danh bản ghi quyết định phê duyệt |
+| `request_id` | `UUID` | **FK** $\to$ `requests.id`, UNIQUE, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết requests(id), ràng buộc UNIQUE (mỗi đơn chỉ có 1 quyết định cuối cùng) |
+| `approver_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), cấp quản lý đưa ra quyết định phê duyệt |
+| `decision` | `VARCHAR(30)` | NOT NULL | `*None*` | Kết quả phê duyệt (APPROVED: Chấp thuận, REJECTED: Từ chối) |
+| `comment` | `TEXT` | NULL | `*None*` | Lời phê hoặc lý do chi tiết từ chối đơn từ phía Approver |
+| `decided_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian ra quyết định phê duyệt |
+
+---
+
+#### 14. Bảng `notifications` — Hàng đợi Thông báo Ứng dụng & Cảnh báo Hết hạn
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `NOTIFICATIONS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `95` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `UUID` | **PK** | `gen_random_uuid()` | Khóa chính (PK), mã định danh thông báo |
+| `recipient_id` | `UUID` | **FK** $\to$ `users.id`, NOT NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), người nhận thông báo |
+| `asset_id` | `UUID` | **FK** $\to$ `crypto_assets.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết crypto_assets(id), tài sản liên quan tới thông báo (nếu có) |
+| `request_id` | `UUID` | **FK** $\to$ `requests.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết requests(id), đơn yêu cầu liên quan (nếu có) |
+| `type` | `VARCHAR(50)` | NOT NULL | `*None*` | Loại sự kiện thông báo (REQUEST_SUBMITTED, REQUEST_APPROVED, REQUEST_REJECTED, ASSET_EXPIRING...) |
+| `channel` | `VARCHAR(30)` | NOT NULL | `*None*` | Kênh truyền tải thông báo (IN_APP: thông báo quả chuông, EMAIL: gửi thư điện tử) |
+| `delivery_status` | `VARCHAR(30)` | NOT NULL | `'PENDING'` | Trạng thái gửi thông báo (PENDING, SENT, FAILED, DELIVERED) |
+| `deduplication_key` | `VARCHAR(255)` | UNIQUE, NOT NULL | `*None*` | Khóa chống trùng lặp thông báo (UNIQUE) ngăn chặn spam cảnh báo nhiều lần trong ngày |
+| `attempt_count` | `INT4` | NOT NULL | `0` | Số lần hệ thống đã thử gửi lại khi gặp lỗi |
+| `scheduled_for` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm lên lịch gửi thông báo |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Thời điểm tạo bản ghi thông báo |
+| `sent_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm gửi thành công thông báo |
+| `failed_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm gửi thất bại (nếu có lỗi) |
+| `read_at` | `TIMESTAMPTZ` | NULL | `*None*` | Thời điểm người dùng click xem/đọc thông báo qua Popover quả chuông |
+| `error_message` | `TEXT` | NULL | `*None*` | Chi tiết thông báo lỗi từ SMTP/Push service nếu gửi thất bại |
+
+---
+
+#### 15. Bảng `audit_logs` — Nhật ký Kiểm toán An ninh Bất biến (Tamper-proof Audit Log)
+
+- **Mục đích:** Lưu trữ và quản trị dữ liệu cho phân hệ `AUDIT_LOGS` trên Supabase PostgreSQL.
+- **Số lượng bản ghi thực tế trong DB:** `150` bản ghi.
+
+| Tên trường (Column) | Kiểu dữ liệu | Ràng buộc | Giá trị mặc định | Diễn giải nghiệp vụ |
+| :--- | :--- | :---: | :--- | :--- |
+| `id` | `INT8` | **PK** | `nextval('audit_logs_id_seq'::regclass)` | Khóa chính (PK), mã bản ghi kiểm toán tuần tự tự tăng (BIGINT) |
+| `actor_id` | `UUID` | **FK** $\to$ `users.id`, NULL | `*None*` | Khóa ngoại (FK) liên kết users(id), tác nhân thực hiện hành động |
+| `actor_type` | `VARCHAR(30)` | NOT NULL | `*None*` | Loại tác nhân thực hiện thao tác (USER, SYSTEM_WORKER, API_KEY) |
+| `action` | `VARCHAR(100)` | NOT NULL | `*None*` | Hành động thực hiện (AUTH_LOGIN, REQUEST_CREATE, REQUEST_APPROVE, ASSET_GENERATE, EMERGENCY_REVOKE) |
+| `entity_type` | `VARCHAR(50)` | NOT NULL | `*None*` | Tên thực thể bị tác động (USER, REQUEST, CRYPTO_ASSET, POLICY, AUTH) |
+| `entity_id` | `VARCHAR(100)` | NULL | `*None*` | Mã định danh của bản ghi hoặc đối tượng chịu tác động |
+| `outcome` | `VARCHAR(30)` | NOT NULL | `*None*` | Kết quả thực thi (SUCCESS: Thành công, FAILED: Thất bại, BLOCKED: Bị chặn bởi SoD/Chính sách) |
+| `request_id` | `UUID` | **FK** $\to$ `requests.id`, NULL | `*None*` | Khóa ngoại (FK) trỏ tới requests(id) nếu hành động phát sinh từ một đơn yêu cầu |
+| `ip_address` | `INET` | NULL | `*None*` | Địa chỉ IP nguồn nơi phát sinh yêu cầu |
+| `metadata` | `JSONB` | NOT NULL | `'{}'` | Dữ liệu chi tiết tham số trước/sau và ngữ cảnh giao dịch dưới dạng JSONB |
+| `occurred_at` | `TIMESTAMPTZ` | NOT NULL | `now()` | Dấu thời gian chính xác ghi nhận sự kiện (Bất biến, không thể sửa xóa) |
+
+---
+
+### 3. Ràng buộc Toàn vẹn, Triggers & Cơ chế Bảo mật tầng CSDL (Trích xuất từ Supabase)
+
+Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ngặt ở mức thấp nhất (Database Engine) thông qua hệ thống **Stored Procedures và Triggers** viết bằng PL/pgSQL trên Supabase PostgreSQL, đảm bảo dù có truy cập trực tiếp bằng SQL Console thì cũng không thể phá vỡ tính toàn vẹn:
+
+#### a. Hệ thống Triggers Kiểm soát Phân tách Trách nhiệm (SoD Enforcement)
+- **Trigger `trg_request_decision_sod` (Bảng `request_decisions`):**
+  - *Thời điểm:* `BEFORE INSERT`.
+  - *Hàm thực thi:* `enforce_request_decision_rules()`.
+  - *Cơ chế hoạt động:* Kiểm tra chéo `creator_id` của đơn yêu cầu trong bảng `requests` với `approver_id` dự định phê duyệt. Nếu hai ID này trùng nhau, trigger lập tức phát sinh lỗi ngoại lệ `RAISE EXCEPTION 'SOD_VIOLATION: Approver cannot approve own request'` và hủy bỏ hoàn toàn phiên giao dịch (Transaction Rollback). Ngoài ra, trigger còn xác minh `approver_id` có nằm trong danh sách `approver_scopes` được gán cho phòng ban của đơn đó hay không.
+- **Trigger `trg_user_roles_sod` (Bảng `user_roles`):**
+  - *Thời điểm:* `BEFORE INSERT OR UPDATE`.
+  - *Hàm thực thi:* `enforce_role_separation()`.
+  - *Cơ chế hoạt động:* Ngăn chặn hành vi gán đồng thời các vai trò xung đột quyền lợi nghiêm trọng (ví dụ: cấm 1 người vừa giữ vai trò `REQUESTER` phòng IT vừa giữ vai trò `APPROVER` của chính phòng ban đó, hoặc cấm gán quyền CISO cho người đang tạo đơn).
+
+#### b. Hệ thống Triggers Chống Thay đổi Lịch sử (Tamper-proof & Immutability)
+- **Trigger `trg_audit_log_immutable` (Bảng `audit_logs`):**
+  - *Thời điểm:* `BEFORE UPDATE OR DELETE`.
+  - *Hàm thực thi:* `reject_audit_log_mutation()`.
+  - *Cơ chế hoạt động:* Chặn đứng tuyệt đối 100% mọi hành vi cập nhật (`UPDATE`) hoặc xóa bỏ (`DELETE`) đối với các bản ghi nhật ký kiểm toán. Bất kỳ câu lệnh nào tác động lên dữ liệu log đều bị chặn lại và báo lỗi `AUDIT_LOG_IMMUTABLE`.
+- **Trigger `trg_request_decision_immutable` (Bảng `request_decisions`):**
+  - *Thời điểm:* `BEFORE UPDATE OR DELETE`.
+  - *Hàm thực thi:* `reject_request_decision_mutation()`.
+  - *Cơ chế hoạt động:* Đảm bảo khi một lời phê duyệt hoặc từ chối đã được ghi nhận vào cơ sở dữ liệu thì nó trở thành bằng chứng kiểm toán vĩnh viễn, không một cấp quản lý hay quản trị viên nào có thể sửa đổi nội dung lời phê hoặc đảo ngược quyết định.
+
+#### c. Hệ thống Triggers Tự động hóa Dấu thời gian (Audit Timestamps)
+- Các bảng dữ liệu chính (`departments`, `users`, `policies`, `crypto_assets`, `requests`) đều được gắn trigger tự động cập nhật trường `updated_at = NOW()` trước mỗi thao tác sửa đổi (`BEFORE UPDATE` thực thi hàm `set_updated_at()`).
+
+#### d. Chiến lược Đánh chỉ mục (Indexing Strategy)
+- Supabase Database được cấu hình tổng cộng **48 chỉ mục (Indexes)** tối ưu hóa:
+  - Chỉ mục B-Tree trên toàn bộ các khóa ngoại (`department_id`, `owner_id`, `creator_id`, `policy_version_id`) giúp các câu lệnh `JOIN` giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt $O(\log N)$.
+  - Chỉ mục một phần (Partial Indexes) trên `requests(status)` và `notifications(read_at)` lọc nhanh các đơn `PENDING` và thông báo chưa đọc mà không cần quét toàn bộ bảng (Table Scan).
 
 ---
 

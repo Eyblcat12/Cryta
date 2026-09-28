@@ -1517,69 +1517,1410 @@
         </div>
         
 <p><em>Hình 3.9: Sơ đồ Thực thể Liên kết CSDL (ERD)</em></p>
-<h3>2. Cấu trúc chi tiết các bảng cơ sở dữ liệu quan trọng</h3>
-<h4>Bảng <code>users</code> (Quản lý tài khoản)</h4>
+<h3>2. Từ điển Dữ liệu Chi tiết các Bảng Cơ sở Dữ liệu (Trích xuất từ Supabase)</h3>
+<p>Toàn bộ cơ sở dữ liệu của hệ thống được triển khai trên nền tảng <strong>PostgreSQL (Supabase Cloud)</strong> với 15 bảng nghiệp vụ chính, được thiết kế chuẩn hóa mức 3NF và tích hợp các ràng buộc khóa ngoại (Foreign Key), chỉ mục (Index) và cơ chế khóa phiên bản lạc quan (Optimistic Concurrency Control). Dưới đây là đặc tả chi tiết 100% các cột và kiểu dữ liệu thực tế đang vận hành:</p>
+<h4>1. Bảng <code>departments</code> — Quản lý Danh mục Phòng ban Tổ chức</h4>
 <ul>
-<li><code>id</code> (UUID, PK): Mã người dùng duy nhất.</li>
-<li><code>email</code> (VARCHAR(255), UNIQUE, NOT NULL): Tên đăng nhập email.</li>
-<li><code>password_hash</code> (VARCHAR(255), NOT NULL): Mật khẩu băm Bcrypt.</li>
-<li><code>display_name</code> (VARCHAR(120), NOT NULL): Họ và tên hiển thị.</li>
-<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban trực thuộc.</li>
-<li><code>status</code> (VARCHAR(20), CHECK <code>ACTIVE</code>, <code>INACTIVE</code>): Trạng thái hoạt động.</li>
-<li><code>must_change_password</code> (BOOLEAN, DEFAULT TRUE): Cờ ép đổi mật khẩu lần đầu.</li>
-<li><code>failed_login_attempts</code> (INT, DEFAULT 0): Số lần thử sai liên tiếp.</li>
-<li><code>lockout_until</code> (TIMESTAMPTZ, NULL): Hạn khóa tài khoản nếu vượt ngưỡng 10 lần.</li>
-<li><code>token_version</code> (INT, DEFAULT 1): Số hiệu phiên dùng để thu hồi token hàng loạt.</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>DEPARTMENTS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>4</code> bản ghi.</li>
 </ul>
-<h4>Bảng <code>crypto_assets</code> (Siêu dữ liệu tài sản mật mã)</h4>
+
+        <div class="table-card" id="table-box-6">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #6</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(6)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), định danh duy nhất của phòng ban (UUID v4 tự sinh)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>code</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã viết tắt phòng ban (ví dụ: SEC, DEV, OPS, FIN), là giá trị duy nhất (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>name</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên đầy đủ của phòng ban (ví dụ: An toàn thông tin, Phát triển phần mềm)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>is_active</code></td>
+<td style="text-align:left"><code>BOOL</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>true</code></td>
+<td style="text-align:left">Trạng thái kích hoạt (TRUE: đang hoạt động, FALSE: tạm ngừng)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian tạo phòng ban trong hệ thống</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian cập nhật thông tin phòng ban gần nhất</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>2. Bảng <code>roles</code> — Quản lý Danh mục Vai trò Hệ thống (RBAC)</h4>
 <ul>
-<li><code>id</code> (UUID, PK): Mã tài sản duy nhất.</li>
-<li><code>asset_code</code> (VARCHAR(64), UNIQUE, NOT NULL): Mã tài sản định dạng chuẩn (ví dụ: <code>KEY-2026-001</code>).</li>
-<li><code>name</code> (VARCHAR(150), NOT NULL): Tên mô tả tài sản.</li>
-<li><code>type</code> (VARCHAR(30), CHECK <code>KEY_PAIR</code>, <code>SYMMETRIC_KEY</code>, <code>CERTIFICATE</code>): Loại tài sản.</li>
-<li><code>status</code> (VARCHAR(30), CHECK <code>ACTIVE</code>, <code>EXPIRING_SOON</code>, <code>EXPIRED</code>, <code>REVOKED</code>, <code>SUPERSEDED</code>): Trạng thái tài sản.</li>
-<li><code>algorithm</code> (VARCHAR(40), NOT NULL): Thuật toán mật mã (ví dụ: <code>RSA_4096</code>, <code>AES_256_GCM</code>).</li>
-<li><code>owner_id</code> (UUID, FK <code>users.id</code>): Chủ sở hữu tài sản.</li>
-<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban sở hữu.</li>
-<li><code>policy_version_id</code> (UUID, FK <code>policy_versions.id</code>): Phiên bản chính sách áp dụng.</li>
-<li><code>replaces_asset_id</code> (UUID, FK <code>crypto_assets.id</code>): Khóa cũ được thay thế (nếu gia hạn).</li>
-<li><code>created_at, expires_at</code> (TIMESTAMPTZ, NOT NULL): Ngày cấp và ngày hết hạn.</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>ROLES</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>3</code> bản ghi.</li>
 </ul>
-<h4>Bảng <code>requests</code> (Đơn yêu cầu nghiệp vụ)</h4>
+
+        <div class="table-card" id="table-box-7">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #7</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(7)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), định danh duy nhất của vai trò hệ thống</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>code</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã vai trò chuẩn hóa (ADMIN, CISO, APPROVER, USER), giá trị duy nhất (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>name</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên mô tả vai trò (Quản trị viên, Giám đốc ATTT, Quản lý phê duyệt, Người dùng)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian khởi tạo vai trò trong hệ thống</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>3. Bảng <code>users</code> — Quản lý Thông tin Tài khoản &amp; Trạng thái Bảo mật</h4>
 <ul>
-<li><code>id</code> (UUID, PK): Mã đơn yêu cầu.</li>
-<li><code>type</code> (VARCHAR(30), CHECK <code>CREATE</code>, <code>RENEW</code>, <code>REVOKE</code>): Loại đơn.</li>
-<li><code>status</code> (VARCHAR(30), CHECK <code>PENDING</code>, <code>APPROVED</code>, <code>REJECTED</code>, <code>PROCESSING</code>, <code>COMPLETED</code>, <code>CANCELLED</code>): Trạng thái đơn.</li>
-<li><code>creator_id</code> (UUID, FK <code>users.id</code>): Người nộp đơn.</li>
-<li><code>department_id</code> (UUID, FK <code>departments.id</code>): Phòng ban nộp đơn.</li>
-<li><code>target_asset_id</code> (UUID, FK <code>crypto_assets.id</code>): Tài sản cần gia hạn hoặc thu hồi.</li>
-<li><code>reason</code> (TEXT, NOT NULL): Lý do nghiệp vụ.</li>
-<li><code>parameters</code> (JSONB, NOT NULL): Tham số kỹ thuật (thuật toán, độ dài khóa, thời hạn).</li>
-<li><code>emergency</code> (BOOLEAN, DEFAULT FALSE): Đánh dấu đơn khẩn cấp.</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>USERS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>12</code> bản ghi.</li>
 </ul>
-<h4>Bảng <code>audit_logs</code> (Nhật ký kiểm toán bất biến)</h4>
+
+        <div class="table-card" id="table-box-8">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #8</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(8)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của người dùng</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>department_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới departments(id), xác định phòng ban trực thuộc</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>email</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Địa chỉ email công vụ dùng làm tên đăng nhập, là duy nhất (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>password_hash</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Chuỗi băm mật khẩu bảo mật sử dụng giải thuật Bcrypt với salt rounds chuẩn</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>display_name</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Họ và tên đầy đủ hiển thị trên giao diện người dùng</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>status</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'ACTIVE'</code></td>
+<td style="text-align:left">Trạng thái tài khoản (ACTIVE: hoạt động, SUSPENDED: tạm khóa, INACTIVE: ngừng dùng)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>token_version</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>1</code></td>
+<td style="text-align:left">Phiên bản token (dùng để vô hiệu hóa tức thời toàn bộ JWT token khi đổi mật khẩu/bị khóa)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>failed_login_attempts</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>0</code></td>
+<td style="text-align:left">Số lần đăng nhập sai liên tiếp (tự reset về 0 khi đúng, khóa khi vượt ngưỡng 10)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>locked_until</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm tài khoản bị khóa tạm thời nếu đăng nhập sai quá số lần quy định</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>must_change_password</code></td>
+<td style="text-align:left"><code>BOOL</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">Cờ bắt buộc đổi mật khẩu lần đầu (TRUE khi tài khoản vừa tạo hoặc reset mật khẩu)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>last_login_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm đăng nhập thành công gần nhất vào hệ thống</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm khởi tạo tài khoản trong cơ sở dữ liệu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm chỉnh sửa thông tin tài khoản gần nhất</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>4. Bảng <code>user_roles</code> — Phân quyền Người dùng theo Vai trò (Quan hệ N-N)</h4>
 <ul>
-<li><code>id</code> (UUID, PK): Mã bản ghi kiểm toán.</li>
-<li><code>action</code> (VARCHAR(64), NOT NULL): Tên hành động (<code>AUTH_LOGIN</code>, <code>REQUEST_CREATED</code>, <code>EMERGENCY_REVOKE</code>,...).</li>
-<li><code>actor_id</code> (UUID, FK <code>users.id</code>): Người thực hiện hành động.</li>
-<li><code>resource_type</code> (VARCHAR(40), NOT NULL): Loại tài nguyên chịu tác động (<code>REQUEST</code>, <code>ASSET</code>, <code>POLICY</code>, <code>USER</code>).</li>
-<li><code>resource_id</code> (VARCHAR(64), NULL): ID của tài nguyên.</li>
-<li><code>status</code> (VARCHAR(20), CHECK <code>SUCCESS</code>, <code>FAILED</code>): Kết quả thực hiện.</li>
-<li><code>details</code> (JSONB, NULL): Chi tiết thông số hoặc dữ liệu trước/sau.</li>
-<li><code>created_at</code> (TIMESTAMPTZ, DEFAULT NOW()): Dấu thời gian bất biến.</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>USER_ROLES</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>12</code> bản ghi.</li>
 </ul>
-<h4>Bảng <code>notifications</code> (Thông báo ứng dụng In-app)</h4>
+
+        <div class="table-card" id="table-box-9">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #9</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(9)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>user_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>users.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết tới users(id)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>role_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>roles.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết tới roles(id)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>assigned_by</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), ghi nhận quản trị viên thực hiện gán quyền</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>assigned_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian phân quyền vai trò cho người dùng</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>5. Bảng <code>auth_sessions</code> — Quản lý Phiên Đăng nhập &amp; Refresh Token</h4>
 <ul>
-<li><code>id</code> (UUID, PK): Mã thông báo.</li>
-<li><code>recipient_id</code> (UUID, FK <code>users.id</code>): Người nhận.</li>
-<li><code>type</code> (VARCHAR(40), CHECK): Loại thông báo (<code>REQUEST_SUBMITTED</code>, <code>REQUEST_APPROVED</code>, <code>REQUEST_REJECTED</code>, <code>ASSET_EXPIRING</code>, <code>ASSET_REVOKED</code>).</li>
-<li><code>channel</code> (VARCHAR(20), CHECK <code>IN_APP</code>, <code>EMAIL</code>): Kênh truyền tải.</li>
-<li><code>read_at</code> (TIMESTAMPTZ, NULL): Thời điểm đã đọc (NULL nếu chưa đọc).</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>AUTH_SESSIONS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>70</code> bản ghi.</li>
 </ul>
-<h3>3. Ràng buộc toàn vẹn &amp; Triggers tầng CSDL</h3>
+
+        <div class="table-card" id="table-box-10">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #10</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(10)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), mã định danh phiên đăng nhập</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>user_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), xác định chủ sở hữu phiên</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>token_hash</code></td>
+<td style="text-align:left"><code>BPCHAR(64)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã băm an toàn SHA-256 của Refresh Token (chống lộ token gốc khi bị rò rỉ DB)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>user_agent</code></td>
+<td style="text-align:left"><code>VARCHAR(500)</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thông tin trình duyệt và hệ điều hành của client đăng nhập</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ip_address</code></td>
+<td style="text-align:left"><code>INET</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Địa chỉ IP client khi khởi tạo phiên làm việc</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>expires_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm hết hạn hiệu lực của phiên đăng nhập (mặc định 30 ngày)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>last_used_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm sử dụng token để lấy Access Token mới gần nhất</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>revoked_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm phiên bị thu hồi (người dùng bấm Đăng xuất hoặc Admin cưỡng chế khóa)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>replaced_by</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>auth_sessions.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) trỏ tới auth_sessions(id) của phiên mới thay thế phiên này trong chu trình Token Rotation</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm đăng nhập khởi tạo phiên làm việc</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>6. Bảng <code>approver_scopes</code> — Cấu hình Phạm vi Phê duyệt theo Phòng ban của Approver</h4>
 <ul>
-<li><strong>Trigger <code>trg_check_sod_rule</code>:</strong> Kích hoạt trước khi ghi nhận vào <code>request_decisions</code>. Nếu <code>approver_id = requests.creator_id</code>, trigger sẽ chủ động ném ngoại lệ <code>RAISE EXCEPTION 'SOD_VIOLATION: Approver cannot approve own request'</code> để rollback toàn bộ transaction.</li>
-<li><strong>Trigger <code>trg_audit_log_immutable</code>:</strong> Kích hoạt trước câu lệnh <code>UPDATE</code> hoặc <code>DELETE</code> trên bảng <code>audit_logs</code>. Trigger trả về ngoại lệ <code>AUDIT_LOG_IMMUTABLE</code>, cấm tuyệt đối mọi hành vi sửa xóa lịch sử kiểm toán.</li>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>APPROVER_SCOPES</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>3</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-11">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #11</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(11)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>user_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>users.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết users(id), người dùng giữ vai trò Approver</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>department_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>departments.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết departments(id), phòng ban mà Approver có quyền xét duyệt</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>assigned_by</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) trỏ tới users(id) của quản trị viên đã gán phạm vi duyệt</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>assigned_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm phê duyệt thiết lập phạm vi phụ trách phòng ban</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>7. Bảng <code>policies</code> — Danh mục Chính sách Mật mã Doanh nghiệp</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>POLICIES</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>6</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-12">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #12</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(12)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), định danh duy nhất của chính sách mật mã</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>code</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã chính sách (ví dụ: POL-RSA, POL-ECC, POL-AES), giá trị duy nhất (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>name</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên mô tả chính sách bảo mật mật mã doanh nghiệp</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>is_active</code></td>
+<td style="text-align:left"><code>BOOL</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>true</code></td>
+<td style="text-align:left">Trạng thái hiệu lực của chính sách (TRUE: đang áp dụng, FALSE: ngưng dùng)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian tạo danh mục chính sách</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian cập nhật chính sách</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>8. Bảng <code>policy_versions</code> — Phiên bản Cấu hình Tham số Chính sách (Versioning)</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>POLICY_VERSIONS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>9</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-13">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #13</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(13)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), định danh phiên bản cụ thể của chính sách</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>policy_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>policies.id</code>, UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới policies(id), chính sách cha</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>version</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Số hiệu phiên bản tăng dần (v1, v2, v3...)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>configuration</code></td>
+<td style="text-align:left"><code>JSONB</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Cấu hình quy chuẩn tham số dưới dạng JSONB (thuật toán, min key size, max TTL, ngưỡng cảnh báo gia hạn)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>changed_by</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người ban hành phiên bản mới (CISO)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>effective_from</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm chính sách bắt đầu có hiệu lực pháp lý bắt buộc trong hệ thống</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian lưu phiên bản chính sách</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>9. Bảng <code>crypto_assets</code> — Siêu dữ liệu Quản lý Vòng đời Tài sản Mật mã</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>CRYPTO_ASSETS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>20</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-14">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #14</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(14)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của tài sản mật mã</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>asset_code</code></td>
+<td style="text-align:left"><code>VARCHAR(100)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã tài sản chuẩn hóa (ví dụ: KEY-2026-001, CERT-2026-002), giá trị duy nhất (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>asset_type</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Loại tài sản mật mã (KEY: Khóa mật mã, CERTIFICATE: Chứng chỉ số)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>owner_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới users(id), người tạo và sở hữu tài sản</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>department_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết tới departments(id), phòng ban quản lý tài sản</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>policy_version_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>policy_versions.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết policy_versions(id), chính sách áp dụng cho tài sản</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>purpose</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mục đích sử dụng thực tế (ví dụ: Production TLS/SSL, Database Encryption, API Signing)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>status</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'REGISTERED'</code></td>
+<td style="text-align:left">Trạng thái vòng đời (ACTIVE, EXPIRING_SOON, EXPIRED, REVOKED, SUPERSEDED)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>valid_from</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm bắt đầu có hiệu lực của tài sản mật mã</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>expires_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm hết hạn hiệu lực theo quy định chính sách</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>replaces_asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) tự liên kết crypto_assets(id), trỏ tới khóa cũ nếu đây là bản gia hạn</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>provider_reference</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã tham chiếu định danh tài sản từ HSM/KMS ngoài (hoặc Mock provider)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>version</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>1</code></td>
+<td style="text-align:left">Phiên bản tài sản phục vụ kiểm soát xung đột ghi đè dữ liệu (OCC)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm tạo và phát hành tài sản</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm cập nhật thông tin tài sản gần nhất</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>10. Bảng <code>cryptographic_keys</code> — Chi tiết Khóa Mật mã Đối xứng &amp; Bất đối xứng</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>CRYPTOGRAPHIC_KEYS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>13</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-15">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #15</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(15)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>crypto_assets.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>algorithm</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thuật toán mật mã (RSA, ECDSA, AES_GCM, Ed25519)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>key_size</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Độ dài khóa tính bằng bit (ví dụ: 2048, 4096, 256, 384)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>usage</code></td>
+<td style="text-align:left"><code>VARCHAR(100)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mục đích sử dụng khóa cho phép (SIGN, ENCRYPT, DECRYPT, VERIFY, KEY_EXCHANGE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>public_key_fingerprint</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã băm đại diện (Fingerprint SHA-256) của Khóa công khai, giá trị duy nhất (UNIQUE)</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>11. Bảng <code>certificates</code> — Chi tiết Chứng chỉ Số X.509</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>CERTIFICATES</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>7</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-16">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #16</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(16)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong>, <strong>FK</strong> $\to$ <code>crypto_assets.id</code></td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chính / Khóa ngoại (PK, FK) liên kết 1-1 với crypto_assets(id)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>serial_number</code></td>
+<td style="text-align:left"><code>VARCHAR(100)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Số sê-ri duy nhất của chứng chỉ số do CA cấp (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>subject_dn</code></td>
+<td style="text-align:left"><code>VARCHAR(500)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên phân biệt chủ thể (Distinguished Name, ví dụ: CN=api.congty.com, O=Doanh Nghiep)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>issuer_dn</code></td>
+<td style="text-align:left"><code>VARCHAR(500)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên phân biệt cơ quan chứng thực cấp phát (Issuer CA DN)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>fingerprint</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã băm vân tay toàn vẹn (SHA-256 Fingerprint) của chứng chỉ số (UNIQUE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>public_key_asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) trỏ tới crypto_assets(id) của cặp khóa dùng làm public key trong cert</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>12. Bảng <code>requests</code> — Đơn Yêu cầu Vòng đời Mật mã (Cấp mới / Gia hạn / Thu hồi)</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>REQUESTS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>25</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-17">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #17</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(17)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), mã định danh duy nhất của đơn yêu cầu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>request_type</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Loại yêu cầu nghiệp vụ (CREATE: cấp mới, RENEW: gia hạn, REVOKE: thu hồi)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>creator_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người lập và nộp đơn</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>department_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>departments.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết departments(id), phòng ban phát sinh yêu cầu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>policy_version_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>policy_versions.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết policy_versions(id), phiên bản chính sách áp dụng để thẩm tra</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>target_asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản đích cần thao tác (dùng cho RENEW/REVOKE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>result_asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản mới được sinh ra sau khi đơn hoàn tất</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>status</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'PENDING'</code></td>
+<td style="text-align:left">Trạng thái đơn (PENDING, APPROVED, REJECTED, PROCESSING, COMPLETED, CANCELLED)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>reason</code></td>
+<td style="text-align:left"><code>TEXT</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Lý do nộp đơn (bắt buộc nhập để phục vụ thẩm định và kiểm toán)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>emergency</code></td>
+<td style="text-align:left"><code>BOOL</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>false</code></td>
+<td style="text-align:left">Cờ đánh dấu yêu cầu khẩn cấp (TRUE: ưu tiên xử lý / CISO duyệt tức thời)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>requested_parameters</code></td>
+<td style="text-align:left"><code>JSONB</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'{}'</code></td>
+<td style="text-align:left">Thông số kỹ thuật đề xuất dạng JSONB (thuật toán, độ dài khóa, thời hạn ngày, SAN)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>version</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>1</code></td>
+<td style="text-align:left">Phiên bản số (dùng cơ chế Optimistic Concurrency Control chống xung đột ghi đè dữ liệu)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>submitted_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm nộp đơn yêu cầu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>completed_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm đơn được xử lý hoàn tất (hoặc bị hủy)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>updated_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm cập nhật đơn gần nhất</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>13. Bảng <code>request_decisions</code> — Quyết định Thẩm định &amp; Phê duyệt Đơn (Tuân thủ SoD)</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>REQUEST_DECISIONS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>16</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-18">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #18</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(18)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), định danh bản ghi quyết định phê duyệt</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>request_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết requests(id), ràng buộc UNIQUE (mỗi đơn chỉ có 1 quyết định cuối cùng)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>approver_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết users(id), cấp quản lý đưa ra quyết định phê duyệt</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>decision</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Kết quả phê duyệt (APPROVED: Chấp thuận, REJECTED: Từ chối)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>comment</code></td>
+<td style="text-align:left"><code>TEXT</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Lời phê hoặc lý do chi tiết từ chối đơn từ phía Approver</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>decided_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian ra quyết định phê duyệt</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>14. Bảng <code>notifications</code> — Hàng đợi Thông báo Ứng dụng &amp; Cảnh báo Hết hạn</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>NOTIFICATIONS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>95</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-19">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #19</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(19)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>gen_random_uuid()</code></td>
+<td style="text-align:left">Khóa chính (PK), mã định danh thông báo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>recipient_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết users(id), người nhận thông báo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>asset_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>crypto_assets.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết crypto_assets(id), tài sản liên quan tới thông báo (nếu có)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>request_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết requests(id), đơn yêu cầu liên quan (nếu có)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>type</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Loại sự kiện thông báo (REQUEST_SUBMITTED, REQUEST_APPROVED, REQUEST_REJECTED, ASSET_EXPIRING...)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>channel</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Kênh truyền tải thông báo (IN_APP: thông báo quả chuông, EMAIL: gửi thư điện tử)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>delivery_status</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'PENDING'</code></td>
+<td style="text-align:left">Trạng thái gửi thông báo (PENDING, SENT, FAILED, DELIVERED)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>deduplication_key</code></td>
+<td style="text-align:left"><code>VARCHAR(255)</code></td>
+<td style="text-align:center">UNIQUE, NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa chống trùng lặp thông báo (UNIQUE) ngăn chặn spam cảnh báo nhiều lần trong ngày</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>attempt_count</code></td>
+<td style="text-align:left"><code>INT4</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>0</code></td>
+<td style="text-align:left">Số lần hệ thống đã thử gửi lại khi gặp lỗi</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>scheduled_for</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm lên lịch gửi thông báo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>created_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Thời điểm tạo bản ghi thông báo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>sent_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm gửi thành công thông báo</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>failed_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm gửi thất bại (nếu có lỗi)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>read_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Thời điểm người dùng click xem/đọc thông báo qua Popover quả chuông</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>error_message</code></td>
+<td style="text-align:left"><code>TEXT</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Chi tiết thông báo lỗi từ SMTP/Push service nếu gửi thất bại</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h4>15. Bảng <code>audit_logs</code> — Nhật ký Kiểm toán An ninh Bất biến (Tamper-proof Audit Log)</h4>
+<ul>
+<li><strong>Mục đích:</strong> Lưu trữ và quản trị dữ liệu cho phân hệ <code>AUDIT_LOGS</code> trên Supabase PostgreSQL.</li>
+<li><strong>Số lượng bản ghi thực tế trong DB:</strong> <code>150</code> bản ghi.</li>
+</ul>
+
+        <div class="table-card" id="table-box-20">
+            <div class="table-top-bar">
+                <span class="table-badge">📊 Bảng dữ liệu #20</span>
+                <button class="btn-action btn-copy-table" onclick="copyTableToClipboard(20)" title="Sao chép định dạng bảng vào Word">
+                    📋 Sao chép bảng vào Word
+                </button>
+            </div>
+            <div class="table-scroll-container">
+                <table>
+<thead>
+<tr>
+<th style="text-align:left">Tên trường (Column)</th>
+<th style="text-align:left">Kiểu dữ liệu</th>
+<th style="text-align:center">Ràng buộc</th>
+<th style="text-align:left">Giá trị mặc định</th>
+<th style="text-align:left">Diễn giải nghiệp vụ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>id</code></td>
+<td style="text-align:left"><code>INT8</code></td>
+<td style="text-align:center"><strong>PK</strong></td>
+<td style="text-align:left"><code>nextval('audit_logs_id_seq'::regclass)</code></td>
+<td style="text-align:left">Khóa chính (PK), mã bản ghi kiểm toán tuần tự tự tăng (BIGINT)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>actor_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>users.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) liên kết users(id), tác nhân thực hiện hành động</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>actor_type</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Loại tác nhân thực hiện thao tác (USER, SYSTEM_WORKER, API_KEY)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>action</code></td>
+<td style="text-align:left"><code>VARCHAR(100)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Hành động thực hiện (AUTH_LOGIN, REQUEST_CREATE, REQUEST_APPROVE, ASSET_GENERATE, EMERGENCY_REVOKE)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>entity_type</code></td>
+<td style="text-align:left"><code>VARCHAR(50)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Tên thực thể bị tác động (USER, REQUEST, CRYPTO_ASSET, POLICY, AUTH)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>entity_id</code></td>
+<td style="text-align:left"><code>VARCHAR(100)</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Mã định danh của bản ghi hoặc đối tượng chịu tác động</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>outcome</code></td>
+<td style="text-align:left"><code>VARCHAR(30)</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Kết quả thực thi (SUCCESS: Thành công, FAILED: Thất bại, BLOCKED: Bị chặn bởi SoD/Chính sách)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>request_id</code></td>
+<td style="text-align:left"><code>UUID</code></td>
+<td style="text-align:center"><strong>FK</strong> $\to$ <code>requests.id</code>, NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Khóa ngoại (FK) trỏ tới requests(id) nếu hành động phát sinh từ một đơn yêu cầu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ip_address</code></td>
+<td style="text-align:left"><code>INET</code></td>
+<td style="text-align:center">NULL</td>
+<td style="text-align:left"><code>*None*</code></td>
+<td style="text-align:left">Địa chỉ IP nguồn nơi phát sinh yêu cầu</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>metadata</code></td>
+<td style="text-align:left"><code>JSONB</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>'{}'</code></td>
+<td style="text-align:left">Dữ liệu chi tiết tham số trước/sau và ngữ cảnh giao dịch dưới dạng JSONB</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>occurred_at</code></td>
+<td style="text-align:left"><code>TIMESTAMPTZ</code></td>
+<td style="text-align:center">NOT NULL</td>
+<td style="text-align:left"><code>now()</code></td>
+<td style="text-align:left">Dấu thời gian chính xác ghi nhận sự kiện (Bất biến, không thể sửa xóa)</td>
+</tr>
+</tbody>
+</table>
+            </div>
+        </div>
+        
+<hr />
+<h3>3. Ràng buộc Toàn vẹn, Triggers &amp; Cơ chế Bảo mật tầng CSDL (Trích xuất từ Supabase)</h3>
+<p>Hệ thống triển khai các ràng buộc toàn vẹn dữ liệu nghiêm ngặt ở mức thấp nhất (Database Engine) thông qua hệ thống <strong>Stored Procedures và Triggers</strong> viết bằng PL/pgSQL trên Supabase PostgreSQL, đảm bảo dù có truy cập trực tiếp bằng SQL Console thì cũng không thể phá vỡ tính toàn vẹn:</p>
+<h4>a. Hệ thống Triggers Kiểm soát Phân tách Trách nhiệm (SoD Enforcement)</h4>
+<ul>
+<li><strong>Trigger <code>trg_request_decision_sod</code> (Bảng <code>request_decisions</code>):</strong>
+<ul>
+<li><em>Thời điểm:</em> <code>BEFORE INSERT</code>.</li>
+<li><em>Hàm thực thi:</em> <code>enforce_request_decision_rules()</code>.</li>
+<li><em>Cơ chế hoạt động:</em> Kiểm tra chéo <code>creator_id</code> của đơn yêu cầu trong bảng <code>requests</code> với <code>approver_id</code> dự định phê duyệt. Nếu hai ID này trùng nhau, trigger lập tức phát sinh lỗi ngoại lệ <code>RAISE EXCEPTION 'SOD_VIOLATION: Approver cannot approve own request'</code> và hủy bỏ hoàn toàn phiên giao dịch (Transaction Rollback). Ngoài ra, trigger còn xác minh <code>approver_id</code> có nằm trong danh sách <code>approver_scopes</code> được gán cho phòng ban của đơn đó hay không.</li>
+</ul>
+</li>
+<li><strong>Trigger <code>trg_user_roles_sod</code> (Bảng <code>user_roles</code>):</strong>
+<ul>
+<li><em>Thời điểm:</em> <code>BEFORE INSERT OR UPDATE</code>.</li>
+<li><em>Hàm thực thi:</em> <code>enforce_role_separation()</code>.</li>
+<li><em>Cơ chế hoạt động:</em> Ngăn chặn hành vi gán đồng thời các vai trò xung đột quyền lợi nghiêm trọng (ví dụ: cấm 1 người vừa giữ vai trò <code>REQUESTER</code> phòng IT vừa giữ vai trò <code>APPROVER</code> của chính phòng ban đó, hoặc cấm gán quyền CISO cho người đang tạo đơn).</li>
+</ul>
+</li>
+</ul>
+<h4>b. Hệ thống Triggers Chống Thay đổi Lịch sử (Tamper-proof &amp; Immutability)</h4>
+<ul>
+<li><strong>Trigger <code>trg_audit_log_immutable</code> (Bảng <code>audit_logs</code>):</strong>
+<ul>
+<li><em>Thời điểm:</em> <code>BEFORE UPDATE OR DELETE</code>.</li>
+<li><em>Hàm thực thi:</em> <code>reject_audit_log_mutation()</code>.</li>
+<li><em>Cơ chế hoạt động:</em> Chặn đứng tuyệt đối 100% mọi hành vi cập nhật (<code>UPDATE</code>) hoặc xóa bỏ (<code>DELETE</code>) đối với các bản ghi nhật ký kiểm toán. Bất kỳ câu lệnh nào tác động lên dữ liệu log đều bị chặn lại và báo lỗi <code>AUDIT_LOG_IMMUTABLE</code>.</li>
+</ul>
+</li>
+<li><strong>Trigger <code>trg_request_decision_immutable</code> (Bảng <code>request_decisions</code>):</strong>
+<ul>
+<li><em>Thời điểm:</em> <code>BEFORE UPDATE OR DELETE</code>.</li>
+<li><em>Hàm thực thi:</em> <code>reject_request_decision_mutation()</code>.</li>
+<li><em>Cơ chế hoạt động:</em> Đảm bảo khi một lời phê duyệt hoặc từ chối đã được ghi nhận vào cơ sở dữ liệu thì nó trở thành bằng chứng kiểm toán vĩnh viễn, không một cấp quản lý hay quản trị viên nào có thể sửa đổi nội dung lời phê hoặc đảo ngược quyết định.</li>
+</ul>
+</li>
+</ul>
+<h4>c. Hệ thống Triggers Tự động hóa Dấu thời gian (Audit Timestamps)</h4>
+<ul>
+<li>Các bảng dữ liệu chính (<code>departments</code>, <code>users</code>, <code>policies</code>, <code>crypto_assets</code>, <code>requests</code>) đều được gắn trigger tự động cập nhật trường <code>updated_at = NOW()</code> trước mỗi thao tác sửa đổi (<code>BEFORE UPDATE</code> thực thi hàm <code>set_updated_at()</code>).</li>
+</ul>
+<h4>d. Chiến lược Đánh chỉ mục (Indexing Strategy)</h4>
+<ul>
+<li>Supabase Database được cấu hình tổng cộng <strong>48 chỉ mục (Indexes)</strong> tối ưu hóa:
+<ul>
+<li>Chỉ mục B-Tree trên toàn bộ các khóa ngoại (<code>department_id</code>, <code>owner_id</code>, <code>creator_id</code>, <code>policy_version_id</code>) giúp các câu lệnh <code>JOIN</code> giữa các bảng nghiệp vụ có độ phức tạp thuật toán đạt $O(\log N)$.</li>
+<li>Chỉ mục một phần (Partial Indexes) trên <code>requests(status)</code> và <code>notifications(read_at)</code> lọc nhanh các đơn <code>PENDING</code> và thông báo chưa đọc mà không cần quét toàn bộ bảng (Table Scan).</li>
+</ul>
+</li>
 </ul>
 <hr />
 <div style="page-break-after: always;"></div>
