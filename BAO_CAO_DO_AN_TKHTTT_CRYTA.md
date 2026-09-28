@@ -73,10 +73,7 @@
   - [IV. Màn hình Bảng thông báo nổi (Notification Popover)](#iv-màn-hình-bảng-thông-báo-nổi-notification-popover)
   - [V. Màn hình Quản trị Chính sách & Thu hồi khẩn cấp](#v-màn-hình-quản-trị-chính-sách--thu-hồi-khẩn-cấp)
   - [VI. Màn hình Nhật ký kiểm toán bất biến (Audit Logs)](#vi-màn-hình-nhật-ký-kiểm-toán-bất-biến-audit-logs)
-- [CHƯƠNG V. TRIỂN KHAI](#chương-v-triển-khai)
-  - [I. Cài đặt](#i-cài-đặt)
-  - [II. Thử nghiệm](#ii-thử-nghiệm)
-- [CHƯƠNG VI. KẾT LUẬN](#chương-vi-kết-luận)
+- [CHƯƠNG V. KẾT LUẬN](#chương-v-kết-luận)
   - [I. Kết quả đã thực hiện](#i-kết-quả-đã-thực-hiện)
   - [II. Ưu khuyết điểm](#ii-ưu-khuyết-điểm)
   - [III. Hướng mở rộng trong tương lai](#iii-hướng-mở-rộng-trong-tương-lai)
@@ -118,9 +115,6 @@
 - **Bảng 3.3:** Bảng cấu trúc CSDL `requests` (Đơn yêu cầu nghiệp vụ).
 - **Bảng 3.4:** Bảng cấu trúc CSDL `audit_logs` (Nhật ký kiểm toán bất biến).
 - **Bảng 3.5:** Bảng cấu trúc CSDL `notifications` (Thông báo ứng dụng).
-- **Bảng 5.1:** Bảng tình trạng cài đặt các chức năng và mức độ hoàn thành.
-- **Bảng 5.2:** Danh sách tài khoản thử nghiệm theo từng đối tượng.
-- **Bảng 5.3:** Tổng hợp kết quả kiểm thử tự động (Automation Test Results).
 
 ---
 
@@ -812,66 +806,7 @@ Dưới đây là hình ảnh và đặc tả chi tiết các màn hình chức 
 
 <div style="page-break-after: always;"></div>
 
-# CHƯƠNG V. TRIỂN KHAI
-
-## I. Cài đặt
-
-Bảng tổng hợp tình trạng cài đặt và mức độ hoàn thành các chức năng của hệ thống Cryta:
-
-| STT | Chức năng hệ thống | Mức độ hoàn thành | Ghi chú kỹ thuật |
-| :-: | :--- | :---: | :--- |
-| **1** | Xác thực tài khoản (JWT, HttpOnly Refresh Cookie, Khóa sau 10 lần sai) | 100% | Bcrypt salt 10, HttpOnly Cookie, auto-reset thử sai |
-| **2** | Đổi mật khẩu bắt buộc lần đầu (`must_change_password`) | 100% | Thu hồi phiên cũ qua tăng `token_version` |
-| **3** | Tạo yêu cầu cấp mới Khóa/Chứng chỉ số (`CREATE`) | 100% | Tự động kiểm tra ràng buộc Policy Version ở backend |
-| **4** | Yêu cầu Gia hạn tài sản (`RENEW`) | 100% | Tạo tài sản mới thay thế, liên kết `replaces_asset_id` |
-| **5** | Yêu cầu Thu hồi tài sản thường (`REVOKE`) | 100% | Bắt buộc nhập lý do, chuyển trạng thái `REVOKED` |
-| **6** | Hủy yêu cầu khi đang chờ duyệt (`CANCEL`) | 100% | Người tạo đơn có quyền hủy đơn `PENDING` |
-| **7** | Xem tài sản cá nhân & Tải tệp Public Key/Cert PEM | 100% | Chỉ xem tài sản của mình, bảo vệ an toàn Private Key |
-| **8** | Hàng đợi phê duyệt theo phòng ban (Approval Queue) | 100% | Lọc đơn chính xác theo `approver_scopes` |
-| **9** | Phê duyệt / Từ chối yêu cầu kèm nhận xét | 100% | Lưu vết quyết định vào bảng `request_decisions` |
-| **10** | Cơ chế kiểm soát Phân tách Trách nhiệm (SoD) | 100% | Ép buộc ở cả Backend Logic và Database Trigger |
-| **11** | Worker ngầm sinh khóa và ghép nối Public Key Cert | 100% | Tự động sinh cặp khóa khi duyệt chứng chỉ số |
-| **12** | Quản trị & Nâng cấp phiên bản Chính sách (Policy v1/v2) | 100% | Hỗ trợ tạo mới và versioning chính sách linh hoạt |
-| **13** | Thu hồi Khẩn cấp tài sản trực tiếp (Emergency Revocation) | 100% | Dành riêng cho CISO/Admin, vô hiệu hóa tài sản tức thời |
-| **14** | Bảng thông báo nổi (`NotificationPopover`) & Quả chuông | 100% | Hiển thị 15 tin mới, chấm đỏ cảnh báo, đánh dấu đã đọc |
-| **15** | Nhật ký kiểm toán Bất biến (Audit Log Immutability) | 100% | Trigger CSDL cấm câu lệnh `UPDATE`/`DELETE` tuyệt đối |
-| **16** | Quản lý Người dùng, Phòng ban & Phân luồng Scopes | 100% | Tạo user, khóa tài khoản `INACTIVE`, gán phạm vi duyệt |
-| **17** | Job quét tự động tài sản sắp hết hạn & Tự động hết hạn | 100% | Cảnh báo trước 30 ngày, tự động chuyển `EXPIRED` |
-
----
-
-## II. Thử nghiệm
-
-### 1. Dữ liệu tài khoản thử nghiệm các chức năng
-Mật khẩu chung cho tất cả các tài khoản demo: `Password@123`
-
-| Tên đối tượng | Tài khoản (Email) | Vai trò (Role) | Phòng ban | Chức năng kiểm thử chính |
-| :--- | :--- | :---: | :--- | :--- |
-| **Requester (User 1)** | `dev.nguyen@congty.com` | `USER` | Phòng CNTT | Nộp đơn xin cấp khóa RSA, tải Public Key, xin gia hạn, hủy đơn `PENDING`. |
-| **Requester (User 2)** | `kt.tran@congty.com` | `USER` | Phòng Tài chính | Nộp đơn xin cấp chứng chỉ số ký hóa đơn điện tử. |
-| **Approver (Manager 1)**| `it.manager@congty.com` | `APPROVER` | Phòng CNTT | Duyệt đơn của phòng CNTT; Kiểm thử SoD không cho tự duyệt đơn của mình. |
-| **Approver (Manager 2)**| `fin.manager@congty.com` | `APPROVER` | Phòng Tài chính | Duyệt đơn chứng chỉ của nhân viên phòng Kế toán. |
-| **CISO / Security Admin**| `ciso@congty.com` | `ADMIN` | An toàn thông tin | Thu hồi khẩn cấp tài sản lộ khóa, ban hành Policy v2, soi Audit Log. |
-| **System Admin** | `admin@congty.com` | `ADMIN` | Quản trị hệ thống | Tạo tài khoản mới, khóa user, gán Scopes duyệt phòng ban. |
-
-### 2. Kết quả kiểm thử tự động thực chứng (Automated Testing Results)
-Để đảm bảo chất lượng phần mềm khách quan và loại bỏ hoàn toàn lỗi logic, nhóm chúng em đã lập trình và thực thi 3 bộ kịch bản kiểm thử tự động toàn diện:
-
-1. **Bộ kiểm thử API E2E toàn diện (`npm run test:e2e`):**
-   - Kiểm thử tự động 8 phân hệ API lớn (Auth, Policies, Requests, SoD, Notifications, Audit, Quota, Lifecycle).
-   - **Kết quả: 58/58 test cases PASSED (100%).**
-2. **Bộ kiểm thử 15 Use Cases & 6 Quy trình nghiệp vụ (`npm run test:workflows`):**
-   - Mô phỏng hành trình nghiệp vụ liên phòng ban: Gửi đơn $\rightarrow$ Duyệt SoD $\rightarrow$ Tự động sinh khóa ngầm $\rightarrow$ Thu hồi khẩn cấp $\rightarrow$ Quét hết hạn.
-   - **Kết quả: 21/21 test cases PASSED (100%).**
-3. **Bộ kiểm thử Chuông thông báo & Popover (`npm run test:notifications`):**
-   - Kiểm thử vòng đời thông báo: Sinh tin khi tạo đơn, hiển thị chấm đỏ trên chuông, mở popover, đánh dấu đã đọc và xóa chấm đỏ.
-   - **Kết quả: 20/20 test cases PASSED (100%).**
-
----
-
-<div style="page-break-after: always;"></div>
-
-# CHƯƠNG VI. KẾT LUẬN
+# CHƯƠNG V. KẾT LUẬN
 
 ## I. Kết quả đã thực hiện
 Sau thời gian nghiêm túc nghiên cứu, phân tích và triển khai, nhóm chúng em đã hoàn thành toàn diện đề tài **"Hệ thống Quản lý Vòng đời Khóa Mã hóa và Chứng chỉ số Doanh nghiệp (Cryta)"**. Các kết quả chính đạt được bao gồm:
