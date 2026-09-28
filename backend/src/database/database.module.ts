@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Logger, Module } from '@nestjs/common';
 import { Pool } from 'pg';
 import { MigrationService } from './migration.service';
 import { DATABASE_POOL } from './database.constants';
@@ -16,8 +16,10 @@ export { DATABASE_POOL } from './database.constants';
         statement_timeout: 10_000,
         application_name: 'crypta-api',
       });
-      pool.on('error', (err) => {
-        console.warn('[DatabasePool] Idle client error caught:', err.message);
+      const logger = new Logger('DatabasePool');
+      // Idle clients can emit outside a query's try/catch. Never log raw DB errors.
+      pool.on('error', () => {
+        logger.error('Idle PostgreSQL client error; check database connectivity.');
       });
       return pool;
     },
