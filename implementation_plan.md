@@ -49,30 +49,30 @@ Hệ thống phải đáp ứng bốn nguyên tắc nền tảng:
 
 ### 1.1. Kết quả cần đạt
 
-- Ứng dụng web hoạt động với bốn tác nhân: User, Approver, Security Admin và System Job.
-- Hoàn chỉnh 12 Use Case đã xác định.
-- Có RBAC và kiểm tra phạm vi dữ liệu ở backend.
-- Có luồng cấp mới, gia hạn và thu hồi theo mô hình yêu cầu–phê duyệt.
-- Có dashboard và màn hình riêng cho từng vai trò.
-- Có job cảnh báo và job cập nhật trạng thái hết hạn.
-- Có Audit Log bất biến ở cấp ứng dụng và phân quyền database.
-- Có bộ kiểm thử nghiệp vụ, phân quyền và bảo mật cốt lõi.
-- Có Docker, seed dữ liệu demo, tài liệu API và hướng dẫn chạy.
+- Ứng dụng web hoạt động với bốn nhóm tác nhân: Requester (User), Approver (Manager), CISO / Security Admin và System Admin (cùng System Background Worker).
+- Hoàn chỉnh 15 Use Case nghiệp vụ cốt lõi (UC-01 đến UC-15) cùng hệ thống Bảng thông báo nổi (Notification Popover).
+- Có RBAC và kiểm tra phạm vi dữ liệu (Approver Scopes) ở backend.
+- Có luồng cấp mới, gia hạn, hủy đơn và thu hồi theo mô hình yêu cầu–phê duyệt.
+- Có luồng Thu hồi khẩn cấp (Emergency Revocation) độc lập không qua phê duyệt dành riêng cho CISO/Admin khi phát hiện sự cố an toàn thông tin.
+- Có dashboard và màn hình riêng biệt cho từng vai trò (User Dashboard, Approval Queue, Admin Console).
+- Có job cảnh báo sắp hết hạn và job tự động cập nhật trạng thái `EXPIRED`.
+- Có Audit Log bất biến ở cấp ứng dụng và ràng buộc trigger database.
+- Có bộ kiểm thử nghiệp vụ tự động 100% PASS (58 API E2E tests, 21 Workflow tests, 20 Notification tests).
+- Có seed dữ liệu demo đầy đủ tài khoản các phòng ban, tài liệu API (Swagger UI `/docs`) và hướng dẫn chạy.
 
 ### 1.2. Kiến trúc đề xuất
 
-| Lớp | Công nghệ đề xuất | Ghi chú |
-|---|---|---|
-| Frontend | React, TypeScript, Vite, React Router, TanStack Query | Giao diện theo vai trò |
-| Backend | Node.js, TypeScript, NestJS hoặc Express có cấu trúc module | Khuyến nghị NestJS nếu nhóm chưa có framework thống nhất |
-| Database | PostgreSQL | Hỗ trợ transaction, constraint, JSONB và phân quyền tốt |
-| ORM | Prisma hoặc TypeORM | Khuyến nghị Prisma cho đồ án |
-| Authentication | JWT access token + refresh token rotation | MFA là mục tiêu mở rộng cho vai trò nhạy cảm |
-| Job Scheduler | BullMQ + Redis hoặc node-cron | MVP có thể dùng node-cron; production nên dùng queue |
-| Email | SMTP sandbox/MailHog khi phát triển | Không gửi email thật trong demo |
-| Key Provider | Adapter mô phỏng + tùy chọn HashiCorp Vault/KMS | Database chỉ lưu reference, không lưu private key rõ |
-| API Docs | OpenAPI/Swagger | Sinh tài liệu và hỗ trợ kiểm thử |
-| Đóng gói | Docker Compose | Frontend, backend, PostgreSQL, Redis, MailHog |
+| Lớp            | Công nghệ đề xuất                                           | Ghi chú                                                  |
+| -------------- | ----------------------------------------------------------- | -------------------------------------------------------- |
+| Frontend       | React, TypeScript, Vite, React Router, TanStack Query       | Giao diện theo vai trò                                   |
+| Backend        | Node.js, TypeScript, NestJS hoặc Express có cấu trúc module | Khuyến nghị NestJS nếu nhóm chưa có framework thống nhất |
+| Database       | PostgreSQL                                                  | Hỗ trợ transaction, constraint, JSONB và phân quyền tốt  |
+| ORM            | Prisma hoặc TypeORM                                         | Khuyến nghị Prisma cho đồ án                             |
+| Authentication | JWT access token + refresh token rotation                   | MFA là mục tiêu mở rộng cho vai trò nhạy cảm             |
+| Job Scheduler  | node-cron                                                   | Chạy ngầm trực tiếp trong Node.js, không cần Queue       |
+| Key Provider   | Adapter mô phỏng (Mock)                                     | Cấp phát khóa giả lập để pass luồng nghiệp vụ            |
+| API Docs       | OpenAPI/Swagger                                             | Sinh tài liệu và hỗ trợ kiểm thử                         |
+| Đóng gói       | Tùy chọn (Docker hoặc chạy thủ công)                        | Chỉ cần Frontend, Backend và Database                    |
 
 ---
 
@@ -97,7 +97,7 @@ Hệ thống phải đáp ứng bốn nguyên tắc nền tảng:
 - Hệ thống tạo/cập nhật metadata tài sản sau phê duyệt.
 - Admin xem tài sản toàn hệ thống, cấu hình policy và xem Audit Log.
 - Job cảnh báo sắp hết hạn và cập nhật trạng thái `EXPIRED`.
-- Thông báo trong ứng dụng; email ở mức demo.
+- Thông báo trong ứng dụng (In-app Notification).
 - Audit Log cho authentication, request, approval, asset, policy và role.
 
 ### 2.3. Phạm vi nâng cao
@@ -133,19 +133,19 @@ Hệ thống phải đáp ứng bốn nguyên tắc nền tảng:
 
 ### 3.1. Thuật ngữ
 
-| Thuật ngữ | Ý nghĩa trong hệ thống |
-|---|---|
-| Key | Khóa mật mã dùng cho mã hóa, giải mã, ký hoặc xác minh |
-| Certificate | Chứng thư số gắn danh tính với public key và được CA ký |
-| Private key | Thành phần bí mật, không được ghi log hoặc lưu dạng rõ |
-| Public key | Thành phần có thể phân phối để mã hóa/xác minh |
-| Rotation | Tạo khóa mới để thay thế khóa cũ theo chu kỳ |
-| Renewal | Cấp chứng thư mới kế tiếp chứng thư cũ; không sửa chứng thư đã phát hành |
-| Revocation | Chấm dứt hiệu lực trước thời hạn |
-| Owner | Người hoặc đơn vị chịu trách nhiệm với tài sản |
-| Custodian | Hệ thống/nhà cung cấp đang lưu vật liệu khóa |
-| Policy | Quy tắc về thuật toán, độ dài khóa, thời hạn và cảnh báo |
-| SoD | Separation of Duties — phân tách nhiệm vụ |
+| Thuật ngữ   | Ý nghĩa trong hệ thống                                       |
+| ----------- | ------------------------------------------------------------ |
+| Key         | Khóa mật mã dùng cho mã hóa, giải mã, ký hoặc xác minh       |
+| Certificate | Chứng thư số gắn danh tính với public key và được CA ký      |
+| Private key | Thành phần bí mật, không được ghi log hoặc lưu dạng rõ       |
+| Public key  | Thành phần có thể phân phối để mã hóa/xác minh               |
+| Rotation    | Tạo khóa mới để thay thế khóa cũ theo chu kỳ                 |
+| Renewal     | Cấp chứng thư mới kế tiếp chứng thư cũ; không sửa chứng thư đã phát hành |
+| Revocation  | Chấm dứt hiệu lực trước thời hạn                             |
+| Owner       | Người hoặc đơn vị chịu trách nhiệm với tài sản               |
+| Custodian   | Hệ thống/nhà cung cấp đang lưu vật liệu khóa                 |
+| Policy      | Quy tắc về thuật toán, độ dài khóa, thời hạn và cảnh báo     |
+| SoD         | Separation of Duties — phân tách nhiệm vụ                    |
 
 ### 3.2. Nguyên tắc mô hình hóa
 
@@ -162,12 +162,12 @@ flowchart TD
 
 ### 3.3. Phân loại dữ liệu
 
-| Mức | Ví dụ | Quy tắc |
-|---|---|---|
-| Công khai | Public key, thuật toán hỗ trợ | Có thể hiển thị theo nghiệp vụ |
-| Nội bộ | Owner, ngày hết hạn, trạng thái | Chỉ người có quyền và đúng phạm vi |
-| Nhạy cảm | Policy, Audit Log, certificate request | Hạn chế Admin/Approver phù hợp |
-| Tối mật | Private key, refresh token, secret | Không trả về tùy ý; mã hóa hoặc lưu ngoài DB |
+| Mức       | Ví dụ                                  | Quy tắc                                      |
+| --------- | -------------------------------------- | -------------------------------------------- |
+| Công khai | Public key, thuật toán hỗ trợ          | Có thể hiển thị theo nghiệp vụ               |
+| Nội bộ    | Owner, ngày hết hạn, trạng thái        | Chỉ người có quyền và đúng phạm vi           |
+| Nhạy cảm  | Policy, Audit Log, certificate request | Hạn chế Admin/Approver phù hợp               |
+| Tối mật   | Private key, refresh token, secret     | Không trả về tùy ý; mã hóa hoặc lưu ngoài DB |
 
 ---
 
@@ -176,66 +176,100 @@ flowchart TD
 ### 4.1. Tác nhân
 
 | Tác nhân | Trách nhiệm chính | Hạn chế bắt buộc |
-|---|---|---|
-| User / Employee | Tạo yêu cầu; xem tài sản và yêu cầu của mình | Không xem tài sản người khác; không duyệt |
-| Approver / Manager | Xem và quyết định yêu cầu trong phạm vi | Không tự duyệt; không cấu hình policy/RBAC |
-| Security Admin | Quản lý policy, vai trò, tài sản toàn hệ thống, audit | Không phê duyệt yêu cầu nghiệp vụ |
-| System / Background Job | Quét hết hạn, cập nhật trạng thái, gửi cảnh báo | Chỉ dùng service account tối thiểu quyền |
+| --- | --- | --- |
+| **Requester (User / Employee)** | Tạo yêu cầu cấp mới, gia hạn, thu hồi; theo dõi tiến độ & hủy đơn khi đang chờ duyệt (`PENDING`); xem tài sản cá nhân và tải Public Key. | Không xem tài sản của người khác; không tự phê duyệt đơn của chính mình (SoD). |
+| **Approver (Manager / Trưởng phòng)** | Xem hàng đợi duyệt trong phạm vi phòng ban được phân công (`approver_scopes`); phê duyệt hoặc từ chối kèm lời phê bắt buộc; xem dashboard phòng ban. | Không tự duyệt đơn do mình tạo; không duyệt đơn ngoài phạm vi phòng ban; không cấu hình chính sách/RBAC. |
+| **CISO / Security Admin** | Ban hành và nâng cấp phiên bản Chính sách bảo mật (Policy Versioning v1/v2); **Thu hồi Khẩn cấp (Emergency Revocation)** trực tiếp khi phát hiện sự cố rò rỉ khóa; tra cứu Audit Log bất biến; giám sát an toàn toàn hệ thống. | Tuyệt đối không có quyền phê duyệt yêu cầu cấp phát nghiệp vụ thông thường (chống xung đột lợi ích SoD). |
+| **System Admin** | Quản lý danh mục phòng ban (Departments); quản lý người dùng (tạo mới, reset mật khẩu, kích hoạt/vô hiệu hóa tài khoản); phân quyền Role và gán phạm vi duyệt phòng ban (`approver_scopes`). | Không phê duyệt yêu cầu cấp phát tài sản mật mã; thao tác phân quyền đều bị ghi vết kiểm toán. |
+| **System Background Worker** | Tự động sinh khóa ngầm sau khi duyệt; quét cảnh báo tài sản sắp hết hạn (30 ngày); tự động chuyển trạng thái `EXPIRED`; gửi thông báo In-app/Email. | Chỉ chạy dưới quyền hệ thống tối thiểu, ghi vết kiểm toán cho các tác vụ thay đổi trạng thái. |
 
 ### 4.2. Sơ đồ Use Case tổng quát
 
 ```mermaid
 flowchart LR
-    U["User / Employee"]
-    AP["Approver / Manager"]
-    AD["Security Admin"]
-    SYS["System Job"]
+    REQ["Requester (User)"]
+    APP["Approver (Manager)"]
+    CISO["CISO (Security Admin)"]
+    ADMIN["System Admin"]
+    SYS["System Background Job"]
 
-    subgraph KMS["Hệ thống quản lý khóa và chứng thư"]
-        UC1["UC1 Cấp phát mới"]
-        UC2["UC2 Gia hạn"]
-        UC3["UC3 Thu hồi"]
-        UC4["UC4 Xem tài sản cá nhân"]
-        UC5["UC5 Xem yêu cầu chờ duyệt"]
-        UC6["UC6 Phê duyệt / Từ chối"]
-        UC7["UC7 Quản lý tài sản toàn hệ thống"]
-        UC8["UC8 Thiết lập chính sách"]
-        UC9["UC9 Xem Audit Log"]
-        UC10["UC10 Quản lý RBAC"]
-        UC11["UC11 Quét và cảnh báo"]
-        UC12["UC12 Cập nhật hết hạn"]
+    subgraph Cryta["Hệ thống Quản lý Vòng đời Khóa & Chứng chỉ số"]
+        UC01["UC-01 Đăng nhập & Đổi mật khẩu"]
+        UC02["UC-02 Tạo yêu cầu cấp mới"]
+        UC03["UC-03 Yêu cầu gia hạn / thu hồi"]
+        UC04["UC-04 Theo dõi & Hủy đơn PENDING"]
+        UC05["UC-05 Xem tài sản cá nhân & Tải Khóa"]
+        
+        UC06["UC-06 Xem hàng đợi duyệt theo Scope"]
+        UC07["UC-07 Phê duyệt / Từ chối kèm nhận xét"]
+        UC08["UC-08 Báo cáo tài sản & Dashboard duyệt"]
+        
+        UC09["UC-09 Ban hành & Versioning Policy"]
+        UC10["UC-10 Thu hồi Tài sản Khẩn cấp"]
+        UC11["UC-11 Tra cứu Audit Log Bất biến"]
+        UC12["UC-12 Giám sát Dashboard toàn cục"]
+        
+        UC13["UC-13 Quản lý Phòng ban & Danh mục"]
+        UC14["UC-14 Quản trị Người dùng & Trạng thái"]
+        UC15["UC-15 Cấp quyền Role & Phân luồng Scopes"]
+        
+        UCNOTI["Hệ thống Chuông & Popover Thông báo"]
+        UCSYS1["Quét & Cảnh báo Sắp Hết Hạn"]
+        UCSYS2["Tự động Chuyển trạng thái EXPIRED"]
     end
 
-    U --> UC1
-    U --> UC2
-    U --> UC3
-    U --> UC4
-    AP --> UC5
-    AP --> UC6
-    AD --> UC7
-    AD --> UC8
-    AD --> UC9
-    AD --> UC10
-    SYS --> UC11
-    SYS --> UC12
+    REQ --> UC01
+    REQ --> UC02
+    REQ --> UC03
+    REQ --> UC04
+    REQ --> UC05
+    REQ -.-> UCNOTI
+
+    APP --> UC01
+    APP --> UC06
+    APP --> UC07
+    APP --> UC08
+    APP -.-> UCNOTI
+
+    CISO --> UC01
+    CISO --> UC09
+    CISO --> UC10
+    CISO --> UC11
+    CISO --> UC12
+    CISO -.-> UCNOTI
+
+    ADMIN --> UC01
+    ADMIN --> UC11
+    ADMIN --> UC13
+    ADMIN --> UC14
+    ADMIN --> UC15
+
+    SYS --> UCSYS1
+    SYS --> UCSYS2
 ```
 
 ### 4.3. Ma trận quyền
 
-Ký hiệu: `O` = dữ liệu của mình, `S` = dữ liệu trong scope, `A` = toàn hệ thống, `—` = không được phép.
+Ký hiệu: `O` = Dữ liệu của chính mình (Owner), `S` = Dữ liệu trong phạm vi phụ trách (Scope), `A` = Toàn hệ thống (All), `—` = Không được phép.
 
-| Chức năng | User | Approver | Security Admin | System Job |
-|---|:---:|:---:|:---:|:---:|
-| Xem tài sản | O | S | A | S |
-| Tạo yêu cầu | O | O nếu không tự duyệt | — | — |
-| Xem yêu cầu | O | S | A chỉ đọc | — |
-| Phê duyệt/từ chối | — | S | — | — |
-| Thu hồi khẩn cấp tự động | — | — | — | Theo rule đã duyệt |
-| Cấu hình policy | — | — | A | Chỉ đọc |
-| Gán vai trò | — | — | A | — |
-| Xem Audit Log | — | — | A | — |
-| Ghi Audit Log | Qua backend | Qua backend | Qua backend | Qua backend |
-| Chạy job hết hạn | — | — | Có thể kích hoạt có kiểm soát | A |
+| Chức năng / Quyền hạn | Requester (User) | Approver (Manager) | CISO / Security Admin | System Admin | System Worker |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Đăng nhập & Đổi mật khẩu** (`auth:*`) | O | O | O | O | — |
+| **Xem tài sản cá nhân** (`asset:read:own`) | O | O | A | A | S |
+| **Tải khóa công khai / Cert** (`asset:download`) | O | S | A | A | — |
+| **Tạo yêu cầu cấp/gia hạn/thu hồi** (`request:create`) | O | O (không tự duyệt) | — | — | — |
+| **Theo dõi & Hủy đơn PENDING** (`request:cancel`) | O | O | A (chỉ xem) | A (chỉ xem) | — |
+| **Xem hàng đợi chờ duyệt** (`request:read:scope`) | — | S | A (chỉ xem) | A (chỉ xem) | — |
+| **Phê duyệt / Từ chối yêu cầu** (`request:approve`) | — | S (bắt buộc khác creator) | — | — | — |
+| **Thu hồi Khẩn cấp trực tiếp** (`asset:revoke:emergency`) | — | — | **A** | **A** | — |
+| **Quản trị Chính sách (Tạo mới & Versioning)** (`policy:manage`) | — | — | **A** | **A** | Chỉ đọc |
+| **Tra cứu Nhật ký Kiểm toán bất biến** (`audit:read`) | — | — | **A** | **A** | — |
+| **Ghi vết Audit Log** (`audit:write`) | Tự động | Tự động | Tự động | Tự động | Tự động |
+| **Xem & Tương tác Bảng thông báo nổi** (`notification:*`) | O | O | O | O | Tạo thông báo |
+| **Quản lý Phòng ban & Danh mục** (`dept:manage`) | — | — | — | **A** | — |
+| **Quản lý Người dùng & Trạng thái** (`user:manage`) | — | — | — | **A** | — |
+| **Phân quyền Role & Approver Scopes** (`role:assign`) | — | — | — | **A** | — |
+| **Tác vụ quét hết hạn & Cấp phát ngầm** | — | — | — | — | **A** |
 
 ### 4.4. Quy tắc SoD bắt buộc
 
@@ -250,92 +284,199 @@ Ký hiệu: `O` = dữ liệu của mình, `S` = dữ liệu trong scope, `A` = 
 
 ## 5. Đặc tả Use Case
 
-### 5.1. Bảng tổng hợp
+### 5.1. Bảng tổng hợp 15 Use Cases & Các chức năng nền tảng
 
-| ID | Use Case | Tác nhân | Tiền điều kiện | Kết quả thành công |
-|---|---|---|---|---|
-| UC1 | Yêu cầu cấp mới | User | Đăng nhập; có quyền tạo | Request `PENDING`; chờ duyệt |
-| UC2 | Yêu cầu gia hạn | User | Là owner; asset hợp lệ | Request liên kết asset cũ |
-| UC3 | Yêu cầu thu hồi | User | Là owner; asset chưa thu hồi | Request có lý do và mức khẩn cấp |
-| UC4 | Xem tài sản | User | Đăng nhập | Chỉ thấy tài sản thuộc mình |
-| UC5 | Xem chờ duyệt | Approver | Có scope | Chỉ thấy request trong scope |
-| UC6 | Phê duyệt/từ chối | Approver | Request `PENDING`; không tự duyệt | Có approval record và audit |
-| UC7 | Quản lý toàn hệ thống | Admin | Có `asset:read:any` | Xem/filter tài sản toàn hệ thống |
-| UC8 | Thiết lập policy | Admin | Có `policy:manage` | Policy mới có version và audit |
-| UC9 | Xem Audit Log | Admin | Có `audit:read` | Tra cứu được lịch sử |
-| UC10 | Quản lý RBAC | Admin | Có `role:assign` | Vai trò được cập nhật và ghi log |
-| UC11 | Quét/cảnh báo | System | Job active; policy hợp lệ | Notification/email được tạo một lần |
-| UC12 | Cập nhật hết hạn | System | `expires_at <= now` | Asset chuyển `EXPIRED` và ghi log |
+| Mã UC | Nhóm Tác nhân | Tên Ca Sử Dụng (Use Case) | Tiền điều kiện | Kết quả thành công |
+| :--- | :--- | :--- | :--- | :--- |
+| **UC-01** | Requester / Tất cả | Đăng nhập, Quản lý phiên & Đổi mật khẩu bắt buộc | Tài khoản tồn tại và `ACTIVE` | Trả về JWT Access Token & Refresh Cookie; buộc đổi mật khẩu nếu `must_change_password=true`. |
+| **UC-02** | Requester (User) | Tạo Đơn yêu cầu cấp mới Khóa/Chứng chỉ | Đã đăng nhập; chọn đúng Policy Version | Tạo đơn `PENDING`; gửi thông báo In-app cho Approver phòng ban. |
+| **UC-03** | Requester (User) | Yêu cầu Gia hạn / Thu hồi tài sản | Là chủ sở hữu tài sản mục tiêu (`owner`) | Tạo đơn `PENDING` gắn `target_asset_id` và lý do nghiệp vụ. |
+| **UC-04** | Requester (User) | Theo dõi trạng thái & Hủy yêu cầu chờ duyệt | Đơn của chính mình đang ở trạng thái `PENDING` | Xem chi tiết tiến độ; hủy đơn thành công đổi trạng thái sang `CANCELLED`. |
+| **UC-05** | Requester (User) | Xem tài sản cá nhân & Tải Khóa công khai | Có tài sản được cấp phát | Chỉ thấy tài sản của chính mình; tải được Public Key/Certificate PEM. |
+| **UC-06** | Approver (Manager) | Xem danh sách chờ duyệt theo phòng ban | Có vai trò `APPROVER` & được gán scope | Chỉ thấy đơn của nhân viên thuộc các phòng ban trong scope phụ trách. |
+| **UC-07** | Approver (Manager) | Phê duyệt hoặc Từ chối kèm lời phê | Đơn `PENDING`; đảm bảo SoD (`creator != approver`) | Ghi nhận vào `request_decisions`; đơn đổi trạng thái `APPROVED` hoặc `REJECTED`. |
+| **UC-08** | Approver (Manager) | Báo cáo tài sản phòng ban & Dashboard duyệt | Thuộc phòng ban được gán phụ trách | Xem KPI số đơn chờ duyệt, đơn khẩn cấp, tài sản theo phòng ban. |
+| **UC-09** | CISO / Admin | Quản trị & Ban hành phiên bản Chính sách (Policy) | Có vai trò `ADMIN` | Tạo chính sách mới; ban hành phiên bản v2+; ép buộc tham số thuật toán. |
+| **UC-10** | CISO / Admin | Thu hồi Tài sản Khẩn cấp (Emergency Revocation) | Có vai trò `ADMIN` | Vô hiệu hóa ngay lập tức tài sản thành `REVOKED` không qua phê duyệt; ghi log khẩn cấp. |
+| **UC-11** | CISO / Admin | Tra cứu & Kiểm toán Nhật ký Bất biến (Audit Log) | Có vai trò `ADMIN` | Tra cứu toàn bộ lịch sử; trigger CSDL cấm sửa/xóa bảo vệ tính bất biến. |
+| **UC-12** | CISO / Admin | Giám sát toàn cục (Admin Dashboard) | Có vai trò `ADMIN` | Xem tổng quan tài sản toàn hệ thống, tình trạng dịch vụ (Mock/SMTP). |
+| **UC-13** | System Admin | Quản lý Phòng ban & Danh mục Hệ thống | Có vai trò `ADMIN` | Truy xuất, thêm mới phòng ban và danh mục tham chiếu hệ thống. |
+| **UC-14** | System Admin | Quản lý Người dùng & Trạng thái hoạt động | Có vai trò `ADMIN` | Tạo tài khoản mới; kích hoạt / vô hiệu hóa (`INACTIVE`). |
+| **UC-15** | System Admin | Cấp quyền Role & Phân luồng duyệt (Scopes) | Có vai trò `ADMIN` | Gán vai trò `USER`/`APPROVER`/`ADMIN` và phòng ban duyệt cho User. |
+| **UC-SYS-01** | System Worker | Quét và cảnh báo tài sản sắp hết hạn | Cron job active; cấu hình số ngày cảnh báo | Sinh thông báo In-app/Email cho chủ sở hữu tài sản trước 30 ngày. |
+| **UC-SYS-02** | System Worker | Tự động chuyển trạng thái Hết hạn (`EXPIRED`) | `expires_at <= NOW()` và status `ACTIVE` | Tài sản chuyển sang `EXPIRED`; ghi Audit Log tự động. |
+| **UC-UI-01** | Mọi Tác nhân | Tương tác Chuông thông báo & Bảng thông báo nổi | Đã đăng nhập vào hệ thống | Bật/tắt Notification Popover; đánh dấu đã đọc; xóa chấm đỏ Header. |
 
-### 5.2. Mẫu đặc tả chi tiết UC1 — Cấp phát mới
+---
 
-**Tiền điều kiện**
+### 5.2. Đặc tả chi tiết UC-01 — Đăng nhập, Quản lý phiên & Đổi mật khẩu bắt buộc
 
-- User đang hoạt động và đã đăng nhập.
-- Loại tài sản, thuật toán, mục đích sử dụng phù hợp policy hiện hành.
+**Tiền điều kiện:** Tài khoản tồn tại trong bảng `users`, trạng thái `status = 'ACTIVE'`.
 
-**Luồng chính**
+**Luồng chính:**
+1. Người dùng nhập email và mật khẩu tại màn hình Đăng nhập.
+2. Backend kiểm tra số lần đăng nhập sai liên tiếp (`failed_login_attempts < 10`); nếu quá hạn trả về `ACCOUNT_LOCKED`.
+3. Backend so khớp mật khẩu bằng hàm băm an toàn `bcrypt.compare`.
+4. Nếu thành công, hệ thống reset `failed_login_attempts = 0`, cấp phát JWT Access Token (hạn 15 phút) và ghi nhận `crypta_refresh` cookie HTTP-Only.
+5. Kiểm tra cờ `must_change_password`: nếu bằng `true`, giao diện ép buộc mở hộp thoại đổi mật khẩu mới trước khi cho phép thao tác hệ thống.
+6. Người dùng nhập mật khẩu mới (tối thiểu 6 ký tự), backend cập nhật mật khẩu, set `must_change_password = false`, tăng `token_version` để thu hồi phiên cũ và ghi Audit Log `AUTH_CHANGE_PASSWORD`.
 
-1. User mở form “Yêu cầu cấp mới”.
-2. User chọn loại tài sản, mục đích, thuật toán và thời hạn mong muốn.
-3. Frontend kiểm tra dữ liệu cơ bản.
-4. Backend kiểm tra quyền, scope và policy.
-5. Backend tạo request ở trạng thái `PENDING`.
+**Luồng ngoại lệ:**
+- Sai mật khẩu: Tăng bộ đếm thử sai, ghi log `AUTH_LOGIN_FAILED`. Nếu vượt ngưỡng 10 lần, khóa tài khoản tạm thời 15 phút.
+- Tài khoản ở trạng thái `INACTIVE`: Trả về `ACCOUNT_DISABLED`, từ chối phát hành token.
+
+---
+
+### 5.3. Đặc tả chi tiết UC-02 — Tạo Đơn yêu cầu cấp mới (Create Request)
+
+**Tiền điều kiện:** User đang ở trạng thái `ACTIVE` và đã đăng nhập; chọn Policy Version hợp lệ.
+
+**Luồng chính:**
+1. User nhấn "Yêu cầu cấp phát" trên Dashboard.
+2. User chọn loại tài sản (`KEY_PAIR`, `SYMMETRIC_KEY`, `CERTIFICATE`), mục đích sử dụng, thuật toán mong muốn và thời hạn.
+3. Frontend kiểm tra ràng buộc dữ liệu cơ bản.
+4. Backend đối chiếu tham số với phiên bản chính sách (`policy_versions`): thuật toán phải nằm trong danh mục cho phép, thời hạn không vượt quá `max_validity_days`.
+5. Backend tạo bản ghi `requests` ở trạng thái `PENDING`.
 6. Backend ghi Audit Log `REQUEST_CREATED`.
-7. Hệ thống thông báo cho Approver phù hợp.
-8. Sau khi được duyệt, worker gọi Crypto Provider để tạo/cấp phát.
-9. Backend tạo `crypto_asset` và dữ liệu subtype.
-10. Request chuyển `COMPLETED`; User nhận thông báo.
+7. Hệ thống tự động kích hoạt thông báo In-app (`REQUEST_SUBMITTED`) gửi đến danh sách Approver có scope phụ trách phòng ban của User.
 
-**Luồng ngoại lệ**
+**Luồng ngoại lệ:**
+- Vi phạm chính sách (ví dụ chọn thời hạn vượt mức cho phép): Backend trả về `422 POLICY_VIOLATION`.
+- Người dùng thuộc phòng ban chưa được gán Approver nào: Yêu cầu vẫn lưu thành công nhưng gắn cờ cảnh báo trong log quản trị.
 
-- Thuật toán bị policy cấm: trả `422 POLICY_VIOLATION`.
-- Không tìm thấy Approver: vẫn lưu request nhưng gắn cờ `UNASSIGNED`; báo Admin.
-- Provider lỗi: request chuyển `FAILED`, không tạo asset dở dang; cho phép retry có kiểm soát.
+---
 
-### 5.3. Mẫu đặc tả chi tiết UC2 — Gia hạn
+### 5.4. Đặc tả chi tiết UC-03 — Yêu cầu Gia hạn / Thu hồi thông thường (Renew / Revoke)
 
-- User chỉ được gia hạn tài sản mình sở hữu.
-- Asset phải ở `ACTIVE`, `EXPIRING_SOON` hoặc `EXPIRED` nếu policy cho phép.
-- Không tạo hai yêu cầu gia hạn đang mở cho cùng một asset.
-- Khi hoàn tất, tạo certificate/key kế tiếp và liên kết bằng `replaces_asset_id`; không sửa lịch sử asset cũ.
+**Luồng gia hạn (Renew):**
+- Chỉ chủ sở hữu (`owner_id`) mới có quyền yêu cầu gia hạn tài sản của mình.
+- Tài sản phải ở trạng thái `ACTIVE`, `EXPIRING_SOON` hoặc `EXPIRED`.
+- Khi đơn gia hạn được phê duyệt, hệ thống tạo một tài sản mới thay thế, liên kết qua `replaces_asset_id` và đánh dấu tài sản cũ thành `SUPERSEDED`. Không chỉnh sửa đè lên lịch sử tài sản cũ.
 
-### 5.4. Mẫu đặc tả chi tiết UC3 — Thu hồi
+**Luồng thu hồi thông thường (Revoke):**
+- User chọn tài sản cần thu hồi và bắt buộc cung cấp lý do: `KEY_COMPROMISE`, `DEVICE_LOST`, `CESSATION_OF_OPERATION`, `SUPERSEDED`, `OTHER`.
+- Đơn thu hồi chuyển trạng thái `PENDING` và chờ Approver phê duyệt. Sau khi duyệt, tài sản chuyển vĩnh viễn sang trạng thái `REVOKED`.
 
-- Bắt buộc chọn lý do: `KEY_COMPROMISE`, `DEVICE_LOST`, `CESSATION_OF_OPERATION`, `SUPERSEDED`, `OTHER`.
-- Nếu nghi bị lộ, đánh dấu `emergency=true` và ưu tiên hàng đợi.
-- MVP vẫn yêu cầu Approver; phương án nâng cao cho phép Security Incident role thu hồi khẩn cấp và hậu kiểm.
-- Asset đã `REVOKED` không thể quay lại `ACTIVE`.
+---
 
-### 5.5. Mẫu đặc tả chi tiết UC6 — Phê duyệt/Từ chối
+### 5.5. Đặc tả chi tiết UC-04 — Theo dõi trạng thái & Hủy đơn yêu cầu (Track & Cancel Request)
+
+**Tiền điều kiện:** Đơn yêu cầu do chính User tạo ra và đang ở trạng thái `PENDING`.
+
+**Luồng chính:**
+1. User truy cập tab "Yêu cầu gần đây" trên Dashboard cá nhân.
+2. Hệ thống hiển thị chi tiết tiến độ xử lý, thời gian nộp, chính sách áp dụng và trạng thái `PENDING`.
+3. Nếu không còn nhu cầu, User bấm nút "Hủy yêu cầu" (`POST /api/v1/requests/:id/cancel`).
+4. Backend kiểm tra quyền sở hữu (`creator_id == current_user.id`) và trạng thái hiện tại phải là `PENDING`.
+5. Backend chuyển trạng thái đơn sang `CANCELLED` và ghi Audit Log `REQUEST_CANCELLED`.
+6. Yêu cầu lập tức được gỡ khỏi Hàng đợi phê duyệt (Approval Queue) của Quản lý.
+
+**Luồng ngoại lệ:**
+- Đơn đã được phê duyệt (`APPROVED`) hoặc đã từ chối (`REJECTED`): Backend từ chối lệnh hủy với lỗi `REQUEST_NOT_CANCELLABLE`.
+
+---
+
+### 5.6. Đặc tả chi tiết UC-07 — Phê duyệt / Từ chối yêu cầu (Approve / Reject kèm SoD)
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as User
+    actor U as Requester (User)
     participant API as Backend API
     participant DB as PostgreSQL
-    actor A as Approver
-    participant Q as Worker/Queue
-    participant KP as Key/Cert Provider
+    actor A as Approver (Manager)
+    participant W as Provisioning Worker
+    participant KP as Crypto Provider
 
-    U->>API: POST /requests
-    API->>DB: Validate policy + create PENDING
-    API->>DB: Append REQUEST_CREATED audit
-    API-->>U: 201 Created
+    U->>API: 1. POST /requests (Tạo yêu cầu cấp mới)
+    API->>DB: 2. Validate policy + Lưu đơn PENDING
+    API->>DB: 3. Ghi log REQUEST_CREATED + Bắn NOTIFICATIONS cho Approver
+    API-->>U: 4. 201 Created
 
-    A->>API: POST /requests/{id}/decision
-    API->>DB: Check role, scope, creator != approver
-    API->>DB: Atomic update PENDING -> APPROVED
-    API->>DB: Insert approval + audit
-    API->>Q: Enqueue provisioning job
-    API-->>A: 200 Approved
+    A->>API: 5. POST /requests/{id}/decision (Phê duyệt / Từ chối)
+    API->>DB: 6. Kiểm tra quyền, Scope phòng ban, SoD (creator != approver)
+    API->>DB: 7. Atomic update PENDING -> APPROVED / REJECTED
+    API->>DB: 8. Insert request_decisions + Audit Log DECISION_*
+    API-->>A: 9. 200 OK
 
-    Q->>KP: Provision/renew/revoke
-    KP-->>Q: Provider reference/result
-    Q->>DB: Create/update asset; request COMPLETED
-    Q->>DB: Append ASSET_* audit
+    opt Nếu đơn APPROVED
+        W->>DB: 10. Polling đơn APPROVED (FOR UPDATE SKIP LOCKED)
+        W->>KP: 11. Tự động sinh Khóa / Cặp Khóa / Chứng chỉ
+        W->>DB: 12. Insert crypto_assets (ACTIVE) + Liên kết Public Key
+        W->>DB: 13. Update request -> COMPLETED + Bắn thông báo cho Requester
+    end
 ```
+
+**Nguyên tắc Phân tách Trách nhiệm (SoD Enforcement):**
+- Kiểm tra cả 2 tầng: Code nghiệp vụ Backend và Database Trigger `trg_check_sod_rule`.
+- Nếu `approver_id == creator_id` $\rightarrow$ Ném lỗi `403 SOD_VIOLATION` và rollback giao dịch.
+
+---
+
+### 5.7. Đặc tả chi tiết UC-09 — Quản trị & Ban hành phiên bản Chính sách (Policy Versioning)
+
+**Tiền điều kiện:** Tác nhân có vai trò `ADMIN` hoặc `CISO`.
+
+**Luồng chính:**
+1. CISO tạo danh mục chính sách mới (`POST /api/v1/policies`) hoặc nâng cấp phiên bản cho chính sách hiện có (`POST /api/v1/policies/:policyId/versions`).
+2. Cấu hình các tham số bắt buộc: `algorithm` (ví dụ `RSA`, `AES`, `ECDSA`), `min_key_size` (ví dụ 2048), `max_validity_days` (ví dụ 90 ngày), số ngày cảnh báo trước (`notify_before_days`).
+3. Backend tự động tăng số hiệu phiên bản (`version = 1, 2, 3...`) và đánh dấu phiên bản mới nhất là `ACTIVE`.
+4. Mọi yêu cầu cấp mới kể từ thời điểm ban hành sẽ tự động áp dụng phiên bản mới nhất. Các tài sản cũ đã cấp theo phiên bản trước vẫn giữ nguyên tính hợp lệ cho đến khi gia hạn.
+
+---
+
+### 5.8. Đặc tả chi tiết UC-10 — Thu hồi Tài sản Khẩn cấp (Emergency Revocation)
+
+**Ý nghĩa bài toán:** Trong an toàn thông tin, khi một máy chủ bị tấn công hoặc khóa bí mật bị nghi ngờ rò rỉ, CISO cần có quyền thu hồi tài sản mật mã **ngay lập tức** mà không cần qua quy trình tạo đơn và chờ Trưởng phòng duyệt.
+
+**Tiền điều kiện:** Tác nhân có vai trò `ADMIN` / `CISO`.
+
+**Luồng chính:**
+1. CISO chọn tài sản bị rò rỉ trên giao diện Quản trị và bấm nút "Thu hồi khẩn cấp" (`POST /api/v1/assets/:id/revoke`).
+2. CISO nhập lý do thu hồi nghiệp vụ (ví dụ: *"Phát hiện rò rỉ private key trên kho lưu trữ công khai"*).
+3. Backend kiểm tra quyền `ADMIN` (Người dùng thường và Approver bị chặn với mã lỗi `403 ADMIN_REQUIRED`).
+4. Backend cập nhật trạng thái tài sản thành `REVOKED` ngay lập tức trong cơ sở dữ liệu.
+5. Hệ thống gửi thông báo In-app cảnh báo đỏ (`ASSET_REVOKED`) đến chủ sở hữu tài sản.
+6. Hệ thống ghi một bản ghi Audit Log đặc biệt: `action = 'EMERGENCY_REVOKE'`, đánh dấu `emergency = true`. Bản ghi này được bảo vệ bởi trigger `trg_audit_log_immutable`, cấm tuyệt đối mọi hành vi can thiệp sửa/xóa.
+
+---
+
+### 5.9. Đặc tả chi tiết UC-11 — Tra cứu & Kiểm toán Nhật ký Bất biến (Audit Log)
+
+**Tiền điều kiện:** Tác nhân có vai trò `ADMIN`.
+
+**Luồng chính:**
+1. Quản trị viên truy cập mục Audit Log trên Admin Console (`GET /api/v1/audit-logs`).
+2. Hệ thống hiển thị danh sách dòng thời gian các sự kiện: Thời gian, Tác nhân (`actor_id`), Hành động (`action`), Loại tài nguyên (`resource_type`), Địa chỉ IP và Kết quả (`SUCCESS` / `FAILED`).
+3. Cung cấp bộ lọc theo loại hành động (`AUTH_*`, `REQUEST_*`, `ASSET_*`, `POLICY_*`, `ROLE_*`, `EMERGENCY_REVOKE`) và kết quả thực thi.
+4. **Cơ chế Bất biến (Immutability):** Bảng `audit_logs` được gắn Trigger chặn toàn bộ câu lệnh `UPDATE` và `DELETE`. Bất kỳ nỗ lực can thiệp nào từ ứng dụng hoặc cơ sở dữ liệu đều bị từ chối với lỗi `AUDIT_LOG_IMMUTABLE`.
+
+---
+
+### 5.10. Đặc tả chi tiết UC-12 & UC-UI-01 — Hệ thống Chuông thông báo & Bảng thông báo nổi (Notification Bell & Popover)
+
+**Tiền điều kiện:** Mọi người dùng đã đăng nhập hệ thống (`USER`, `APPROVER`, `ADMIN`).
+
+**Luồng chính:**
+1. Khi có sự kiện liên quan (yêu cầu mới cần duyệt, yêu cầu được duyệt/từ chối, tài sản sắp hết hạn, tài sản bị thu hồi), hệ thống tự động sinh bản ghi trong bảng `notifications`.
+2. Biểu tượng quả chuông trên thanh Header hiển thị chấm đỏ cảnh báo (`.has-alert`) kèm số lượng thông báo chưa đọc (`read_at IS NULL`).
+3. Người dùng click vào quả chuông $\rightarrow$ Bảng thông báo nổi (`NotificationPopover`) xổ xuống mượt mà ngay bên dưới chuông:
+   - Hiển thị danh sách 15 thông báo mới nhất kèm icon màu sắc phân loại và thời gian tạo.
+   - Nút "Đánh dấu đã đọc": Click để gọi `PATCH /api/v1/notifications/read-all`, cập nhật `read_at = NOW()`, tắt chấm đỏ trên Header ngay lập tức.
+   - Click vào từng dòng thông báo: Tự động điều hướng và cuộn chuột đến bảng dữ liệu liên quan (`approval-queue`, `assets`, `requests`).
+4. Click ra ngoài vùng bảng thông báo hoặc bấm phím `Escape`: Popover tự động đóng lại.
+
+---
+
+### 5.11. Đặc tả chi tiết UC-14 & UC-15 — Quản trị Người dùng, Phân vai trò & Scopes Duyệt
+
+**Tiền điều kiện:** Tác nhân có vai trò `ADMIN`.
+
+**Luồng chính:**
+1. **Tạo tài khoản mới (UC-14):** Admin nhập email, họ tên, phòng ban ban đầu và mật khẩu tạm thời (`POST /api/v1/users`). Tài khoản mặc định kích hoạt cờ `must_change_password = true`.
+2. **Kích hoạt / Vô hiệu hóa tài khoản (UC-14):** Admin có thể chuyển trạng thái user thành `INACTIVE` (`PATCH /api/v1/users/:id/status`). Người dùng bị vô hiệu hóa sẽ lập tức bị chặn đăng nhập và từ chối mọi token hiện có.
+3. **Phân vai trò & Luồng duyệt Scopes (UC-15):** Admin thiết lập danh sách vai trò (`USER`, `APPROVER`, `ADMIN`) và gán danh sách phòng ban được quyền duyệt (`approver_scopes`) thông qua endpoint `PUT /api/v1/users/:id/access`.
+4. Ràng buộc SoD: Hệ thống ngăn chặn việc vô hiệu hóa tài khoản Quản trị viên cuối cùng của hệ thống. Mọi thao tác thay đổi quyền hạn đều được ghi vết kiểm toán với đầy đủ trạng thái trước và sau.
 
 ### 5.6. Acceptance Criteria chung cho Use Case
 
@@ -383,10 +524,9 @@ flowchart TB
     POLICY --> DB
     AUDIT --> DB
     JOB --> DB
-    JOB --> REDIS[("Redis / Queue")]
-    REDIS --> PROVIDER
+    JOB --> PROVIDER
     PROVIDER --> VAULT["Vault/KMS/Mock Provider"]
-    NOTI --> MAIL["SMTP / MailHog"]
+    NOTI --> BELL["In-App Notifications"]
 ```
 
 ### 6.2. Ranh giới tin cậy
@@ -401,18 +541,16 @@ flowchart LR
         API["Backend API"]
         WORKER["Background Worker"]
     end
-    subgraph Z3["Data Zone"]
-        DB[("PostgreSQL")]
-        CACHE[("Redis")]
+    subgraph Data Zone
+        DB[("PostgreSQL / MySQL")]
     end
-    subgraph Z4["Secret/Crypto Zone"]
-        VAULT["Vault / KMS / HSM"]
+    subgraph Secret/Crypto Zone
+        VAULT["Vault / KMS / HSM (Mock)"]
     end
 
     USER -->|"Validate all input"| WEB
     WEB -->|"TLS + token"| API
     API -->|"Least-privilege DB account"| DB
-    API --> CACHE
     WORKER --> DB
     WORKER -->|"Service identity"| VAULT
 ```
@@ -464,15 +602,15 @@ root/
 
 ### 6.4. Quyết định kiến trúc quan trọng
 
-| ID | Quyết định đề xuất | Lý do |
-|---|---|---|
-| ADR-01 | PostgreSQL làm nguồn dữ liệu chính | Transaction và constraint phù hợp workflow |
-| ADR-02 | TypeScript cho cả frontend/backend | Giảm lỗi contract và dễ bảo trì |
-| ADR-03 | Private key không lưu dạng rõ trong DB | Giảm rủi ro lộ vật liệu khóa |
-| ADR-04 | Provider adapter | MVP dùng mock nhưng có thể thay Vault/KMS |
-| ADR-05 | Approval bằng atomic update/transaction | Ngăn duyệt đồng thời |
-| ADR-06 | Audit append-only | Đảm bảo truy vết |
-| ADR-07 | UTC trong DB | Tránh lỗi hết hạn theo timezone |
+| ID     | Quyết định đề xuất                      | Lý do                                      |
+| ------ | --------------------------------------- | ------------------------------------------ |
+| ADR-01 | PostgreSQL làm nguồn dữ liệu chính      | Transaction và constraint phù hợp workflow |
+| ADR-02 | TypeScript cho cả frontend/backend      | Giảm lỗi contract và dễ bảo trì            |
+| ADR-03 | Private key không lưu dạng rõ trong DB  | Giảm rủi ro lộ vật liệu khóa               |
+| ADR-04 | Provider adapter                        | MVP dùng mock nhưng có thể thay Vault/KMS  |
+| ADR-05 | Approval bằng atomic update/transaction | Ngăn duyệt đồng thời                       |
+| ADR-06 | Audit append-only                       | Đảm bảo truy vết                           |
+| ADR-07 | UTC trong DB                            | Tránh lỗi hết hạn theo timezone            |
 
 ---
 
@@ -702,17 +840,17 @@ stateDiagram-v2
 
 ### 8.3. Bảng chuyển trạng thái được phép
 
-| Đối tượng | Từ | Sang | Tác nhân/service | Điều kiện |
-|---|---|---|---|---|
-| Request | DRAFT | PENDING | Creator | Payload hợp policy |
-| Request | PENDING | APPROVED | Approver | Khác creator, đúng scope |
-| Request | PENDING | REJECTED | Approver | Có lý do |
-| Request | APPROVED | PROCESSING | Worker | Job idempotent |
-| Request | PROCESSING | COMPLETED | Worker | Provider thành công |
-| Request | PROCESSING | FAILED | Worker | Lưu error code đã che dữ liệu |
-| Asset | ACTIVE | EXPIRING_SOON | System Job | Nằm trong warning window |
-| Asset | ACTIVE/EXPIRING_SOON | REVOKED | Worker | Revoke request đã duyệt |
-| Asset | ACTIVE/EXPIRING_SOON | EXPIRED | System Job | `expires_at <= now` |
+| Đối tượng | Từ                   | Sang          | Tác nhân/service | Điều kiện                     |
+| --------- | -------------------- | ------------- | ---------------- | ----------------------------- |
+| Request   | DRAFT                | PENDING       | Creator          | Payload hợp policy            |
+| Request   | PENDING              | APPROVED      | Approver         | Khác creator, đúng scope      |
+| Request   | PENDING              | REJECTED      | Approver         | Có lý do                      |
+| Request   | APPROVED             | PROCESSING    | Worker           | Job idempotent                |
+| Request   | PROCESSING           | COMPLETED     | Worker           | Provider thành công           |
+| Request   | PROCESSING           | FAILED        | Worker           | Lưu error code đã che dữ liệu |
+| Asset     | ACTIVE               | EXPIRING_SOON | System Job       | Nằm trong warning window      |
+| Asset     | ACTIVE/EXPIRING_SOON | REVOKED       | Worker           | Revoke request đã duyệt       |
+| Asset     | ACTIVE/EXPIRING_SOON | EXPIRED       | System Job       | `expires_at <= now`           |
 
 ### 8.4. Luồng cảnh báo hết hạn
 
@@ -779,70 +917,70 @@ sequenceDiagram
 
 #### Authentication
 
-| Method | Endpoint | Quyền | Mô tả |
-|---|---|---|---|
-| POST | `/auth/login` | Public | Đăng nhập |
-| POST | `/auth/refresh` | Refresh session | Đổi access token |
-| POST | `/auth/logout` | Authenticated | Thu hồi refresh session |
-| GET | `/auth/me` | Authenticated | Thông tin user và quyền |
+| Method | Endpoint        | Quyền           | Mô tả                   |
+| ------ | --------------- | --------------- | ----------------------- |
+| POST   | `/auth/login`   | Public          | Đăng nhập               |
+| POST   | `/auth/refresh` | Refresh session | Đổi access token        |
+| POST   | `/auth/logout`  | Authenticated   | Thu hồi refresh session |
+| GET    | `/auth/me`      | Authenticated   | Thông tin user và quyền |
 
 #### Assets
 
-| Method | Endpoint | Quyền | Mô tả |
-|---|---|---|---|
-| GET | `/assets` | `asset:read:own/scope/any` | Danh sách theo scope |
-| GET | `/assets/:id` | Theo scope | Chi tiết asset |
-| GET | `/assets/:id/history` | Theo scope | Lịch sử vòng đời |
+| Method | Endpoint              | Quyền                      | Mô tả                |
+| ------ | --------------------- | -------------------------- | -------------------- |
+| GET    | `/assets`             | `asset:read:own/scope/any` | Danh sách theo scope |
+| GET    | `/assets/:id`         | Theo scope                 | Chi tiết asset       |
+| GET    | `/assets/:id/history` | Theo scope                 | Lịch sử vòng đời     |
 
 Không cung cấp API CRUD tùy ý để User sửa trạng thái tài sản.
 
 #### Requests và Approval
 
-| Method | Endpoint | Quyền | Mô tả |
-|---|---|---|---|
-| POST | `/requests` | `request:create` | Tạo draft hoặc submit |
-| GET | `/requests` | Theo owner/scope | Danh sách request |
-| GET | `/requests/:id` | Theo owner/scope | Chi tiết request |
-| POST | `/requests/:id/submit` | Creator | Gửi duyệt |
-| POST | `/requests/:id/cancel` | Creator | Hủy trước quyết định |
-| GET | `/approval-queue` | `request:approve` | Danh sách chờ duyệt |
-| POST | `/requests/:id/decision` | `request:approve` | Approve/reject nguyên tử |
-| POST | `/requests/:id/retry` | Quyền vận hành | Retry request failed |
+| Method | Endpoint                 | Quyền             | Mô tả                    |
+| ------ | ------------------------ | ----------------- | ------------------------ |
+| POST   | `/requests`              | `request:create`  | Tạo draft hoặc submit    |
+| GET    | `/requests`              | Theo owner/scope  | Danh sách request        |
+| GET    | `/requests/:id`          | Theo owner/scope  | Chi tiết request         |
+| POST   | `/requests/:id/submit`   | Creator           | Gửi duyệt                |
+| POST   | `/requests/:id/cancel`   | Creator           | Hủy trước quyết định     |
+| GET    | `/approval-queue`        | `request:approve` | Danh sách chờ duyệt      |
+| POST   | `/requests/:id/decision` | `request:approve` | Approve/reject nguyên tử |
+| POST   | `/requests/:id/retry`    | Quyền vận hành    | Retry request failed     |
 
 #### Admin
 
-| Method | Endpoint | Quyền | Mô tả |
-|---|---|---|---|
-| GET | `/admin/users` | `user:read` | Danh sách user |
-| PATCH | `/admin/users/:id/status` | `user:manage` | Khóa/mở tài khoản |
-| PUT | `/admin/users/:id/roles` | `role:assign` | Gán vai trò |
-| GET | `/policies` | `policy:read` | Xem policy |
-| POST | `/policies/:id/versions` | `policy:manage` | Tạo version mới |
-| GET | `/audit-logs` | `audit:read` | Tra cứu log |
+| Method | Endpoint                  | Quyền           | Mô tả             |
+| ------ | ------------------------- | --------------- | ----------------- |
+| GET    | `/admin/users`            | `user:read`     | Danh sách user    |
+| PATCH  | `/admin/users/:id/status` | `user:manage`   | Khóa/mở tài khoản |
+| PUT    | `/admin/users/:id/roles`  | `role:assign`   | Gán vai trò       |
+| GET    | `/policies`               | `policy:read`   | Xem policy        |
+| POST   | `/policies/:id/versions`  | `policy:manage` | Tạo version mới   |
+| GET    | `/audit-logs`             | `audit:read`    | Tra cứu log       |
 
 #### Notifications
 
-| Method | Endpoint | Quyền | Mô tả |
-|---|---|---|---|
-| GET | `/notifications` | Authenticated | Thông báo của mình |
-| POST | `/notifications/:id/read` | Owner | Đánh dấu đã đọc |
+| Method | Endpoint                  | Quyền         | Mô tả              |
+| ------ | ------------------------- | ------------- | ------------------ |
+| GET    | `/notifications`          | Authenticated | Thông báo của mình |
+| POST   | `/notifications/:id/read` | Owner         | Đánh dấu đã đọc    |
 
 ### 9.4. Mã HTTP cần dùng
 
-| Mã | Khi dùng |
-|---|---|
-| 200 | Truy vấn/cập nhật thành công |
-| 201 | Tạo request/resource thành công |
-| 204 | Logout hoặc thao tác không cần body |
-| 400 | Payload sai cú pháp |
-| 401 | Chưa đăng nhập/token không hợp lệ |
-| 403 | Có đăng nhập nhưng không đủ quyền/scope |
-| 404 | Không tìm thấy hoặc cần che sự tồn tại của tài nguyên |
-| 409 | Xung đột trạng thái/duyệt đồng thời/request trùng |
-| 422 | Vi phạm policy/quy tắc nghiệp vụ |
-| 429 | Quá giới hạn request |
-| 500 | Lỗi nội bộ đã che chi tiết |
-| 503 | Provider/email tạm thời không sẵn sàng |
+| Mã   | Khi dùng                                              |
+| ---- | ----------------------------------------------------- |
+| 200  | Truy vấn/cập nhật thành công                          |
+| 201  | Tạo request/resource thành công                       |
+| 204  | Logout hoặc thao tác không cần body                   |
+| 400  | Payload sai cú pháp                                   |
+| 401  | Chưa đăng nhập/token không hợp lệ                     |
+| 403  | Có đăng nhập nhưng không đủ quyền/scope               |
+| 404  | Không tìm thấy hoặc cần che sự tồn tại của tài nguyên |
+| 409  | Xung đột trạng thái/duyệt đồng thời/request trùng     |
+| 422  | Vi phạm policy/quy tắc nghiệp vụ                      |
+| 429  | Quá giới hạn request                                  |
+| 500  | Lỗi nội bộ đã che chi tiết                            |
+| 503  | Provider/email tạm thời không sẵn sàng                |
 
 ---
 
@@ -921,17 +1059,17 @@ Các chỉ tiêu UX đề xuất:
 
 Phong cách đề xuất: **Enterprise Security Dashboard** — chuyên nghiệp, rõ ràng, ít màu trang trí, nhấn mạnh độ tin cậy và khả năng truy vết.
 
-| Thành phần | Quy định đề xuất |
-|---|---|
-| Font | Inter hoặc system font; tối đa 3 cấp kích thước chính trên mỗi màn hình |
-| Màu chủ đạo | Xanh đậm/xanh lam thể hiện độ tin cậy |
+| Thành phần     | Quy định đề xuất                                             |
+| -------------- | ------------------------------------------------------------ |
+| Font           | Inter hoặc system font; tối đa 3 cấp kích thước chính trên mỗi màn hình |
+| Màu chủ đạo    | Xanh đậm/xanh lam thể hiện độ tin cậy                        |
 | Màu trạng thái | Xanh lá = thành công/active; vàng = cảnh báo; đỏ = nguy hiểm/revoked; xám = inactive |
-| Khoảng cách | Hệ 8px: 8, 16, 24, 32 |
-| Bo góc | Nhất quán 8–12px, tránh mỗi component một kiểu |
-| Bóng đổ | Nhẹ, chỉ dùng để phân tầng; không lạm dụng card nổi |
-| Icon | Một bộ icon duy nhất, luôn đi kèm label cho hành động quan trọng |
-| Bảng dữ liệu | Header cố định, filter rõ, trạng thái có text, empty state có hướng dẫn |
-| Form | Label luôn hiển thị; helper text cho thuật toán/độ dài khóa |
+| Khoảng cách    | Hệ 8px: 8, 16, 24, 32                                        |
+| Bo góc         | Nhất quán 8–12px, tránh mỗi component một kiểu               |
+| Bóng đổ        | Nhẹ, chỉ dùng để phân tầng; không lạm dụng card nổi          |
+| Icon           | Một bộ icon duy nhất, luôn đi kèm label cho hành động quan trọng |
+| Bảng dữ liệu   | Header cố định, filter rõ, trạng thái có text, empty state có hướng dẫn |
+| Form           | Label luôn hiển thị; helper text cho thuật toán/độ dài khóa  |
 
 #### Token cần định nghĩa trong code
 
@@ -1039,7 +1177,7 @@ Dashboard chỉ hiển thị số liệu có thể dẫn đến hành động. T
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ ← Hàng đợi phê duyệt       REQ-2026-0103       [KHẨN CẤP] [Chờ duyệt]  │
 ├──────────────────────────────────────┬──────────────────────────────────┤
-│ Thông tin yêu cầu                    │ Kiểm tra trước phê duyệt          │
+│ Thông vị trí yêu cầu                 │ Kiểm tra trước phê duyệt          │
 │ Người gửi: Trần Bình                 │ ✓ Đúng phạm vi phòng ban          │
 │ Loại: Thu hồi                        │ ✓ Người duyệt khác người gửi      │
 │ Tài sản: KEY-021                     │ ✓ Tài sản đang Active             │
@@ -1058,15 +1196,15 @@ Màn hình này là “màn hình ngôi sao” của demo vì thể hiện SoD, 
 
 ### 10.11. Component inventory
 
-| Nhóm | Component bắt buộc |
-|---|---|
-| Navigation | AppShell, Sidebar, Topbar, Breadcrumb, UserMenu |
-| Feedback | Toast, Alert, ConfirmDialog, ErrorBoundary, Skeleton |
-| Data | DataTable, Pagination, FilterBar, EmptyState |
-| Status | StatusBadge, RiskBadge, Timeline, ExpiryIndicator |
-| Form | TextField, Select, DateField, RadioGroup, TextArea, FormError |
-| Domain | AssetCard, RequestSummary, ApprovalChecklist, PolicyDiff, AuditEvent |
-| Security | PermissionGate cho UX, SensitiveValueMask |
+| Nhóm       | Component bắt buộc                                           |
+| ---------- | ------------------------------------------------------------ |
+| Navigation | AppShell, Sidebar, Topbar, Breadcrumb, UserMenu              |
+| Feedback   | Toast, Alert, ConfirmDialog, ErrorBoundary, Skeleton         |
+| Data       | DataTable, Pagination, FilterBar, EmptyState                 |
+| Status     | StatusBadge, RiskBadge, Timeline, ExpiryIndicator            |
+| Form       | TextField, Select, DateField, RadioGroup, TextArea, FormError |
+| Domain     | AssetCard, RequestSummary, ApprovalChecklist, PolicyDiff, AuditEvent |
+| Security   | PermissionGate cho UX, SensitiveValueMask                    |
 
 Tất cả component phải có variant và trạng thái thống nhất: default, hover, focus, disabled, loading và error nếu liên quan.
 
@@ -1074,16 +1212,16 @@ Tất cả component phải có variant và trạng thái thống nhất: defaul
 
 Mỗi trang dữ liệu phải thiết kế trước các trạng thái sau:
 
-| Trạng thái | Cách thể hiện |
-|---|---|
-| Loading | Skeleton giữ đúng bố cục; không nhảy layout |
-| Empty lần đầu | Giải thích chưa có dữ liệu và có CTA phù hợp |
-| Empty sau filter | “Không có kết quả”; có nút xóa filter |
-| Error | Thông báo dễ hiểu, request ID, nút thử lại |
-| Forbidden | Giải thích không có quyền, không lộ dữ liệu |
-| Offline/provider down | Banner và trạng thái degraded nếu phù hợp |
-| Success | Toast + cập nhật ngay bảng/timeline |
-| Conflict | Nêu request đã được người khác xử lý; refresh dữ liệu |
+| Trạng thái            | Cách thể hiện                                         |
+| --------------------- | ----------------------------------------------------- |
+| Loading               | Skeleton giữ đúng bố cục; không nhảy layout           |
+| Empty lần đầu         | Giải thích chưa có dữ liệu và có CTA phù hợp          |
+| Empty sau filter      | “Không có kết quả”; có nút xóa filter                 |
+| Error                 | Thông báo dễ hiểu, request ID, nút thử lại            |
+| Forbidden             | Giải thích không có quyền, không lộ dữ liệu           |
+| Offline/provider down | Banner và trạng thái degraded nếu phù hợp             |
+| Success               | Toast + cập nhật ngay bảng/timeline                   |
+| Conflict              | Nêu request đã được người khác xử lý; refresh dữ liệu |
 
 ### 10.13. Microcopy và nội dung
 
@@ -1124,19 +1262,19 @@ Mỗi trang dữ liệu phải thiết kế trước các trạng thái sau:
 
 ### 11.1. Module backend
 
-| Module | Trách nhiệm |
-|---|---|
-| Auth | Login, token, refresh session, logout, password policy |
-| IAM | Role, permission, scope, SoD guard |
-| Users | Hồ sơ, trạng thái tài khoản, phòng ban |
-| Requests | Tạo, submit, cancel, query workflow |
-| Approvals | Quyết định nguyên tử, chống self-approval |
-| Assets | Query và lifecycle tài sản |
-| Policies | Versioning và validation rule |
-| Crypto Provider | Giao diện create/renew/revoke, mock/Vault/KMS adapter |
-| Audit | Append event, redaction, correlation ID |
-| Notifications | In-app/email, template, retry, deduplication |
-| Jobs | Expiry scan, reminder, provisioning, cleanup session |
+| Module          | Trách nhiệm                                            |
+| --------------- | ------------------------------------------------------ |
+| Auth            | Login, token, refresh session, logout, password policy |
+| IAM             | Role, permission, scope, SoD guard                     |
+| Users           | Hồ sơ, trạng thái tài khoản, phòng ban                 |
+| Requests        | Tạo, submit, cancel, query workflow                    |
+| Approvals       | Quyết định nguyên tử, chống self-approval              |
+| Assets          | Query và lifecycle tài sản                             |
+| Policies        | Versioning và validation rule                          |
+| Crypto Provider | Giao diện create/renew/revoke, mock/Vault/KMS adapter  |
+| Audit           | Append event, redaction, correlation ID                |
+| Notifications   | In-app/email, template, retry, deduplication           |
+| Jobs            | Expiry scan, reminder, provisioning, cleanup session   |
 
 ### 11.2. Transaction phê duyệt
 
@@ -1167,13 +1305,13 @@ interface CryptoProvider {
 
 ### 11.4. Danh sách job
 
-| Job | Lịch | Idempotency key | Xử lý lỗi |
-|---|---|---|---|
-| Expiry status updater | Hàng giờ hoặc hàng ngày | `expire:{assetId}:{expiresAt}` | Retry; audit FAILED |
-| Expiry reminder | Hàng ngày | `reminder:{assetId}:{threshold}:{date}` | Retry có backoff |
-| Provisioning worker | Theo queue | `provision:{requestId}` | Tối đa N lần; dead-letter |
-| Notification sender | Theo queue | `notify:{notificationId}` | Mark FAILED; retry |
-| Refresh-session cleanup | Hàng ngày | Theo session ID | Có metric số bản ghi |
+| Job                     | Lịch                    | Idempotency key                         | Xử lý lỗi                 |
+| ----------------------- | ----------------------- | --------------------------------------- | ------------------------- |
+| Expiry status updater   | Hàng giờ hoặc hàng ngày | `expire:{assetId}:{expiresAt}`          | Ghi log nếu lỗi           |
+| Expiry reminder         | Hàng ngày               | `reminder:{assetId}:{threshold}:{date}` | Cập nhật status đã báo    |
+| Provisioning worker     | Sau khi Approve         | `provision:{requestId}`                 | Trực tiếp xử lý           |
+| Notification sender     | Tức thời                | `notify:{notificationId}`               | Lưu db cảnh báo trên web  |
+| Refresh-session cleanup | Hàng ngày               | Theo session ID                         | Dọn rác DB                |
 
 ---
 
@@ -1262,17 +1400,17 @@ Kiểm tra ba lớp cho mỗi request:
 
 ### 13.2. Thuộc tính log
 
-| Thuộc tính | Ví dụ |
-|---|---|
-| actorId/actorType | User UUID hoặc SYSTEM |
-| action | `REQUEST_APPROVED` |
-| entityType/entityId | `REQUEST`, UUID |
-| outcome | `SUCCESS`, `DENIED`, `FAILED` |
-| occurredAt | UTC timestamp |
-| requestId | Correlation ID |
-| ipAddress/userAgent | Metadata truy cập đã giới hạn |
-| before/after | Chỉ trường an toàn, đã redaction |
-| reason/errorCode | Mã lỗi, không chứa stack/secret |
+| Thuộc tính          | Ví dụ                            |
+| ------------------- | -------------------------------- |
+| actorId/actorType   | User UUID hoặc SYSTEM            |
+| action              | `REQUEST_APPROVED`               |
+| entityType/entityId | `REQUEST`, UUID                  |
+| outcome             | `SUCCESS`, `DENIED`, `FAILED`    |
+| occurredAt          | UTC timestamp                    |
+| requestId           | Correlation ID                   |
+| ipAddress/userAgent | Metadata truy cập đã giới hạn    |
+| before/after        | Chỉ trường an toàn, đã redaction |
+| reason/errorCode    | Mã lỗi, không chứa stack/secret  |
 
 ### 13.3. Bất biến Audit Log
 
@@ -1339,18 +1477,18 @@ flowchart TB
 
 ### 14.5. Security test
 
-| ID | Kịch bản | Kỳ vọng |
-|---|---|---|
-| SEC-01 | Không token gọi API | 401 |
-| SEC-02 | User gọi endpoint Admin | 403 |
-| SEC-03 | User đổi asset ID sang của người khác | 404/403, không lộ dữ liệu |
-| SEC-04 | Creator tự duyệt | 403/422 `SOD_VIOLATION` |
-| SEC-05 | Sửa request đã approved | 409/422 |
-| SEC-06 | Gửi comment chứa script | Không thực thi; output encoded |
-| SEC-07 | Brute-force login | 429/lockout mềm |
-| SEC-08 | Tìm secret trong log/response | Không có secret/private key/token |
-| SEC-09 | Duyệt đồng thời | Chỉ một decision hiệu lực |
-| SEC-10 | Gọi DELETE Audit Log | Endpoint không tồn tại/403 |
+| ID     | Kịch bản                              | Kỳ vọng                           |
+| ------ | ------------------------------------- | --------------------------------- |
+| SEC-01 | Không token gọi API                   | 401                               |
+| SEC-02 | User gọi endpoint Admin               | 403                               |
+| SEC-03 | User đổi asset ID sang của người khác | 404/403, không lộ dữ liệu         |
+| SEC-04 | Creator tự duyệt                      | 403/422 `SOD_VIOLATION`           |
+| SEC-05 | Sửa request đã approved               | 409/422                           |
+| SEC-06 | Gửi comment chứa script               | Không thực thi; output encoded    |
+| SEC-07 | Brute-force login                     | 429/lockout mềm                   |
+| SEC-08 | Tìm secret trong log/response         | Không có secret/private key/token |
+| SEC-09 | Duyệt đồng thời                       | Chỉ một decision hiệu lực         |
+| SEC-10 | Gọi DELETE Audit Log                  | Endpoint không tồn tại/403        |
 
 ### 14.6. Mục tiêu chất lượng
 
@@ -1365,24 +1503,25 @@ flowchart TB
 
 ### 15.1. Môi trường
 
-| Môi trường | Mục đích | Dữ liệu |
-|---|---|---|
-| Local | Phát triển từng thành viên | Seed giả lập |
-| Test/CI | Test tự động | Tạo mới theo pipeline |
-| Demo/Staging | Demo tích hợp | Dữ liệu giả lập ổn định |
-| Production giả định | Mô tả trong báo cáo | Không nhất thiết triển khai thật |
+| Môi trường          | Mục đích                   | Dữ liệu                          |
+| ------------------- | -------------------------- | -------------------------------- |
+| Local               | Phát triển từng thành viên | Seed giả lập                     |
+| Test/CI             | Test tự động               | Tạo mới theo pipeline            |
+| Demo/Staging        | Demo tích hợp              | Dữ liệu giả lập ổn định          |
+| Production giả định | Mô tả trong báo cáo        | Không nhất thiết triển khai thật |
 
 ### 15.2. Docker Compose đề xuất
 
 ```mermaid
 flowchart LR
-    NGINX["Reverse Proxy"] --> WEB["React Static App"]
-    NGINX --> API["Node.js API"]
-    API --> PG[("PostgreSQL")]
-    API --> REDIS[("Redis")]
-    WORKER["Node.js Worker"] --> PG
-    WORKER --> REDIS
-    WORKER --> MAIL["MailHog"]
+    WEB["React Static App"]
+    API["Node.js API"]
+    PG[("PostgreSQL / MySQL")]
+    WORKER["Node.js Worker (Chạy ngầm)"]
+
+    WEB --> API
+    API --> PG
+    WORKER --> PG
     WORKER --> MOCK["Mock Crypto Provider"]
 ```
 
@@ -1447,21 +1586,21 @@ gantt
 
 ### 16.2. Milestone và đầu ra
 
-| Mốc | Thời điểm | Đầu ra bắt buộc | Điều kiện qua mốc |
-|---|---|---|---|
-| M1 — Requirements Baseline | Cuối tuần 2 | Use Case, RBAC, scope, SoD, phạm vi MVP | Không còn câu hỏi nền tảng chưa có owner |
-| M2 — Design Baseline | Cuối tuần 3 | ERD, state machine, API, wireframe, threat model | Review chéo và chốt version |
-| M3 — Backend Core | Cuối tuần 6 | Auth, RBAC, request, approval, audit | Integration test cốt lõi pass |
-| M4 — Feature Complete | Cuối tuần 9 | UI ba vai trò, job, provider mock | 12 UC có thể chạy |
-| M5 — Release Candidate | Cuối tuần 11 | Security test, Docker, docs | Không còn Critical/High |
-| M6 — Final | Tuần 12 | Demo, báo cáo, source, hướng dẫn | Rehearsal hoàn chỉnh |
+| Mốc                        | Thời điểm    | Đầu ra bắt buộc                                  | Điều kiện qua mốc                        |
+| -------------------------- | ------------ | ------------------------------------------------ | ---------------------------------------- |
+| M1 — Requirements Baseline | Cuối tuần 2  | Use Case, RBAC, scope, SoD, phạm vi MVP          | Không còn câu hỏi nền tảng chưa có owner |
+| M2 — Design Baseline       | Cuối tuần 3  | ERD, state machine, API, wireframe, threat model | Review chéo và chốt version              |
+| M3 — Backend Core          | Cuối tuần 6  | Auth, RBAC, request, approval, audit             | Integration test cốt lõi pass            |
+| M4 — Feature Complete      | Cuối tuần 9  | UI ba vai trò, job, provider mock                | 12 UC có thể chạy                        |
+| M5 — Release Candidate     | Cuối tuần 11 | Security test, Docker, docs                      | Không còn Critical/High                  |
+| M6 — Final                 | Tuần 12      | Demo, báo cáo, source, hướng dẫn                 | Rehearsal hoàn chỉnh                     |
 
 ### 16.3. Sprint backlog gợi ý
 
 #### Sprint 0 — Phân tích và nền tảng
 
 - [ ] Chốt MVP và ngoài phạm vi.
-- [ ] Viết đặc tả 12 Use Case.
+- [ ] Viết đặc tả 15 Use Case cốt lõi và các kịch bản kiểm thử.
 - [ ] Chốt RBAC, scope và SoD.
 - [ ] Chốt mô hình lưu private key/provider.
 - [ ] Hoàn thiện ERD và state machine.
@@ -1518,12 +1657,12 @@ gantt
 
 ### 17.1. Mẫu cho nhóm 4 người
 
-| Thành viên | Vai trò chính | Công việc sở hữu | Review chéo |
-|---|---|---|---|
-| TV1 | Tech Lead/Backend | Kiến trúc, Auth, RBAC, transaction | Review API và security |
-| TV2 | Backend/Data | DB, request, asset, policy, jobs | Review migration/test |
-| TV3 | Frontend | User và Approver UI, API integration | Review accessibility |
-| TV4 | Frontend/QA/DevOps | Admin UI, E2E, Docker, docs | Review UX và release |
+| Thành viên | Vai trò chính      | Công việc sở hữu                     | Review chéo            |
+| ---------- | ------------------ | ------------------------------------ | ---------------------- |
+| TV1        | Tech Lead/Backend  | Kiến trúc, Auth, RBAC, transaction   | Review API và security |
+| TV2        | Backend/Data       | DB, request, asset, policy, jobs     | Review migration/test  |
+| TV3        | Frontend           | User và Approver UI, API integration | Review accessibility   |
+| TV4        | Frontend/QA/DevOps | Admin UI, E2E, Docker, docs          | Review UX và release   |
 
 Nếu nhóm có 3 người, gộp TV3 và TV4 theo từng sprint. Nếu nhóm có 5 người, tách QA/Security/DevOps thành người thứ năm.
 
@@ -1531,16 +1670,16 @@ Nếu nhóm có 3 người, gộp TV3 và TV4 theo từng sprint. Nếu nhóm c�
 
 Ký hiệu: `R` thực hiện, `A` chịu trách nhiệm cuối, `C` tham vấn, `I` được thông báo.
 
-| Hạng mục | Lead | Backend/Data | Frontend | QA/DevOps |
-|---|:---:|:---:|:---:|:---:|
-| Chốt yêu cầu/SoD | A | C | C | R |
-| ERD/migration | C | A/R | I | C |
-| Auth/RBAC | A/R | C | C | C |
-| Request workflow | A | R | C | C |
-| UI ba vai trò | C | I | A/R | R |
-| Audit/security tests | A | R | C | R |
-| Docker/release | C | C | I | A/R |
-| Báo cáo/demo | A | R | R | R |
+| Hạng mục             | Lead | Backend/Data | Frontend | QA/DevOps |
+| -------------------- | :--: | :----------: | :------: | :-------: |
+| Chốt yêu cầu/SoD     |  A   |      C       |    C     |     R     |
+| ERD/migration        |  C   |     A/R      |    I     |     C     |
+| Auth/RBAC            | A/R  |      C       |    C     |     C     |
+| Request workflow     |  A   |      R       |    C     |     C     |
+| UI ba vai trò        |  C   |      I       |   A/R    |     R     |
+| Audit/security tests |  A   |      R       |    C     |     R     |
+| Docker/release       |  C   |      C       |    I     |    A/R    |
+| Báo cáo/demo         |  A   |      R       |    R     |     R     |
 
 ### 17.3. Quy tắc làm việc Git
 
@@ -1557,7 +1696,7 @@ Ký hiệu: `R` thực hiện, `A` chịu trách nhiệm cuối, `C` tham vấn,
 
 ### 18.1. Functional acceptance
 
-- Cả 12 Use Case chạy được từ giao diện đến database.
+- Cả 15 Use Case (UC-01 đến UC-15) cùng Bảng thông báo nổi chạy được từ giao diện đến database.
 - User không thấy dữ liệu ngoài owner scope.
 - Approver không thấy yêu cầu ngoài scope.
 - Creator không tự duyệt được bằng cả UI và API trực tiếp.
@@ -1598,19 +1737,19 @@ Ký hiệu: `R` thực hiện, `A` chịu trách nhiệm cuối, `C` tham vấn,
 
 ## 19. Rủi ro và phương án xử lý
 
-| Rủi ro | Xác suất | Tác động | Biện pháp | Chủ sở hữu |
-|---|:---:|:---:|---|---|
-| Phạm vi quá lớn | Cao | Cao | Chốt MVP; Vault/CA thật là nâng cao | Lead |
-| Nhầm khóa với chứng thư | Trung bình | Cao | Tách entity, state và renewal semantics | Backend/Data |
-| Lộ private key/secret | Trung bình | Rất cao | Provider reference, redaction, secret scan | Lead |
-| RBAC chỉ làm ở UI | Trung bình | Rất cao | Guard + object authorization + API test | Backend |
-| Self-approval/race condition | Trung bình | Cao | Transaction, version/lock, test đồng thời | Backend |
-| Audit có thể bị sửa | Trung bình | Cao | Append-only role/trigger/backup | Data |
-| Job gửi trùng | Cao | Trung bình | Dedup key + unique index + idempotent job | Backend |
-| Chậm tích hợp frontend/backend | Cao | Trung bình | OpenAPI sớm, mock contract, weekly integration | Frontend/Backend |
-| Demo phụ thuộc email/provider ngoài | Trung bình | Cao | MailHog + mock provider local | DevOps |
-| Thiếu dữ liệu demo | Trung bình | Trung bình | Seed cố định theo kịch bản | QA |
-| Báo cáo làm muộn | Cao | Trung bình | Viết theo milestone, lưu sơ đồ trong repo | Cả nhóm |
+| Rủi ro                              |  Xác suất  |  Tác động  | Biện pháp                                      | Chủ sở hữu       |
+| ----------------------------------- | :--------: | :--------: | ---------------------------------------------- | ---------------- |
+| Phạm vi quá lớn                     |    Cao     |    Cao     | Chốt MVP; Vault/CA thật là nâng cao            | Lead             |
+| Nhầm khóa với chứng thư             | Trung bình |    Cao     | Tách entity, state và renewal semantics        | Backend/Data     |
+| Lộ private key/secret               | Trung bình |  Rất cao   | Provider reference, redaction, secret scan     | Lead             |
+| RBAC chỉ làm ở UI                   | Trung bình |  Rất cao   | Guard + object authorization + API test        | Backend          |
+| Self-approval/race condition        | Trung bình |    Cao     | Transaction, version/lock, test đồng thời      | Backend          |
+| Audit có thể bị sửa                 | Trung bình |    Cao     | Append-only role/trigger/backup                | Data             |
+| Job gửi trùng                       |    Cao     | Trung bình | Dedup key + unique index + idempotent job      | Backend          |
+| Chậm tích hợp frontend/backend      |    Cao     | Trung bình | OpenAPI sớm, mock contract, weekly integration | Frontend/Backend |
+| Demo phụ thuộc email/provider ngoài | Trung bình |    Cao     | MailHog + mock provider local                  | DevOps           |
+| Thiếu dữ liệu demo                  | Trung bình | Trung bình | Seed cố định theo kịch bản                     | QA               |
+| Báo cáo làm muộn                    |    Cao     | Trung bình | Viết theo milestone, lưu sơ đồ trong repo      | Cả nhóm          |
 
 ---
 
@@ -1640,20 +1779,20 @@ Câu chuyện này giúp giảng viên thấy được vòng đời hoàn chỉn
 
 ### 20.3. Runbook demo theo phút
 
-| Thời gian | Người trình bày làm gì | Nội dung thuyết minh | Bằng chứng trên UI |
-|---|---|---|---|
-| 00:00–01:00 | Mở slide vấn đề/kiến trúc | Rủi ro hết hạn, lộ khóa, tự phê duyệt | Sơ đồ kiến trúc ngắn |
-| 01:00–02:00 | Login User | Giao diện thay đổi theo vai trò; scope dữ liệu | Role ở topbar, dashboard cá nhân |
-| 02:00–04:00 | Tạo request cấp chứng thư | Policy hỗ trợ chọn đúng thuật toán/thời hạn | Validation, review step, success state |
-| 04:00–05:00 | Cho thấy request Pending | Mọi thay đổi có timeline/audit | Mã request và timeline |
-| 05:00–07:00 | Login Approver, mở request | Approver thấy đúng scope và policy check | Approval checklist |
-| 07:00–08:00 | Approve | Backend kiểm tra SoD; xử lý bằng transaction | Confirm dialog, success, queue giảm |
-| 08:00–09:00 | Quay lại User | Asset đã được cấp; không lộ private key | Asset detail, provider reference đã mask |
-| 09:00–10:30 | Tạo/duyệt revoke khẩn cấp đã seed | Thu hồi là một chiều, có lý do | Warning, status REVOKED, timeline |
-| 10:30–12:00 | Login Admin | Admin quản lý policy/RBAC nhưng không approve | Menu không có Approval, Audit Log |
-| 12:00–13:00 | Kích hoạt job demo | Cảnh báo hết hạn idempotent | Notification + MailHog + job status |
-| 13:00–14:00 | Chạy security test tiêu biểu | UI không phải lớp bảo vệ duy nhất | API trả 403 self-approval/IDOR |
-| 14:00–15:00 | Kết luận | 12 UC, bảo mật, hạn chế và hướng mở rộng | Slide kết quả |
+| Thời gian   | Người trình bày làm gì            | Nội dung thuyết minh                           | Bằng chứng trên UI                       |
+| ----------- | --------------------------------- | ---------------------------------------------- | ---------------------------------------- |
+| 00:00–01:00 | Mở slide vấn đề/kiến trúc         | Rủi ro hết hạn, lộ khóa, tự phê duyệt          | Sơ đồ kiến trúc ngắn                     |
+| 01:00–02:00 | Login User                        | Giao diện thay đổi theo vai trò; scope dữ liệu | Role ở topbar, dashboard cá nhân         |
+| 02:00–04:00 | Tạo request cấp chứng thư         | Policy hỗ trợ chọn đúng thuật toán/thời hạn    | Validation, review step, success state   |
+| 04:00–05:00 | Cho thấy request Pending          | Mọi thay đổi có timeline/audit                 | Mã request và timeline                   |
+| 05:00–07:00 | Login Approver, mở request        | Approver thấy đúng scope và policy check       | Approval checklist                       |
+| 07:00–08:00 | Approve                           | Backend kiểm tra SoD; xử lý bằng transaction   | Confirm dialog, success, queue giảm      |
+| 08:00–09:00 | Quay lại User                     | Asset đã được cấp; không lộ private key        | Asset detail, provider reference đã mask |
+| 09:00–10:30 | Tạo/duyệt revoke khẩn cấp đã seed | Thu hồi là một chiều, có lý do                 | Warning, status REVOKED, timeline        |
+| 10:30–12:00 | Login Admin                       | Admin quản lý policy/RBAC nhưng không approve  | Menu không có Approval, Audit Log        |
+| 12:00–13:00 | Kích hoạt job demo                | Cảnh báo hết hạn idempotent                    | Notification + MailHog + job status      |
+| 13:00–14:00 | Chạy security test tiêu biểu      | UI không phải lớp bảo vệ duy nhất              | API trả 403 self-approval/IDOR           |
+| 14:00–15:00 | Kết luận                          | 12 UC, bảo mật, hạn chế và hướng mở rộng       | Slide kết quả                            |
 
 Nếu thời lượng chỉ có 10 phút, bỏ thao tác policy chi tiết và chỉ cho xem Audit Log; không bỏ luồng User → Approver → Asset.
 
@@ -1661,12 +1800,12 @@ Nếu thời lượng chỉ có 10 phút, bỏ thao tác policy chi tiết và c
 
 Tạo seed cố định để buổi demo không phụ thuộc thao tác ngẫu nhiên:
 
-| Tài khoản | Vai trò | Phòng ban | Mật khẩu demo | Mục đích |
-|---|---|---|---|---|
-| `user.demo@example.test` | User | Kế toán | Chỉ lưu trong tài liệu demo riêng | Tạo request và xem asset |
-| `approver.demo@example.test` | Approver | Kế toán | Như trên | Duyệt đúng scope |
-| `approver.it@example.test` | Approver | CNTT | Như trên | Chứng minh khác scope |
-| `admin.demo@example.test` | Security Admin | Security | Như trên | Policy/RBAC/Audit |
+| Tài khoản                    | Vai trò        | Phòng ban | Mật khẩu demo                     | Mục đích                 |
+| ---------------------------- | -------------- | --------- | --------------------------------- | ------------------------ |
+| `user.demo@example.test`     | User           | Kế toán   | Chỉ lưu trong tài liệu demo riêng | Tạo request và xem asset |
+| `approver.demo@example.test` | Approver       | Kế toán   | Như trên                          | Duyệt đúng scope         |
+| `approver.it@example.test`   | Approver       | CNTT      | Như trên                          | Chứng minh khác scope    |
+| `admin.demo@example.test`    | Security Admin | Security  | Như trên                          | Policy/RBAC/Audit        |
 
 > Không ghi mật khẩu demo thật vào repository public. Có thể dùng script seed nhận password qua environment và in hướng dẫn riêng khi chạy local.
 
@@ -1695,15 +1834,15 @@ Các công cụ demo phải bị tắt hoàn toàn ở cấu hình production gi
 
 ### 20.6. Phương án dự phòng khi demo
 
-| Sự cố | Phương án ngay lập tức |
-|---|---|
-| Internet lỗi | Toàn bộ demo chạy local bằng Docker Compose |
-| Email không gửi | Mở notification in-app và MailHog local |
-| Provider lỗi | Dùng mock provider; giải thích adapter cho provider thật |
-| Database bẩn | Chạy script reset/seed đã thử trước |
-| Một bước thao tác lỗi | Chuyển sang account/state seed kế tiếp, không debug trực tiếp quá 30 giây |
-| Docker không khởi động | Có bản build đã chạy sẵn và video dự phòng |
-| Máy chiếu độ phân giải thấp | Browser zoom đã kiểm tra ở 80–100%; UI responsive |
+| Sự cố                       | Phương án ngay lập tức                                       |
+| --------------------------- | ------------------------------------------------------------ |
+| Internet lỗi                | Toàn bộ demo chạy local bằng Docker Compose                  |
+| Email không gửi             | Mở notification in-app và MailHog local                      |
+| Provider lỗi                | Dùng mock provider; giải thích adapter cho provider thật     |
+| Database bẩn                | Chạy script reset/seed đã thử trước                          |
+| Một bước thao tác lỗi       | Chuyển sang account/state seed kế tiếp, không debug trực tiếp quá 30 giây |
+| Docker không khởi động      | Có bản build đã chạy sẵn và video dự phòng                   |
+| Máy chiếu độ phân giải thấp | Browser zoom đã kiểm tra ở 80–100%; UI responsive            |
 
 ### 20.7. Checklist trước giờ trình bày
 
@@ -1749,24 +1888,24 @@ Những điểm nên chủ động chỉ ra:
 
 ### 20.9. Câu hỏi phản biện dự kiến
 
-| Câu hỏi | Ý chính cần trả lời |
-|---|---|
-| Khóa bí mật lưu ở đâu? | Không lưu rõ trong DB; DB chỉ giữ provider reference; MVP dùng mock adapter |
-| Vì sao Admin không được duyệt? | SoD: quyền cấu hình/quản trị không đồng nghĩa quyền chấp thuận nghiệp vụ |
-| Có thể sửa Audit Log không? | Không có API sửa/xóa; DB role/trigger append-only; có thể bổ sung hash-chain |
-| Hai người cùng duyệt thì sao? | Transaction + row/optimistic lock; chỉ một người thành công, người còn lại nhận 409 |
-| Job chạy hai lần có gửi trùng? | Notification có deduplication key và unique constraint |
-| Gia hạn có sửa ngày hết hạn cũ? | Không; tạo asset/chứng thư kế tiếp và giữ lịch sử asset cũ |
-| User đổi ID trên URL thì sao? | Backend kiểm tra object scope, không chỉ route guard frontend |
+| Câu hỏi                             | Ý chính cần trả lời                                          |
+| ----------------------------------- | ------------------------------------------------------------ |
+| Khóa bí mật lưu ở đâu?              | Không lưu rõ trong DB; DB chỉ giữ provider reference; MVP dùng mock adapter |
+| Vì sao Admin không được duyệt?      | SoD: quyền cấu hình/quản trị không đồng nghĩa quyền chấp thuận nghiệp vụ |
+| Có thể sửa Audit Log không?         | Không có API sửa/xóa; DB role/trigger append-only; có thể bổ sung hash-chain |
+| Hai người cùng duyệt thì sao?       | Transaction + row/optimistic lock; chỉ một người thành công, người còn lại nhận 409 |
+| Job chạy hai lần có gửi trùng?      | Notification có deduplication key và unique constraint       |
+| Gia hạn có sửa ngày hết hạn cũ?     | Không; tạo asset/chứng thư kế tiếp và giữ lịch sử asset cũ   |
+| User đổi ID trên URL thì sao?       | Backend kiểm tra object scope, không chỉ route guard frontend |
 | Tại sao dùng React/Node/PostgreSQL? | Phù hợp yêu cầu công nghệ; TypeScript chia sẻ kiểu; PostgreSQL mạnh về transaction/constraint |
 | Hệ thống có phải KMS/CA thật không? | Đây là lớp quản lý lifecycle/workflow; provider adapter cho phép nối KMS/CA thật sau này |
-| Điểm hạn chế hiện tại? | Chưa tích hợp HSM/CA thật, MFA/hash-chain là hướng mở rộng; nêu thẳng phạm vi MVP |
+| Điểm hạn chế hiện tại?              | Chưa tích hợp HSM/CA thật, MFA/hash-chain là hướng mở rộng; nêu thẳng phạm vi MVP |
 
 ### 20.10. Cấu trúc báo cáo đồ án
 
 1. Bối cảnh, lý do chọn đề tài và mục tiêu.
 2. Cơ sở lý thuyết: key lifecycle, certificate lifecycle, RBAC, SoD, audit.
-3. Khảo sát yêu cầu và đặc tả 12 Use Case.
+3. Khảo sát yêu cầu và đặc tả 15 Use Case.
 4. Kiến trúc hệ thống và threat model.
 5. Thiết kế dữ liệu, state machine và API.
 6. Thiết kế giao diện.
@@ -1811,7 +1950,7 @@ Những điểm nên chủ động chỉ ra:
 
 ### 21.3. Trước khi demo/nghiệm thu
 
-- [ ] 12 Use Case đã test.
+- [ ] 15 Use Case đã test (100% PASS).
 - [ ] Security test matrix đã chạy.
 - [ ] Job không gửi trùng.
 - [ ] Audit Log đủ sự kiện và không sửa/xóa được.
@@ -1826,23 +1965,23 @@ Những điểm nên chủ động chỉ ra:
 
 ## Phụ lục A — Các quyết định nhóm phải chốt ngay
 
-| Câu hỏi | Khuyến nghị mặc định | Hạn chốt |
-|---|---|---|
-| Có quản lý private key thật không? | Không trong MVP; dùng provider reference/mock | Trước Sprint 0 kết thúc |
-| Backend framework nào? | NestJS + TypeScript | Ngày đầu Sprint 0 |
-| ORM/database? | Prisma + PostgreSQL | Ngày đầu Sprint 0 |
-| Approver scope? | Theo department | Trước thiết kế API |
-| Admin có được duyệt không? | Không | Chốt trong RBAC baseline |
-| Renewal có tạo asset mới không? | Có; liên kết `replaces_asset_id` | Trước migration asset |
-| Job framework? | node-cron cho MVP; BullMQ nếu có thời gian | Trước Sprint 4 |
-| Email? | MailHog cho demo | Trước Sprint 4 |
+| Câu hỏi                            | Khuyến nghị mặc định                          | Hạn chốt                 |
+| ---------------------------------- | --------------------------------------------- | ------------------------ |
+| Có quản lý private key thật không? | Không trong MVP; dùng provider reference/mock | Trước Sprint 0 kết thúc  |
+| Backend framework nào?             | NestJS + TypeScript                           | Ngày đầu Sprint 0        |
+| ORM/database?                      | Prisma + PostgreSQL                           | Ngày đầu Sprint 0        |
+| Approver scope?                    | Theo department                               | Trước thiết kế API       |
+| Admin có được duyệt không?         | Không                                         | Chốt trong RBAC baseline |
+| Renewal có tạo asset mới không?    | Có; liên kết `replaces_asset_id`              | Trước migration asset    |
+| Job framework?                     | node-cron cho MVP; BullMQ nếu có thời gian    | Trước Sprint 4           |
+| Email?                             | MailHog cho demo                              | Trước Sprint 4           |
 
 ## Phụ lục B — Ưu tiên MoSCoW
 
 ### Must have
 
 - Auth, RBAC, object scope và SoD.
-- UC1–UC12.
+- UC-01 đến UC-15 (15 Use Cases).
 - Asset/request state machine.
 - Audit append-only ở mức ứng dụng và quyền DB.
 - Expiry/reminder job idempotent.
@@ -1871,7 +2010,3 @@ Những điểm nên chủ động chỉ ra:
 - HSM vật lý.
 - Tải private key rõ qua trang Admin.
 - Dữ liệu người dùng/chứng thư thật trong demo.
-
----
-
-> **Kết luận:** Trình tự đúng cho đồ án này là **chốt phạm vi và quy tắc bảo mật → thiết kế state/ERD/API → xây backend có test → tích hợp frontend → thêm job và hardening → đóng gói/demo**. Không nên bắt đầu bằng CRUD giao diện trước khi SoD, phạm vi dữ liệu và cách quản lý private key được thống nhất.
