@@ -1,5 +1,11 @@
--- DỮ LIỆU DEMO - chạy database_schema.sql trước file này.
--- Mật khẩu chung local/demo: Password@123
+-- ============================================================================
+-- HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG (PTIT)
+-- KHOA AN TOÀN THÔNG TIN & CÔNG NGHỆ THÔNG TIN
+-- BÁO CÁO ĐỒ ÁN MÔN HỌC: THIẾT KẾ HỆ THỐNG THÔNG TIN
+-- ĐỀ TÀI: HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA MÃ HÓA VÀ CHỨNG CHỈ SỐ DOANH NGHIỆP
+-- DỮ LIỆU KHỞI TẠO (SEED DATA)
+-- MẬT KHẨU MẶC ĐỊNH CHO TẤT CẢ TÀI KHOẢN MẪU: Password@123
+-- ============================================================================
 
 BEGIN;
 

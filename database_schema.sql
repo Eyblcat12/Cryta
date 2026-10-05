@@ -1,6 +1,13 @@
--- ĐỀ TÀI 20 - HỆ THỐNG QUẢN LÝ KHÓA MÃ HÓA VÀ CHỨNG THƯ SỐ
--- PostgreSQL bootstrap schema cho local/demo.
--- CẢNH BÁO: script DROP dữ liệu; production phải dùng migration riêng.
+-- ============================================================================
+-- HỌC VIỆN CÔNG NGHỆ BƯU CHÍNH VIỄN THÔNG (PTIT)
+-- KHOA AN TOÀN THÔNG TIN & CÔNG NGHỆ THÔNG TIN
+-- BÁO CÁO ĐỒ ÁN MÔN HỌC: THIẾT KẾ HỆ THỐNG THÔNG TIN
+-- ĐỀ TÀI: HỆ THỐNG QUẢN LÝ VÒNG ĐỜI KHÓA MÃ HÓA VÀ CHỨNG CHỈ SỐ DOANH NGHIỆP
+-- SINH VIÊN THỰC HIỆN:
+--   1. Hồ Ngọc Đức   - MSSV: N23DCAT012 (Trưởng nhóm - D23CQAT01-N)
+--   2. Lê Hoàng Ngọc  - MSSV: N23DCAT048 (Thành viên  - D23CQAT01-N)
+-- HỆ QUẢN TRỊ CSDL: PostgreSQL 15+
+-- ============================================================================
 
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
