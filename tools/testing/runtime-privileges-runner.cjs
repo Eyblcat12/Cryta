@@ -722,5 +722,5 @@ async function main(options){
   report.roleRemaining=(await sql('SELECT count(*)::int AS n FROM pg_roles WHERE rolname=ANY($1::text[])',[Object.values(roles)])).rows[0].n;
   await admin.end();
  }
- report.success=results.length===49&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
+ report.success=results.length===50&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
 }
