@@ -164,8 +164,10 @@ export function useDialogBehavior(
     const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
-    const focusFrame = window.requestAnimationFrame(() => initialFocusRef.current?.focus());
     const container=containerRef.current;
+    const focusFrame = window.requestAnimationFrame(() => {
+      if(!container?.contains(document.activeElement))initialFocusRef.current?.focus();
+    });
     let visibilityFrame=0;
     const revealFocus=()=>{
       window.cancelAnimationFrame(visibilityFrame);

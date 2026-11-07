@@ -19,12 +19,13 @@ Settings,
 ShieldAlert,
 ShieldCheck,
 Sun,
-Users
+Users,
+X
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink,useNavigate } from 'react-router';
 import { useLocation } from 'react-router';
-import { useEffect,useLayoutEffect,useRef } from 'react';
+import { useCallback,useEffect,useLayoutEffect,useRef } from 'react';
 import type { UserRole } from './types';
 
 import { Outlet } from 'react-router';
@@ -54,25 +55,48 @@ type AppShellProps = {
 export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, roleMenu, setRoleMenu, globalQuery, setGlobalQuery, globalSearchRef, mainMotionRef, submitGlobalSearch, changeRole, setHelpOpen, onLogout, children }: AppShellProps) {
   const navigate = useNavigate();
   const location=useLocation();
-  const sidebarRef=useRef<HTMLElement>(null);
+  const sidebarRef=useRef<HTMLDivElement>(null);
+  const workspaceRef=useRef<HTMLDivElement>(null);
+  const overlaysRef=useRef<HTMLDivElement>(null);
+  const skipLinkRef=useRef<HTMLAnchorElement>(null);
   const mobileTriggerRef=useRef<HTMLButtonElement>(null);
   const currentPath=useRef(location.pathname);
   const menuOpenedAt=useRef<string|null>(null);
+  const restoreMobileTrigger=useRef(false);
+  const dismissMobileNav=useCallback(()=>{restoreMobileTrigger.current=true;setMobileNav(false)},[setMobileNav]);
   useLayoutEffect(()=>{currentPath.current=location.pathname},[location.pathname]);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(mobileNav)menuOpenedAt.current=currentPath.current;
     const media=window.matchMedia('(max-width: 820px)');
     const update=()=>{
       const sidebar=sidebarRef.current;
-      if(!sidebar)return;
-      if(media.matches&&!mobileNav&&sidebar.contains(document.activeElement)&&
-        (menuOpenedAt.current===null||menuOpenedAt.current===currentPath.current)){
-        mobileTriggerRef.current?.focus({preventScroll:true});
+      const workspace=workspaceRef.current;
+      const overlays=overlaysRef.current;
+      const skipLink=skipLinkRef.current;
+      if(!sidebar||!workspace||!overlays||!skipLink)return;
+      const open=media.matches&&mobileNav;
+      if(open){
+        sidebar.inert=false;
+        sidebar.removeAttribute('aria-hidden');
+        sidebar.setAttribute('role','dialog');
+        sidebar.setAttribute('aria-modal','true');
+        if(!sidebar.contains(document.activeElement))sidebar.querySelector<HTMLElement>('nav a[href]')?.focus({preventScroll:true});
       }
+      for(const background of [workspace,overlays,skipLink]){
+        background.inert=open;
+        if(open)background.setAttribute('aria-hidden','true');
+        else background.removeAttribute('aria-hidden');
+      }
+      if(open)return;
+      sidebar.setAttribute('role','complementary');
+      sidebar.removeAttribute('aria-modal');
+      const samePage=menuOpenedAt.current===null||menuOpenedAt.current===currentPath.current;
+      if(media.matches&&(restoreMobileTrigger.current||(samePage&&sidebar.contains(document.activeElement))))
+        mobileTriggerRef.current?.focus({preventScroll:true});
       sidebar.inert=media.matches&&!mobileNav;
       if(media.matches&&!mobileNav)sidebar.setAttribute('aria-hidden','true');
       else sidebar.removeAttribute('aria-hidden');
-      if(!mobileNav)menuOpenedAt.current=null;
+      if(!mobileNav){menuOpenedAt.current=null;restoreMobileTrigger.current=false}
       if(!media.matches&&mobileNav)setMobileNav(false);
     };
     update();media.addEventListener('change',update);return()=>{media.removeEventListener('change',update)};
@@ -80,19 +104,22 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
   useEffect(()=>{
     if(!mobileNav)return;
     const controls=()=>Array.from(sidebarRef.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled])')??[]);
-    const frame=window.requestAnimationFrame(()=>controls()[0]?.focus());
     const keydown=(event:KeyboardEvent)=>{
-      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setMobileNav(false);mobileTriggerRef.current?.focus({preventScroll:true});return}
-      if(event.key!=='Tab')return;
+      if(event.key!=='Tab'&&event.key!=='Escape')return;
+      const activeDialog=Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).at(-1);
+      if(activeDialog!==sidebarRef.current)return;
+      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();dismissMobileNav();return}
       const items=controls(),first=items[0],last=items.at(-1);
       if(!sidebarRef.current?.contains(document.activeElement)||(event.shiftKey&&document.activeElement===first)||(!event.shiftKey&&document.activeElement===last)){
         event.preventDefault();(event.shiftKey?last:first)?.focus();
       }
     };
+    const onHistoryNavigation=()=>setMobileNav(false);
     document.addEventListener('keydown',keydown,true);
-    return()=>{window.cancelAnimationFrame(frame);document.removeEventListener('keydown',keydown,true)};
-  },[mobileNav]);
-  useEffect(()=>{setMobileNav(false);setRoleMenu(false)},[location.key]);
+    window.addEventListener('popstate',onHistoryNavigation);
+    return()=>{document.removeEventListener('keydown',keydown,true);window.removeEventListener('popstate',onHistoryNavigation)};
+  },[mobileNav,dismissMobileNav,setMobileNav]);
+  useLayoutEffect(()=>{setMobileNav(false);setRoleMenu(false)},[location.key,setMobileNav,setRoleMenu]);
   const { user, role } = context;
   const searchTarget=workspaceSearch(context.view,role,user.roles);
   const summary=useResource(`${context.scope}:summary`,signal=>api.dashboardSummary(role,signal),context.revisions.summary);
@@ -107,15 +134,18 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
   const currentRole = {...roleMeta[role],name:user.displayName,initials,department:user.departmentName ?? 'Chưa có phòng ban'};
   return (
     <div className="app-shell">
-      <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
-      <aside ref={sidebarRef} className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`} aria-label="Điều hướng chính">
+      <a ref={skipLinkRef} className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
+      <div ref={sidebarRef} id="workspace-navigation" className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`} role="complementary" aria-label="Điều hướng chính">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true"><ShieldCheck size={21} /></span>
           <span className="brand-name">Crypta</span>
           <span className="brand-env">Secure</span>
+          {mobileNav && <button className="icon-button" aria-label="Đóng điều hướng" onClick={dismissMobileNav}><X size={19}/></button>}
         </div>
 
-        <nav className="nav-groups">
+        <nav className="nav-groups" onClick={event=>{
+          if(mobileNav&&event.defaultPrevented&&event.target instanceof Element&&event.target.closest('a[href]'))setMobileNav(false);
+        }}>
           <div className="nav-group">
             <p className="nav-label">Không gian làm việc</p>
             <NavLink to="/dashboard" className={({isActive})=>`nav-item ${isActive?'nav-item-active':''}`}>
@@ -191,13 +221,13 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
           </span>
           <MoreHorizontal size={18} />
         </button>
-      </aside>
+      </div>
 
-      {mobileNav && <button className="scrim" aria-label="Đóng điều hướng" onClick={() => {setMobileNav(false);mobileTriggerRef.current?.focus({preventScroll:true})}} />}
+      {mobileNav && <div className="scrim" aria-hidden="true" onClick={dismissMobileNav} />}
 
-      <div className="workspace">
+      <div ref={workspaceRef} className="workspace">
         <header className="topbar">
-          <button ref={mobileTriggerRef} className="icon-button mobile-menu" aria-label="Mở điều hướng" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}>
+          <button ref={mobileTriggerRef} className="icon-button mobile-menu" aria-label="Mở điều hướng" aria-controls="workspace-navigation" aria-haspopup="dialog" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}>
             <Menu size={21} />
           </button>
           <form className="global-search" role="search" onSubmit={submitGlobalSearch}>
@@ -247,7 +277,7 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
         </main>
       </div>
 
-      {children}
+      <div ref={overlaysRef}>{children}</div>
     </div>
   );
 }

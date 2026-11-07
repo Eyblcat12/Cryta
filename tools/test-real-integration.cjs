@@ -393,7 +393,13 @@ async function main() {
       const menu = page.getByRole('button', { name: 'Mở điều hướng', exact: true });
       await menu.press('Enter');
       await page.waitForFunction(() => document.activeElement?.closest('.sidebar-open'));
-      const policies = page.getByRole('link', { name: 'Chính sách', exact: true });
+      const mobileNavigation = page.getByRole('dialog', { name: 'Điều hướng chính', exact: true });
+      assert.equal(await mobileNavigation.getAttribute('aria-modal'), 'true');
+      assert.equal(await page.getByRole('main').count(), 0);
+      await mobileNavigation.getByRole('button', { name: 'Đóng điều hướng', exact: true }).press('Enter');
+      assert.equal(await menu.evaluate(element => document.activeElement === element), true);
+      await menu.press('Enter');
+      const policies = mobileNavigation.getByRole('link', { name: 'Chính sách', exact: true });
       await policies.press('Enter');
       await page.waitForURL('**/policies');
       await page.waitForFunction(() => document.activeElement?.id === 'page-title');
@@ -401,7 +407,7 @@ async function main() {
       assert.equal(await page.evaluate(() => window.__routeAnimationCount), 0);
       assert.equal(await page.evaluate(() => performance.getEntriesByType('navigation').length), 1);
       assert.deepEqual(errors, []);
-      return { routeAnimations: count, oneDocument: true, pageFocus: true, mobileKeyboardMenu: true };
+      return { routeAnimations: count, oneDocument: true, pageFocus: true, mobileKeyboardMenu: true, mobileDialog: true };
     } finally { await context.close(); }
   });
   await test('T29: dashboard counters use the email channel and charts use their displayed periods', async () => {
@@ -564,9 +570,29 @@ async function main() {
         await reviewer.page.getByRole('button',{name:request.id,exact:true}).press('Enter');
         await reviewer.page.waitForURL(new URL(route,origin).href);
         await reviewer.page.getByText('Cấp 1 · Đã duyệt',{exact:true}).waitFor();
+        await reviewer.page.evaluate(() => {
+          const requestFrame = window.requestAnimationFrame.bind(window);
+          window.requestAnimationFrame = callback => {
+            if (!document.getElementById('decision-title') || !callback.toString().includes('.focus()')) return requestFrame(callback);
+            return requestFrame(timestamp => {
+              window.__releaseDecisionFocus = () => callback(timestamp);
+              window.requestAnimationFrame = requestFrame;
+            });
+          };
+        });
         await reviewer.page.getByRole('button',{name:'Duyệt cấp 2',exact:true}).press('Enter');
-        const confirmation = reviewer.page.getByRole('dialog');
-        await confirmation.getByRole('button',{name:'Xác nhận duyệt cấp 2',exact:true}).press('Enter');
+        const confirmation = reviewer.page.getByRole('dialog', { name: /^Duyệt cấp 2 / });
+        const submit = confirmation.getByRole('button',{name:'Xác nhận duyệt cấp 2',exact:true});
+        await reviewer.page.waitForFunction(() => typeof window.__releaseDecisionFocus === 'function');
+        await submit.focus();
+        await reviewer.page.evaluate(() => window.__releaseDecisionFocus());
+        assert.equal(await submit.evaluate(element => document.activeElement === element), true,
+          'Deferred dialog focus must not move the confirmation button out of focus.');
+        const [response] = await Promise.all([
+          reviewer.page.waitForResponse(result => result.request().method() === 'POST' && new URL(result.url()).pathname === '/api/v1' + route + '/decision'),
+          reviewer.page.keyboard.press('Enter'),
+        ]);
+        assert.equal(response.status(), 201);
         await confirmation.waitFor({state:'hidden'});
         await reviewer.page.getByText('Cấp 2 · Đã duyệt',{exact:true}).waitFor();
         assert.deepEqual(reviewer.errors,[]);
@@ -612,7 +638,7 @@ async function main() {
       expectStatus(await call('POST',`/requests/${expired}/cancel`,{version:1},account.accessToken),201);
       assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id IN ('${expired}','${cancelTarget.id}','${rejectTarget.id}')`),'0');
       return { concurrentStatuses:concurrent.map(r=>r.status), partialRetained:true, directBypassDenied:true, completedWithTwoActors:true,
-        workerAttempts:1, secondScopeNotified:true, secondRejected:true, cancelledAfterFirst:true, expiredDenied:true };
+        workerAttempts:1, secondScopeNotified:true, secondRejected:true, cancelledAfterFirst:true, expiredDenied:true, deferredFocusPreserved:true };
     } finally {
       expectStatus(await call('PATCH', `/policies/${approvalPolicy.id}/deactivate`,
         {expectedVersion:approvalPolicy.latest.version},admin.accessToken),200);

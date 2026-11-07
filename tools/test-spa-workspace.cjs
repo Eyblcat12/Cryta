@@ -356,7 +356,7 @@ if(require.main===module)(async()=>{
     }));
     await test(browser,'L-review resize from an open mobile menu releases the trap and restores valid focus when shrinking',()=>withFixture(browser,'ADMIN',async({page})=>{
       await page.setViewportSize({width:390,height:844});await page.goto(origin+'/users');await visible(page,'Người dùng và vai trò');const trigger=page.locator('.mobile-menu');
-      await trigger.click();await page.getByRole('link',{name:'Tổng quan',exact:true}).waitFor();await page.setViewportSize({width:1440,height:1000});await page.waitForTimeout(80);
+      await trigger.click();await page.getByRole('link',{name:'Tổng quan',exact:true}).waitFor();await page.setViewportSize({width:1440,height:1000});await page.getByRole('main').waitFor();
       assert.equal(await trigger.getAttribute('aria-expanded'),'false');await page.getByPlaceholder('Tên, email hoặc phòng ban',{exact:true}).focus();await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('.sidebar')),false);
       await page.getByRole('link',{name:'Tổng quan',exact:true}).focus();await page.setViewportSize({width:390,height:844});await page.waitForFunction(()=>document.activeElement?.classList.contains('mobile-menu'));
       assert.equal(await page.locator('.sidebar').evaluate(element=>element.inert),true);await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('.sidebar')),false);
@@ -412,9 +412,48 @@ if(require.main===module)(async()=>{
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:path.join(output,'mutation-unknown-request-mobile-dark.png'),fullPage:true});assert.equal(mutations.length,1);
     },{lostResponse:'/requests'}));
     await test(browser,'L/N mobile navigation traps keyboard focus, Escape restores trigger, and selection focuses heading',()=>withFixture(browser,'USER',async({page})=>{
-      await page.setViewportSize({width:390,height:844});await page.goto(origin+'/assets');await page.locator('.asset-mobile-card').first().waitFor();assert.equal(await page.locator('.sidebar').evaluate(element=>element.inert),true);const trigger=page.getByRole('button',{name:'Mở điều hướng',exact:true});await trigger.click();await page.waitForFunction(()=>document.activeElement?.closest('.sidebar'));
-      assert.equal(await trigger.getAttribute('aria-expanded'),'true');await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Mở menu tài khoản');await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('href')),'/dashboard');await page.keyboard.press('Escape');assert.equal(await trigger.getAttribute('aria-expanded'),'false');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Mở điều hướng');
-      await trigger.click();await page.waitForFunction(()=>document.activeElement?.closest('.sidebar'));await page.keyboard.press('Enter');await visible(page,'Tổng quan tài sản mã hóa');await page.waitForFunction(()=>document.activeElement?.id==='page-title');assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+      await page.setViewportSize({width:390,height:844});await page.goto(origin+'/assets');await page.locator('.asset-mobile-card').first().waitFor();
+      const sidebar=page.locator('.sidebar');
+      const trigger=page.locator('.mobile-menu');
+      const dialog=page.getByRole('dialog',{name:'Điều hướng chính'});
+      const close=dialog.getByRole('button',{name:'Đóng điều hướng',exact:true});
+      const open=async()=>{
+        await trigger.press('Enter');
+        await page.waitForFunction(()=>document.activeElement?.closest('.sidebar'));
+      };
+      const restored=async()=>{
+        assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+        assert.equal(await trigger.evaluate(element=>element===document.activeElement),true);
+        assert.equal(await sidebar.evaluate(element=>element.inert),true);
+        assert.equal(await page.getByRole('main').count(),1);
+      };
+      assert.equal(await sidebar.evaluate(element=>element.inert),true);
+      await open();
+      assert.match(await sidebar.ariaSnapshot(),/dialog "Điều hướng chính"/);
+      assert.equal(await dialog.getAttribute('aria-modal'),'true');
+      assert.equal(await trigger.getAttribute('aria-expanded'),'true');
+      assert.equal(await page.getByRole('main').count(),0);
+      assert.equal(await page.getByRole('link',{name:'Bỏ qua điều hướng'}).count(),0);
+      await page.locator('#main-content').evaluate(element=>element.focus());
+      assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('href')),'/dashboard');
+      await page.screenshot({path:path.join(output,'mobile-navigation-dialog.png'),animations:'disabled'});
+      await page.keyboard.press('Shift+Tab');assert.equal(await close.evaluate(element=>element===document.activeElement),true);
+      await page.keyboard.press('Shift+Tab');assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Mở menu tài khoản');
+      await page.keyboard.press('Tab');assert.equal(await close.evaluate(element=>element===document.activeElement),true);
+      await page.keyboard.press('Escape');await restored();
+      await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();
+      await open();await page.screenshot({path:path.join(output,'mobile-navigation-dialog-dark.png'),animations:'disabled'});
+      await close.press('Enter');await restored();
+      await open();await page.locator('.scrim').click({position:{x:350,y:350}});await restored();
+      await open();await dialog.getByRole('button',{name:'Trợ giúp',exact:true}).press('Enter');
+      const help=page.getByRole('dialog',{name:'Sử dụng Crypta an toàn'});
+      await help.waitFor();assert.equal(await dialog.count(),0);
+      await page.keyboard.press('Escape');await help.waitFor({state:'hidden'});
+      await page.waitForFunction(()=>document.activeElement?.classList.contains('mobile-menu'));await restored();
+      await open();await page.keyboard.press('Enter');await visible(page,'Tổng quan tài sản mã hóa');
+      await page.waitForFunction(()=>document.activeElement?.id==='page-title');assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+      await open();await page.goBack();await visible(page,'Tài sản của tôi');
+      await page.waitForFunction(()=>document.activeElement?.id==='page-title');assert.equal(await trigger.getAttribute('aria-expanded'),'false');
     }));
     await test(browser,'L/N skip link gives main keyboard focus without changing the workspace route',()=>withFixture(browser,'ADMIN',async({page})=>{
       await page.goto(origin+'/users');await visible(page,'Người dùng và vai trò');const skip=page.getByRole('link',{name:'Bỏ qua điều hướng',exact:true});await skip.focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.id==='main-content');assert.equal(new URL(page.url()).pathname,'/users');await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.includes('Mở phân quyền')),true);

@@ -1,5 +1,15 @@
 # Theo dõi hoàn thiện theo kế hoạch
 
+## Cập nhật ngày 08/11/2026
+
+### T30 · Điều hướng mobile và focus trong hộp xác nhận
+
+Menu mobile mở dưới dạng hộp thoại có tên, có nút Đóng, và đưa nội dung phía sau ra khỏi cây trợ năng khi đang mở. Escape, nút Đóng và thao tác ngoài menu trả focus về nút mở. Khi chọn trang hoặc dùng Back, tiêu đề trang nhận focus. Chromium và Firefox kiểm cây trợ năng và các thao tác trên bản tắt fade. Phần đọc thành tiếng vẫn cần nghiệm thu bằng trình đọc màn hình. [Hướng dẫn hộp thoại W3C](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) · [Chromium](tools/test-artifacts/mobile-nav-a11y-final/chromium-mobile-nav-final/results-filtered.json) · [Firefox](tools/test-artifacts/mobile-nav-a11y-final/firefox-mobile-nav-final/results-filtered.json)
+
+Ca X02 giữ callback focus của hộp xác nhận đến khi nút duyệt đã nhận focus. Trên bản trước, callback chuyển focus về nút Đóng. Hộp thoại nay giữ focus nếu người dùng đã chọn một nút bên trong. [Bằng chứng X02](docs/X02_TWO_STAGE_APPROVAL.md)
+
+Lượt Chromium qua Nginx/PostgreSQL đạt 45/45 nhóm. Ở 390 px, đóng menu bằng bàn phím trả focus về nút mở và vào Chính sách chuyển focus đến tiêu đề trong cùng tài liệu. [Kết quả tích hợp](tools/test-artifacts/integration/crypta-t30-test-caf51f22a6a3/real-chromium-1794075359542/results.json)
+
 ## Cập nhật ngày 07/11/2026
 
 ### Hồi quy điều hướng T30
