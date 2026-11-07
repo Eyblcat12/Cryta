@@ -1,5 +1,11 @@
 # Theo dõi hoàn thiện theo kế hoạch
 
+## Cập nhật ngày 07/11/2026
+
+T07, T08, T15, T18 và T20 đã tích hợp các mẫu được duyệt. T04 có CLI Admin đầu tiên và schema cài mới an toàn. Nhánh ứng viên đã được đẩy lên repo, CI GitHub có 419 backend, 147 frontend, 6 SMTP loopback và 158 nhóm tích hợp đạt. Required checks còn bị giới hạn bởi gói repo private. Tiến độ hiện hành và các cổng còn mở nằm ở [bảng task](TASK_STATUS_2026-11-05.md), [trạng thái](PROJECT_STATUS.md) và [bằng chứng CI](docs/CI_REMOTE_2026-11-07.md).
+
+## Lịch sử các pha
+
 T18 bổ sung mốc provider và quyết định vào lịch sử phân trang theo quyền, sửa nhãn và phiên bản policy trong chi tiết. Backend 305/305, frontend 145/145. DB và mẫu danh mục Approver còn chờ kiểm/duyệt. [Bằng chứng T18](T18_ASSET_LINEAGE_2026-11-06.md).
 
 T17 bổ sung sắp xếp cho năm danh sách, sửa bộ lọc audit không có page và thêm tìm kiếm thông báo. Backend 304/304. Fixture lớn và query plan đang chờ kiểm DB. [Bằng chứng T17](T17_SERVER_LISTS_2026-11-06.md).

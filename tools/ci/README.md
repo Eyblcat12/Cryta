@@ -1,5 +1,7 @@
 # Kiểm thử tích hợp trong CI
 
+GitHub Actions đã đạt đủ năm job trên commit ứng viên `a599aae`. Backend 419/419, frontend 147/147, SMTP loopback 6/6 và tích hợp Ubuntu 158/158. Nhánh thử lỗi riêng đã kiểm đúng bước thất bại và artifact cleanup. Required checks bị GitHub trả 403 do điều kiện gói cho repo private. [Bằng chứng remote và digest artifact](../../docs/CI_REMOTE_2026-11-07.md)
+
 Lượt mới sau chỉnh schema cài mới và validator đạt 158/158 nhóm. Ledger có thêm ca từ chối nạp lại schema và giữ dữ liệu cùng lịch sử migration. Backend 419/419, lint và OpenAPI đạt. Stack đã được dọn và danh tính chín container ngoài test khớp. [Kết quả](../test-artifacts/integration/crypta-t30-test-f1f20ec87e12/ci-verification.json)
 
 Workflow `Build and test` chạy build/unit theo package, ESLint và quét bí mật trước khi chạy job tích hợp. Build TypeScript kiểm kiểu frontend và backend. Gitleaks quét cây Git của revision bằng image ghim digest, gắn cây chỉ đọc, tắt mạng và che giá trị phát hiện. Job tích hợp build hai image ứng dụng và chạy PostgreSQL/Nginx với Chromium đúng phiên bản Playwright trong lockfile. [Workflow](../../.github/workflows/ci.yml) · [Hướng dẫn Playwright](https://playwright.dev/docs/ci-intro) · [Gitleaks](https://github.com/gitleaks/gitleaks)
