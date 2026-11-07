@@ -14,10 +14,13 @@ const legacyTables = ['departments', 'roles', 'policies', 'users', 'auth_session
 const hash = value => createHash('sha256').update(value).digest('hex');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-function run(executable, args, options = {}) {
+function run(executable, args, { reportSqlState = false, ...options } = {}) {
   const result = spawnSync(executable, args, { cwd: root, timeout: 30_000, maxBuffer: 16 * 1024 * 1024,
     stdio: ['pipe', 'pipe', 'pipe'], ...options });
-  if (result.status !== 0) throw new Error(`${executable} ${args[0]} failed (${result.error?.code ?? result.status ?? result.signal}).`);
+  if (result.status !== 0) {
+    const state = reportSqlState && /^ERROR:\s+([0-9A-Z]{5})\s*$/m.exec(result.stderr?.toString() ?? '')?.[1];
+    throw new Error(`${executable} ${args[0]} failed (${result.error?.code ?? result.status ?? result.signal})${state ? `, SQLSTATE ${state}` : ''}.`);
+  }
   return result.stdout;
 }
 
@@ -93,45 +96,56 @@ async function main(argument) {
   fs.mkdirSync(output);
   const upgradeDatabase = `crypta_upgrade_test_${stamp}`;
   const restoredDatabase = `crypta_upgrade_restore_${stamp}`;
+  const candidateRestore = `crypta_candidate_restore_${stamp}`;
   const runtimeRole = `crypta_upgrade_runtime_${stamp}`;
+  const restoreOwner = `crypta_restore_owner_${stamp}`;
   const baselineImage = `${stack.project}-upgrade-baseline:${stamp}`;
   const runLabel = `org.crypta.upgrade-test=${stamp}`;
   const jwt = randomBytes(32).toString('hex');
   const runtimePassword = randomBytes(32).toString('hex');
-  const dbResources = new Set();
+  const testDatabases = [upgradeDatabase, restoredDatabase, candidateRestore];
+  const dbResources = new Set(), roleResources = new Set();
   const testContainers = new Set();
-  let runtimeCreated = false, imageCreated = false;
+  let imageCreated = false;
   const report = { project: stack.project, baseline, baselineVersions: legacyVersions, candidateBackendImage: byService.backend.Image,
     candidateFrontendImage: byService.frontend.Image, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    upgradeDatabase, restoredDatabase, createdUtc: new Date().toISOString(), tests: [], success: false };
+    upgradeDatabase, restoredDatabase, candidateRestore, createdUtc: new Date().toISOString(), tests: [], success: false };
 
   function pg(command, database, flags = [], options) {
-    assert([sourceDatabase, upgradeDatabase, restoredDatabase].includes(database));
+    assert(database === sourceDatabase || testDatabases.includes(database));
     return docker([...compose, 'exec', '-T', 'postgres', command, '-U', sourceDatabase, '-d', database, ...flags], options);
   }
   function sql(database, statement, flags = []) {
-    return pg('psql', database, ['-X', '-qAt', '-v', 'ON_ERROR_STOP=1', ...flags], { input: statement }).toString().trim();
+    return pg('psql', database, ['-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-v', 'VERBOSITY=sqlstate', ...flags],
+      { input: statement, reportSqlState: true }).toString().trim();
   }
-  function allocate(database) {
-    assert([upgradeDatabase, restoredDatabase].includes(database));
+  function allocate(database, owner = sourceDatabase) {
+    assert(testDatabases.includes(database));
+    assert([sourceDatabase, restoreOwner].includes(owner));
     assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_database WHERE datname='${database}';`), '0');
-    sql(sourceDatabase, `CREATE DATABASE "${database}" OWNER ${sourceDatabase};`);
+    sql(sourceDatabase, `CREATE DATABASE "${database}" OWNER "${owner}" ALLOW_CONNECTIONS false;`);
     dbResources.add(database);
+    sql(sourceDatabase, `BEGIN; REVOKE CONNECT ON DATABASE "${database}" FROM PUBLIC;
+      ALTER DATABASE "${database}" ALLOW_CONNECTIONS true; COMMIT;`);
     assert.equal(sql(database, 'SELECT current_database();'), database);
     assert.equal(sql(database, "SELECT count(*) FROM pg_tables WHERE schemaname='public';"), '0');
   }
-  function fingerprint(database, projection = 'full') {
+  function fingerprint(database, projection = 'full', tables = legacyTables) {
     const ignored = projection === 'full' ? {} : { crypto_assets: 'updated_at', ...(projection === 'candidate' && {
       departments: 'version', users: 'invitation_pending', crypto_assets: 'provider_scope,updated_at',
       auth_sessions: 'mfa_token_version,oidc_session_id', requests: 'cancellation_reason',
       request_decisions: 'approval_level', notifications: 'claimed_at,account_action_id',
     }) };
-    return Object.fromEntries(legacyTables.map(table => {
+    const queries = tables.map(table => {
+      assert.match(table, /^[a-z][a-z0-9_]*$/);
       const fields = ignored[table] ? `to_jsonb(t)-ARRAY[${ignored[table].split(',').map(field => `'${field}'`).join(',')}]` : 'to_jsonb(t)';
-      const result = sql(database, `SELECT count(*)||':'||md5(COALESCE(string_agg(row_text,'|' ORDER BY row_text),'')) FROM (SELECT (${fields})::text AS row_text FROM public.${table} t) source;`);
-      assert.match(result, /^\d+:[a-f0-9]{32}$/);
-      return [table, result];
-    }));
+      return `SELECT '${table}' AS name,count(*)||':'||md5(COALESCE(string_agg(row_text,'|' ORDER BY row_text),'')) AS fingerprint
+        FROM (SELECT (${fields})::text AS row_text FROM public.${table} t) source`;
+    });
+    const snapshot = JSON.parse(sql(database, `SELECT json_object_agg(name,fingerprint) FROM (${queries.join(' UNION ALL ')}) snapshots;`));
+    assert.deepEqual(Object.keys(snapshot).sort(), [...tables].sort());
+    for (const result of Object.values(snapshot)) assert.match(result, /^\d+:[a-f0-9]{32}$/);
+    return snapshot;
   }
   function ledger(database, checksummed = false) {
     return JSON.parse(sql(database, `SELECT json_agg(row_to_json(l) ORDER BY version) FROM (SELECT version,applied_at${checksummed ? ',checksum' : ''} FROM schema_migrations) l;`));
@@ -140,7 +154,7 @@ async function main(argument) {
     return run('git', ['show', `${baseline}:${file}`]);
   }
   function containerOptions(database, name, mode, runtime = false) {
-    assert([upgradeDatabase, restoredDatabase].includes(database));
+    assert(testDatabases.includes(database));
     assert(name.startsWith(`${stack.project}-upgrade-${stamp}-`));
     const url = new URL(baseUrl.href);
     url.pathname = `/${database}`;
@@ -174,6 +188,7 @@ async function main(argument) {
   const name = phase => `${stack.project}-upgrade-${stamp}-${phase}`;
   function startApi(phase, database, image, runtime = false) {
     const service = name(phase);
+    assert(service.length <= 63, 'Test API service name must fit in a DNS label.');
     const { args, env } = containerOptions(database, service, 'validate', runtime);
     docker([...args, '--detach', image], { env });
     return service;
@@ -220,6 +235,24 @@ async function main(argument) {
   async function check(test, work) {
     try { report.tests.push({ name: test, passed: true, evidence: await work() }); console.log(`PASS ${test}`); }
     catch (error) { report.tests.push({ name: test, passed: false, error: String(error.message).slice(0, 350) }); throw error; }
+  }
+  function applyRuntimeGrants(database) {
+    assert(dbResources.has(database));
+    sql(database, fs.readFileSync(path.join(__dirname, 'testing/runtime-grants.sql')),
+      ['-v', `database=${database}`, '-v', `runtime_role=${runtimeRole}`]);
+  }
+
+  function runtimeGrants(database) {
+    return JSON.parse(sql(database, `WITH grants AS (
+      SELECT c.relname AS object_name,a.attname AS column_name,acl.privilege_type,acl.is_grantable
+      FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+      CROSS JOIN LATERAL aclexplode(a.attacl) acl
+      WHERE n.nspname='public' AND a.attnum>0 AND NOT a.attisdropped AND acl.grantee='${runtimeRole}'::regrole
+      UNION ALL
+      SELECT c.relname,NULL,acl.privilege_type,acl.is_grantable FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      CROSS JOIN LATERAL aclexplode(c.relacl) acl
+      WHERE n.nspname='public' AND acl.grantee='${runtimeRole}'::regrole
+    ) SELECT json_agg(grants ORDER BY object_name,column_name,privilege_type) FROM grants;`));
   }
 
   try {
@@ -330,9 +363,8 @@ async function main(argument) {
     await check('Candidate serves migrated data with a restricted runtime LOGIN', async () => {
       assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_roles WHERE rolname='${runtimeRole}';`), '0');
       sql(sourceDatabase, `CREATE ROLE "${runtimeRole}" LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '${runtimePassword}';`);
-      runtimeCreated = true;
-      sql(upgradeDatabase, fs.readFileSync(path.join(__dirname, 'testing/runtime-grants.sql')),
-        ['-v', `database=${upgradeDatabase}`, '-v', `runtime_role=${runtimeRole}`]);
+      roleResources.add(runtimeRole);
+      applyRuntimeGrants(upgradeDatabase);
       const candidate = startApi('candidate', upgradeDatabase, byService.backend.Image, true);
       try {
         await waitReady(candidate, '/health/ready');
@@ -358,6 +390,70 @@ async function main(argument) {
         return { restoreThroughSmokeMs: Date.now() - started, legacyTablesMatched: legacyTables.length, auditSequenceMatched: true };
       } finally { removeContainer(restored); }
     });
+
+    await check('Restore the candidate under a new owner and reapply restricted runtime grants', async () => {
+      const tables = JSON.parse(sql(upgradeDatabase, `SELECT json_agg(tablename ORDER BY tablename)
+        FROM pg_tables WHERE schemaname='public';`));
+      assert(tables.includes('schema_migrations') && tables.includes('report_exports'));
+      const snapshot = fingerprint(upgradeDatabase, 'full', tables);
+      const checksummedLedger = ledger(upgradeDatabase, true);
+      const auditSequence = sql(upgradeDatabase, 'SELECT last_value,is_called FROM audit_logs_id_seq;');
+      const expectedGrants = runtimeGrants(upgradeDatabase);
+      assert(expectedGrants.length > tables.length);
+      const candidateDump = pg('pg_dump', upgradeDatabase, ['--format=custom', '--no-owner', '--no-acl']);
+      assert.equal(candidateDump.subarray(0, 5).toString(), 'PGDMP');
+      const started = Date.now();
+      assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_roles WHERE rolname='${restoreOwner}';`), '0');
+      sql(sourceDatabase, `CREATE ROLE "${restoreOwner}" NOLOGIN;`);
+      roleResources.add(restoreOwner);
+      allocate(candidateRestore, restoreOwner);
+      pg('pg_restore', candidateRestore, ['--exit-on-error', '--single-transaction', '--no-owner', '--no-acl',
+        `--role=${restoreOwner}`], { input: candidateDump });
+
+      assert.deepEqual(fingerprint(candidateRestore, 'full', tables), snapshot);
+      assert.deepEqual(ledger(candidateRestore, true), checksummedLedger);
+      assert.equal(sql(candidateRestore, 'SELECT last_value,is_called FROM audit_logs_id_seq;'), auditSequence);
+      assert.equal(sql(candidateRestore, `SELECT datdba='${restoreOwner}'::regrole FROM pg_database WHERE datname=current_database();`), 't');
+      assert.equal(sql(candidateRestore, `SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+        WHERE n.nspname='public' AND c.relkind IN ('r','p','S','v','m') AND c.relowner<>'${restoreOwner}'::regrole;`), '0');
+      assert.equal(sql(candidateRestore, `SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+        WHERE n.nspname='public' AND p.proowner<>'${restoreOwner}'::regrole AND NOT EXISTS(
+          SELECT 1 FROM pg_depend d WHERE d.classid='pg_proc'::regclass AND d.objid=p.oid AND d.deptype='e');`), '0');
+      assert.equal(sql(candidateRestore, `SELECT has_table_privilege('${runtimeRole}','audit_logs','SELECT');`), 'f');
+      assert.equal(sql(candidateRestore, `SELECT has_database_privilege('${runtimeRole}',current_database(),'CONNECT');`), 'f');
+      const anchorExecution = `SELECT has_function_privilege('${runtimeRole}','public.capture_audit_anchor_rows(bigint,integer)','EXECUTE');`;
+      // --no-acl recreates the default grant. The isolated DB is still closed to runtime.
+      assert.equal(sql(candidateRestore, anchorExecution), 't');
+      applyRuntimeGrants(candidateRestore);
+      assert.equal(sql(candidateRestore, anchorExecution), 'f');
+      assert.deepEqual(runtimeGrants(candidateRestore), expectedGrants);
+      assert.equal(sql(candidateRestore, `SELECT has_database_privilege('${runtimeRole}',current_database(),'CONNECT')
+        AND NOT has_database_privilege('${runtimeRole}',current_database(),'CREATE,TEMP')
+        AND has_schema_privilege('${runtimeRole}','public','USAGE')
+        AND NOT has_schema_privilege('${runtimeRole}','public','CREATE');`), 't');
+      sql(candidateRestore, `BEGIN; SET LOCAL ROLE "${runtimeRole}";
+        DO $denials$ BEGIN
+          BEGIN UPDATE audit_logs SET outcome=outcome WHERE false;
+            RAISE EXCEPTION 'AUDIT_UPDATE_ALLOWED'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+          BEGIN DELETE FROM audit_logs WHERE false;
+            RAISE EXCEPTION 'AUDIT_DELETE_ALLOWED'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+          BEGIN CREATE TABLE public.crypta_acl_fixture(id integer);
+            RAISE EXCEPTION 'DDL_ALLOWED'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+          BEGIN PERFORM * FROM public.capture_audit_anchor_rows(0,1);
+            RAISE EXCEPTION 'ANCHOR_EXECUTE_ALLOWED'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+        END $denials$; ROLLBACK;`);
+
+      const candidate = startApi('restore-rc', candidateRestore, byService.backend.Image, true);
+      try {
+        await waitReady(candidate, '/health/ready');
+        assert.equal(probe(candidate, '/health/ready', true), 'PASS');
+        assert.notEqual(sql(candidateRestore, `SELECT count(*) FROM pg_stat_activity WHERE datname=current_database()
+          AND usename='${runtimeRole}' AND application_name='crypta-api';`), '0');
+      } finally { removeContainer(candidate); }
+      return { restoreThroughSmokeMs: Date.now() - started, tablesMatched: tables.length, auditSequenceMatched: true,
+        ledgerVersions: checksummedLedger.length, backupSha256: hash(candidateDump), ownershipReassigned: true,
+        runtimeGrantsMatched: expectedGrants.length, runtimeDdlAndAuditMutationDenied: true, runtimeAnchorExecuteDenied: true };
+    });
   } catch (error) {
     report.error = String(error.message).slice(0, 350);
   } finally {
@@ -365,17 +461,17 @@ async function main(argument) {
     const clean = operation => { try { operation(); } catch (error) { cleanupErrors.push(String(error.message).slice(0, 150)); } };
     for (const container of [...testContainers]) clean(() => removeContainer(container));
     for (const database of dbResources) clean(() => sql(sourceDatabase, `DROP DATABASE "${database}" WITH (FORCE);`));
-    if (runtimeCreated) clean(() => sql(sourceDatabase, `DROP ROLE "${runtimeRole}";`));
+    for (const role of roleResources) clean(() => sql(sourceDatabase, `DROP ROLE "${role}";`));
     if (imageCreated) clean(() => docker(['image', 'rm', baselineImage]));
     clean(() => {
-      assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_database WHERE datname IN ('${upgradeDatabase}','${restoredDatabase}');`), '0');
-      assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_roles WHERE rolname='${runtimeRole}';`), '0');
+      assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_database WHERE datname IN ('${upgradeDatabase}','${restoredDatabase}','${candidateRestore}');`), '0');
+      assert.equal(sql(sourceDatabase, `SELECT count(*) FROM pg_roles WHERE rolname IN ('${runtimeRole}','${restoreOwner}');`), '0');
       assert.deepEqual(inventory(), before);
       report.containerIdentitiesPreserved = before.length;
     });
     report.cleanupCompleted = cleanupErrors.length === 0;
     if (cleanupErrors.length) report.cleanupErrors = cleanupErrors;
-    report.success = report.tests.length === 6 && report.tests.every(test => test.passed) && report.cleanupCompleted;
+    report.success = report.tests.length === 7 && report.tests.every(test => test.passed) && report.cleanupCompleted;
     report.finishedUtc = new Date().toISOString();
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(report, null, 2));
     console.log(`Upgrade report: ${path.join(output, 'results.json')}`);

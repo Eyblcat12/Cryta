@@ -31,11 +31,30 @@ $containerFile = "/tmp/crypta-restore-$id.dump"
 try {
   docker cp $resolvedBackup "${containerId}:$containerFile"
   if ($LASTEXITCODE -ne 0) { throw 'Could not copy backup into PostgreSQL container.' }
-  # createdb refuses an existing database, so this script cannot replace live data.
-  docker @taskComposeArguments exec -T postgres createdb -U $dbUser $TargetDatabase
+  # CREATE DATABASE fails if the target exists. Keep connections closed until PUBLIC is removed.
+  $taskTargetIdentifier = '"' + $TargetDatabase + '"'
+  $taskCreateDatabase = "CREATE DATABASE $taskTargetIdentifier ALLOW_CONNECTIONS false;"
+  $taskCreateDatabase | docker @taskComposeArguments exec -T postgres psql -X -U $dbUser -d $sourceName -v ON_ERROR_STOP=1
   if ($LASTEXITCODE -ne 0) { throw 'Target database already exists or could not be created.' }
-  docker @taskComposeArguments exec -T postgres pg_restore -U $dbUser --dbname=$TargetDatabase --exit-on-error --no-owner --no-acl $containerFile
+  $taskRestrictDatabase = "BEGIN; REVOKE CONNECT ON DATABASE $taskTargetIdentifier FROM PUBLIC; ALTER DATABASE $taskTargetIdentifier ALLOW_CONNECTIONS true; COMMIT;"
+  $taskRestrictDatabase | docker @taskComposeArguments exec -T postgres psql -X -U $dbUser -d $sourceName -v ON_ERROR_STOP=1
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restrict access to the new restore database.' }
+  docker @taskComposeArguments exec -T postgres pg_restore -U $dbUser --dbname=$TargetDatabase --exit-on-error --single-transaction --no-owner --no-acl $containerFile
   if ($LASTEXITCODE -ne 0) { throw "Restore failed. The separate database '$TargetDatabase' was left in place for inspection." }
+  $taskProtectAudit = @'
+DO $restore$
+BEGIN
+  IF to_regclass('public.audit_anchor_rows') IS NOT NULL THEN
+    REVOKE ALL ON public.audit_anchor_rows FROM PUBLIC;
+  END IF;
+  IF to_regprocedure('public.capture_audit_anchor_rows(bigint,integer)') IS NOT NULL THEN
+    REVOKE ALL ON FUNCTION public.capture_audit_anchor_rows(bigint,integer) FROM PUBLIC;
+  END IF;
+END;
+$restore$;
+'@
+  $taskProtectAudit | docker @taskComposeArguments exec -T postgres psql -X -U $dbUser -d $TargetDatabase -v ON_ERROR_STOP=1
+  if ($LASTEXITCODE -ne 0) { throw 'Could not restore audit checkpoint access restrictions.' }
   docker @taskComposeArguments exec -T postgres psql -U $dbUser -d $TargetDatabase -Atqc 'SELECT COUNT(*) FROM users'
   if ($LASTEXITCODE -ne 0) { throw 'Restore finished but the users table verification failed.' }
   Write-Host "Restore verified in separate database: $TargetDatabase" -ForegroundColor Green

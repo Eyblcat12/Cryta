@@ -17,6 +17,8 @@ Giữ các biện pháp hiện tại gồm trigger cấm sửa hoặc xóa và q
 
 Giữ khóa công khai của các lần ký cũ để kiểm toàn bộ lịch sử. Sau khi chấp thuận khóa công khai mới, dùng khóa mới để ký checkpoint kế tiếp nối với digest trước đó. Khi phục hồi, kiểm DB trong môi trường riêng với cùng đầu chuỗi tin cậy trước khi mở ghi. Nếu bản sao thiếu đoạn đã ký, ghi nhận đoạn thiếu và phục hồi dữ liệu hoặc tạo nhánh lịch sử mới theo quy trình vận hành.
 
+Nếu phục hồi với `--no-acl`, PostgreSQL áp quyền mặc định lên hàm checkpoint. Giữ database đóng với `PUBLIC` trong lúc phục hồi. Áp template runtime và cấp lại quyền riêng cho bên ký, bên xác minh trước khi mở kết nối của ứng dụng. [Runbook phục hồi](../RELEASE_RUNBOOK.md#chọn-phương-án-phục-hồi)
+
 ## Chạy công cụ độc lập
 
 Áp dụng migration 023 rồi cấp quyền cho hai tài khoản DB riêng theo `deploy/audit-anchor-grants.sql`. Bên ký được đọc view chuẩn hóa và gọi hàm chụp đoạn. Bên xác minh chỉ đọc view. Runtime API không được cấp các quyền này.

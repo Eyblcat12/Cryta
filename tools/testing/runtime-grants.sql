@@ -69,6 +69,9 @@ REVOKE ALL ON departments,roles,policies,users,user_roles,approver_scopes,auth_s
   provider_operations,audit_logs,notifications,account_actions,account_action_limits,auth_mfa,auth_mfa_challenges,
   auth_oidc_links,auth_oidc_flows,auth_oidc_sessions,auth_oidc_revocations,report_exports,schema_migrations FROM :"runtime_role";
 REVOKE ALL ON SEQUENCE audit_logs_id_seq FROM :"runtime_role";
+-- A restore without ACLs gives new functions their default PUBLIC EXECUTE.
+REVOKE ALL ON public.audit_anchor_rows FROM PUBLIC, :"runtime_role";
+REVOKE ALL ON FUNCTION public.capture_audit_anchor_rows(bigint,integer) FROM PUBLIC, :"runtime_role";
 DO $columns$
 DECLARE column_acl RECORD;
 BEGIN

@@ -61,6 +61,15 @@ try {
   $taskRestoredSequences=Invoke-RehearsalSql $taskTarget "SELECT sequencename,last_value FROM pg_sequences WHERE schemaname='public' ORDER BY sequencename;"
   Test-Condition 'All public tables have matching row counts and row hashes' (($taskSource | ConvertTo-Json -Depth 4 -Compress) -ceq ($taskRestored | ConvertTo-Json -Depth 4 -Compress))
   Test-Condition 'Public sequence values match the backup source' ($taskSourceSequences -ceq $taskRestoredSequences)
+  $taskPublicAccess = Invoke-RehearsalSql $taskTarget @'
+SELECT NOT EXISTS (SELECT 1 FROM pg_database d,
+  LATERAL aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) acl
+  WHERE d.datname=current_database() AND acl.grantee=0 AND acl.privilege_type='CONNECT')
+AND EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid='public.capture_audit_anchor_rows(bigint,integer)'::regprocedure
+  AND p.prosecdef AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl,acldefault('f',p.proowner))) acl
+  WHERE acl.grantee=0 AND acl.privilege_type='EXECUTE'));
+'@
+  Test-Condition 'Restore database and checkpoint function are closed to PUBLIC' ($taskPublicAccess -ceq 't')
   $taskRestoreWatch.Stop();$taskOutput.restoreAndVerifySeconds=$taskRestoreWatch.Elapsed.TotalSeconds
   Test-RestoreRejected 'An existing target database cannot be replaced' $taskDump $taskTarget 'already exists or could not be created'
   $taskAfter=@(Get-RehearsalSnapshot $taskTarget)

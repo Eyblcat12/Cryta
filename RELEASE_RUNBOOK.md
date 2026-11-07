@@ -86,6 +86,10 @@ Thành công trả mã 0 với `BOOTSTRAP_ADMIN_CREATED`. Lệnh chạy lại tr
 
 Mốc 001–003 đến 016 có thay đổi constraint, trạng thái và metadata. Cách quay lại đã chọn cho diễn tập là phục hồi snapshot trước nâng cấp vào DB riêng. Kết quả phát sinh bên ngoài PostgreSQL cần đối soát trước khi worker chạy lại. Không xóa dòng ledger, sửa checksum hoặc bootstrap schema lên volume đang giữ dữ liệu.
 
+Khi phục hồi ứng viên đã migrate, DBA tạo database riêng dưới role owner `NOLOGIN`. Tạo với `ALLOW_CONNECTIONS false`, thu hồi `CONNECT` của `PUBLIC` từ database quản trị, rồi bật kết nối để operator nạp dump. Dùng `pg_restore --role=<owner> --single-transaction --no-owner --no-acl` khi chuyển sang role đích khác. Giữ quyền kết nối của ứng dụng và dịch vụ khác ở trạng thái đóng đến khi đã đối chiếu ledger, ownership và cấp lại quyền. PostgreSQL mặc định cấp quyền gọi hàm cho `PUBLIC` khi ACL bị bỏ. Template quyền runtime thu hồi quyền đó trên hàm checkpoint trước khi cấp lại `CONNECT` cho runtime trong cùng giao dịch. [PostgreSQL CREATE DATABASE](https://www.postgresql.org/docs/17/sql-createdatabase.html) · [Quyền mặc định](https://www.postgresql.org/docs/17/ddl-priv.html)
+
+Sau khi áp [template quyền runtime](DATABASE_MIGRATIONS.md), kiểm runtime có thể chạy API bằng LOGIN riêng và không thể gọi `capture_audit_anchor_rows`, sửa/xóa audit hoặc tạo bảng. Nếu dùng X05, cấp lại đúng quyền ký/xác minh theo [template X05](deploy/audit-anchor-grants.sql), rồi xác minh checkpoint bằng đầu chuỗi từ kho độc lập trước khi mở ghi. Giữ image và dump tương ứng với đường quay lui đã chọn.
+
 ## Chạy lại diễn tập cách ly
 
 ```powershell
@@ -94,7 +98,9 @@ node tools/test-release-upgrade.cjs <report.json-cua-stack-moi>
 ./tools/cleanup-isolated-stack.ps1 -ReportPath <report.json-cua-stack-moi>
 ```
 
-Runner build backend cũ từ Git, dùng schema và seed của cùng commit, rồi tạo phiên qua API. Một database được nâng cấp và một database riêng được phục hồi từ dump cũ. Cả hai được cấp mới trong stack test. Provider chạy MOCK và SMTP tắt. Nginx/SPA của bản hiện tại được kiểm bởi smoke lúc dựng stack. Các bước nâng cấp và phục hồi API chạy nội bộ trong mạng test. Đây là thời gian diễn tập local với fixture nhỏ. Môi trường thật cần đo lại trước khi chốt RPO/RTO.
+Runner build backend cũ từ Git, dùng schema và seed của cùng commit, rồi tạo phiên qua API. Runner nâng cấp một database, phục hồi dump cũ để kiểm rollback và phục hồi dump của ứng viên để kiểm ownership cùng quyền runtime. Cả ba database được cấp mới trong stack test. Provider chạy MOCK và SMTP tắt. Nginx/SPA của bản hiện tại được kiểm bởi smoke lúc dựng stack. Các bước nâng cấp và phục hồi API chạy nội bộ trong mạng test. Đây là thời gian diễn tập local với fixture nhỏ. Môi trường thật cần đo lại trước khi chốt RPO/RTO.
+
+Ngày 08/11, diễn tập nâng cấp và phục hồi đạt 7/7 nhóm. Database phục hồi dưới owner mới khớp nội dung 26 bảng, 24 dòng ledger có checksum, sequence audit và 144 quyền runtime trên đối tượng/cột. API bằng runtime LOGIN đạt smoke sau 18,60 giây tính từ lúc bắt đầu cấp database đích. Runtime bị từ chối khi gọi hàm checkpoint, sửa/xóa audit và tạo bảng. Bộ backup/restore riêng đạt 12/12 và kiểm quyền `PUBLIC`. [Diễn tập ứng viên](tools/test-artifacts/integration/crypta-t30-test-d90e8bf3b2b7/release-upgrade-1bb2250e9c8b/results.json) · [Bộ backup/restore](tools/test-artifacts/integration/crypta-t30-test-0e0ff1582d71/backup-restore-137a1505b980/results.json)
 
 ## Kết quả diễn tập ngày 06/11/2026
 
