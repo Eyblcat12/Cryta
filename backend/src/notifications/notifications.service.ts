@@ -1,8 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
+import { auditMetadata } from '../audit/audit-context';
+import type { AuthUser } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
 import { listOrder } from '../common/list-order';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
+import type { EmailReconciliationDto } from './email-reconciliation.dto';
+
+const missingEmail = () => new NotFoundException({ code: 'EMAIL_DELIVERY_NOT_FOUND', message: 'Không tìm thấy lần gửi email.' });
 
 @Injectable()
 export class NotificationsService {
@@ -115,14 +120,64 @@ export class NotificationsService {
       n.created_at AS "createdAt",n.claimed_at AS "claimedAt",n.failed_at AS "failedAt",n.sent_at AS "sentAt",
       n.error_message,u.email AS "recipientEmail",u.display_name AS "recipientName"
       FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1 AND n.channel='EMAIL'`, [id]);
-    if (!email) throw new NotFoundException({ code: 'EMAIL_DELIVERY_NOT_FOUND', message: 'Không tìm thấy lần gửi email.' });
+    if (!email) throw missingEmail();
     const { error_message: diagnostic, ...detail } = email;
     const rejection = typeof diagnostic === 'string' ? /^SMTP rejected delivery \(([45]\d{2})\)$/.exec(diagnostic) : null;
     const smtpStatus = rejection ? Number(rejection[1]) : null;
     const failure = detail.status === 'RECONCILIATION_REQUIRED' ? 'OUTCOME_UNKNOWN'
       : smtpStatus !== null ? (smtpStatus >= 500 ? 'SMTP_PERMANENT_REJECTION' : 'SMTP_TEMPORARY_REJECTION')
-      : diagnostic === 'Email content could not be prepared' ? 'PREPARATION_FAILED' : null;
+      : diagnostic === 'Email content could not be prepared' ? 'PREPARATION_FAILED'
+      : diagnostic === 'SMTP did not accept delivery (operator verified)' ? 'VERIFIED_UNSENT' : null;
     return { ...detail, smtpStatus, failure, messageIdPrefix: `notification-${detail.id}` };
+  }
+
+  async reconcileDelivery(user: AuthUser, id: string, dto: EmailReconciliationDto) {
+    const accepted = dto.outcome === 'ACCEPTED';
+    const acceptedAt = accepted && dto.acceptedAt ? new Date(dto.acceptedAt) : null;
+    if (accepted ? !acceptedAt || !Number.isFinite(acceptedAt.getTime()) : dto.acceptedAt !== undefined) {
+      throw new BadRequestException({ code: 'EMAIL_ACCEPTANCE_TIME_INVALID', message: 'Chỉ cung cấp thời điểm khi xác nhận SMTP đã chấp nhận.' });
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL lock_timeout='2s'");
+      const { rows: [actor] } = await client.query(`SELECT u.status,u.token_version,d.is_active,EXISTS(
+        SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN'
+        ) AS is_admin FROM users u JOIN departments d ON d.id=u.department_id WHERE u.id=$1 FOR SHARE OF u,d`, [user.id]);
+      if (!actor || actor.status !== 'ACTIVE' || !actor.is_active || !actor.is_admin || actor.token_version !== user.tokenVersion) {
+        throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Phiên đăng nhập đã bị thu hồi.' });
+      }
+
+      const { rows: [email] } = await client.query(`SELECT delivery_status,attempt_count,
+        ($2::timestamptz BETWEEN created_at AND clock_timestamp()) AS acceptance_in_range
+        FROM notifications WHERE id=$1 AND channel='EMAIL' FOR UPDATE`, [id, acceptedAt]);
+      if (!email) throw missingEmail();
+      if (email.delivery_status !== 'RECONCILIATION_REQUIRED' || email.attempt_count !== dto.attemptCount) {
+        throw new ConflictException({ code: 'EMAIL_DELIVERY_CHANGED', message: 'Trạng thái lần gửi đã thay đổi. Hãy tải lại chi tiết.' });
+      }
+      if (accepted && !email.acceptance_in_range) {
+        throw new BadRequestException({ code: 'EMAIL_ACCEPTANCE_TIME_INVALID', message: 'Thời điểm SMTP chấp nhận phải nằm từ lúc tạo thư đến hiện tại.' });
+      }
+
+      const status = accepted ? 'SENT' : 'FAILED';
+      await client.query(`UPDATE notifications SET delivery_status=$2,sent_at=$3::timestamptz,
+        failed_at=CASE WHEN $3::timestamptz IS NULL THEN clock_timestamp() END,error_message=$4 WHERE id=$1`,
+      [id, status, acceptedAt, accepted ? null : 'SMTP did not accept delivery (operator verified)']);
+      await client.query(`INSERT INTO audit_logs(actor_id,actor_type,action,entity_type,entity_id,outcome,metadata)
+        VALUES($1,'USER',$2,'EMAIL_DELIVERY',$3,'SUCCESS',$4::jsonb)`, [user.id,
+        accepted ? 'EMAIL_DELIVERY_ACCEPTED_CONFIRMED' : 'EMAIL_DELIVERY_UNSENT_CONFIRMED', id,
+        JSON.stringify(auditMetadata({ evidenceReference: dto.evidenceReference, attemptCount: dto.attemptCount,
+          ...(acceptedAt && { acceptedAt: acceptedAt.toISOString() }) }))]);
+      await client.query('COMMIT');
+      return { id, status };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      if ((error as { code?: string })?.code === '55P03') {
+        throw new ConflictException({ code: 'EMAIL_DELIVERY_BUSY', message: 'Lần gửi đang được xử lý. Hãy tải lại chi tiết.' });
+      }
+      throw error;
+    } finally { client.release(); }
   }
   async stats() { const result=await this.pool.query(`SELECT delivery_status,COUNT(*)::int AS count FROM notifications WHERE channel='EMAIL' GROUP BY delivery_status`); return Object.fromEntries(result.rows.map(r=>[r.delivery_status,r.count])); }
 }

@@ -15,14 +15,14 @@ const writeRoutes = new Set([
   '/requests', '/requests/drafts/:id', '/requests/:id/submit', '/requests/:id/decision', '/requests/:id/cancel',
   '/users', '/users/invitations', '/users/:id/invitation', '/users/:id/status', '/users/:id/access', '/users/:id/department',
   '/departments/:id', '/departments/:id/status', '/policies', '/policies/:id/versions', '/policies/:id/deactivate',
-  '/notifications/read-all', '/notifications/:id/read', '/notifications/test-email',
+  '/notifications/read-all', '/notifications/:id/read', '/notifications/test-email', '/notifications/delivery-issues/:id/reconcile',
   '/operations/provider-issues/:id/actions',
   '/reports', '/reports/preview', '/reports/:id/cancel',
 ]);
 const readRoutes = new Set([
   '/auth/me', '/auth/account-actions', '/auth/mfa/status', '/assets', '/assets/:id', '/assets/:id/history', '/requests', '/requests/:id', '/users', '/users/reference-data',
   '/departments', '/departments/:id', '/policies', '/policies/admin', '/policies/:id/versions',
-  '/audit-logs', '/notifications', '/notifications/status', '/notifications/delivery-issues',
+  '/audit-logs', '/notifications', '/notifications/status', '/notifications/delivery-issues', '/notifications/delivery-issues/:id',
   '/dashboard', '/dashboard/summary', '/operations/metrics', '/operations/signals', '/operations/provider-issues', '/operations/provider-issues/:id',
   '/reports', '/reports/:id/file',
 ]);

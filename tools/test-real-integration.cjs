@@ -492,6 +492,62 @@ async function main() {
       sql(`DELETE FROM notifications WHERE id IN ('${rejected}','${unknown}','${inApp}');`);
     }
   });
+  await test('T28: reconciliation commits one evidenced decision and rolls back on audit failure', async () => {
+    const accepted = randomUUID(), unsent = randomUUID(), fault = randomUUID();
+    const ids = [accepted, unsent, fault].map(id => `'${id}'`).join(',');
+    const secondAdmin = await createUser(['ADMIN']);
+    const pathFor = id => `/notifications/delivery-issues/${id}`;
+    const resolve = (id, body, actor = admin) => call('POST', `${pathFor(id)}/reconcile`, body, actor.accessToken);
+    const acceptedAt = new Date(Date.now() - 60_000).toISOString();
+    const acceptedDto = { outcome: 'ACCEPTED', attemptCount: 2, evidenceReference: 'SMTP-T28-2041', acceptedAt };
+    const unsentDto = { outcome: 'UNSENT', attemptCount: 2, evidenceReference: 'SMTP-T28-2042' };
+    sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key,delivery_status,
+      attempt_count,created_at,claimed_at) SELECT id::uuid,'${account.user.id}','${ownerRequest.id}',
+      'REQUEST_APPROVED','EMAIL',id,'RECONCILIATION_REQUIRED',2,NOW()-INTERVAL '2 minutes',NOW()-INTERVAL '90 seconds'
+      FROM unnest(ARRAY[${ids}]::text[]) AS test(id);`);
+    try {
+      expectStatus(await resolve(accepted, acceptedDto, approver), 403, 'ADMIN_REQUIRED');
+      expectStatus(await resolve(accepted, { ...acceptedDto, attemptCount: 1 }), 409, 'EMAIL_DELIVERY_CHANGED');
+      expectStatus(await resolve(accepted, { ...acceptedDto, acceptedAt: '2020-01-01T00:00:00Z' }), 400, 'EMAIL_ACCEPTANCE_TIME_INVALID');
+      expectStatus(await resolve(accepted, { ...acceptedDto, acceptedAt: undefined }), 400, 'EMAIL_ACCEPTANCE_TIME_INVALID');
+      expectStatus(await resolve(unsent, { ...unsentDto, acceptedAt }), 400, 'EMAIL_ACCEPTANCE_TIME_INVALID');
+      expectStatus(await resolve(unsent, { ...unsentDto, evidenceReference: 'invalid@example.test' }), 400);
+      expectStatus(await resolve(randomUUID(), unsentDto), 404, 'EMAIL_DELIVERY_NOT_FOUND');
+      const attempts = await Promise.all([resolve(accepted, acceptedDto), resolve(accepted, acceptedDto, secondAdmin)]);
+      assert.deepEqual(attempts.map(response => response.status).sort(), [201, 409]);
+      assert.deepEqual(expectStatus(attempts.find(response => response.status === 201), 201), { id: accepted, status: 'SENT' });
+      expectStatus(attempts.find(response => response.status === 409), 409, 'EMAIL_DELIVERY_CHANGED');
+      assert.deepEqual(expectStatus(await resolve(unsent, unsentDto), 201), { id: unsent, status: 'FAILED' });
+      const detail = async id => expectStatus(await call('GET', pathFor(id), undefined, admin.accessToken), 200);
+      assert.equal((await detail(accepted)).sentAt, acceptedAt);
+      assert.equal((await detail(unsent)).failure, 'VERIFIED_UNSENT');
+
+      sql(`CREATE FUNCTION t28_reject_delivery_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.entity_type='EMAIL_DELIVERY' AND NEW.entity_id='${fault}' THEN RAISE EXCEPTION 'T28 audit fixture'; END IF;
+        RETURN NEW; END $$;
+        CREATE TRIGGER t28_reject_delivery_audit BEFORE INSERT ON audit_logs
+        FOR EACH ROW EXECUTE FUNCTION t28_reject_delivery_audit();`);
+      try { expectStatus(await resolve(fault, unsentDto), 500); }
+      finally { sql('DROP TRIGGER t28_reject_delivery_audit ON audit_logs; DROP FUNCTION t28_reject_delivery_audit();'); }
+      assert.equal((await detail(fault)).status, 'RECONCILIATION_REQUIRED');
+      const audit = JSON.parse(sql(`SELECT json_agg(json_build_object('id',entity_id,'actor',actor_id,'action',action,'metadata',metadata) ORDER BY id)
+        FROM audit_logs WHERE entity_type='EMAIL_DELIVERY' AND entity_id IN (${ids});`));
+      assert.equal(audit.length, 2);
+      assert.equal(audit[0].id, accepted);
+      assert.equal(audit[0].actor, attempts[0].status === 201 ? admin.user.id : secondAdmin.user.id);
+      assert.equal(audit[0].action, 'EMAIL_DELIVERY_ACCEPTED_CONFIRMED');
+      assert.equal(audit[0].metadata.acceptedAt, acceptedAt);
+      assert.equal(audit[0].metadata.evidenceReference, acceptedDto.evidenceReference);
+      assert.match(audit[0].metadata.correlationId, /^req_[a-f0-9-]{36}$/);
+      assert.equal(audit[1].id, unsent);
+      assert.equal(audit[1].action, 'EMAIL_DELIVERY_UNSENT_CONFIRMED');
+      assert.equal(audit[1].metadata.evidenceReference, unsentDto.evidenceReference);
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE id IN (${ids}) AND (attempt_count<>2 OR delivery_status='PENDING')`), '0');
+      return { concurrentAdmins: 2, confirmedAuditEvents: 2, rollbackOnAuditFailure: true, queuedForRetry: 0 };
+    } finally {
+      sql(`DELETE FROM notifications WHERE id IN (${ids});`);
+    }
+  });
   await test('T22: audit search, redacted event detail and export use the same scope and filters', async () => {
     const user = await createUser(['USER'], [], false);
     const disabled = await call('PATCH', `/users/${user.id}/status`, { status: 'INACTIVE' }, admin.accessToken);
