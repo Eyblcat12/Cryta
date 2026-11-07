@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Plus } from 'lucide-react';
 import { useLocation,useNavigate,useOutletContext } from 'react-router';
 import { useOpenDetail } from './detailNavigation';
@@ -16,6 +17,8 @@ import type { RequestType } from './WorkspaceUi';
 import { PageHeader,RouteState } from './WorkspaceUi';
 import { canCreateRequests } from './workspacePermissions';
 
+const MfaSecurityPage = lazy(() => import('./MfaScreen').then(module => ({ default: module.MfaSecurityPage })));
+
 export interface WorkspacePageContext {
   view:WorkspaceView;
   role:UserRole;
@@ -30,6 +33,7 @@ export interface WorkspacePageContext {
   onReload:(resources:readonly WorkspaceResource[])=>Promise<void>;
   onNotify:(message:string)=>void;
   onCreateUser:()=>void;
+  onSessionAccepted:(user:AuthUser)=>void;
   onDecision:(action:'APPROVE'|'REJECT',requestId:string,version:number)=>void;
 }
 
@@ -41,6 +45,9 @@ export function WorkspacePage() {
   if(!context.routeAllowed)return <RouteState title="Bạn không có quyền mở trang này" description="Vai trò hiện tại không được phép truy cập nội dung đã yêu cầu." actionLabel="Về tổng quan" onAction={()=>navigate('/dashboard')}/>;
   if(view!=='request-new'&&/^\/(assets|requests)\/[^/]+\/?$/.test(location.pathname))return <WorkspaceDetailRoute context={context}/>;
   if(view==='dashboard')return <DashboardPage context={context}/>;
+  if(view==='account-security')return <Suspense fallback={<p role="status">Đang tải bảo mật tài khoản…</p>}>
+    <MfaSecurityPage user={context.user} onAuthenticated={context.onSessionAccepted}/>
+  </Suspense>;
   if(view==='policies')return <PoliciesPage context={context}/>;
   if(view==='provider-recovery')return <ProviderRecoveryPage scope={context.scope} revision={revisions.providerRecovery}/>;
   if(view==='request-new')return <RequestPage context={context}/>;

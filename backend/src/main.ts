@@ -12,10 +12,12 @@ import { cryptoProviderConfig } from './jobs/crypto-provider-config';
 import { HttpFailureAuditService } from './audit/http-failure-audit.service';
 import { ReadinessService, shutdownUnavailable } from './health/readiness.service';
 import { prepareDeploymentEnvironment } from './common/deployment-config';
+import { validateMfaEnvironment } from './auth/mfa.service';
 import type { NextFunction, Request, Response } from 'express';
 
 async function bootstrap() {
   prepareDeploymentEnvironment();
+  validateMfaEnvironment();
   cryptoProviderConfig();
   const app = await NestFactory.create(AppModule, { cors: false, logger: new ConsoleLogger({ json: true }) });
   app.setGlobalPrefix('api/v1');

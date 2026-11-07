@@ -3,6 +3,7 @@ param(
   [ValidateSet(0,10,12,15,20,30)][int]$AccessTtlSeconds = 0,
   [switch]$PrepareOnly,
   [switch]$KeepStack,
+  [switch]$RequireMfa,
   [scriptblock]$VerifyStack
 )
 
@@ -29,6 +30,8 @@ $taskEnvironment = @(
   "JWT_ACCESS_SECRET=$(New-TestSecret)"
   "T30_TEST_PORT=$Port"
   "T30_TEST_ACCESS_TTL=$(if ($AccessTtlSeconds) { "$($AccessTtlSeconds)s" } else { '15m' })"
+  "T30_TEST_MFA_REQUIRED=$($RequireMfa.ToString().ToLowerInvariant())"
+  "T30_TEST_MFA_KEY=$(if ($RequireMfa) { New-TestSecret } else { '' })"
 ) -join [Environment]::NewLine
 [IO.File]::WriteAllText($taskEnvironmentPath,$taskEnvironment,(New-Object Text.UTF8Encoding $false))
 $taskComposeArgs = @('compose','--project-name',$taskProject,'--env-file',$taskEnvironmentPath,'--file',$taskComposePath)
@@ -39,6 +42,7 @@ $taskReport = [ordered]@{
   database = 'crypta_t30_test'
   provider = 'MOCK'
   smtpEnabled = $false
+  mfaRequired = [bool]$RequireMfa
   accessTtlSeconds = $(if ($AccessTtlSeconds) { $AccessTtlSeconds } else { 900 })
   fixtureOnly = $false
   preparedOnly = [bool]$PrepareOnly
@@ -88,8 +92,10 @@ try {
   if (-not $taskReady) { throw 'Isolated test API did not become ready.' }
   & (Join-Path $PSScriptRoot 'smoke-spa-routes.ps1') -BaseUrl $taskReport.origin
   $taskReport.spaSmokePassed = $true
-  & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BaseUrl "$($taskReport.origin)/api/v1"
-  $taskReport.apiSmokePassed = $true
+  if (-not $RequireMfa) {
+    & (Join-Path $PSScriptRoot 'smoke-test.ps1') -BaseUrl "$($taskReport.origin)/api/v1"
+    $taskReport.apiSmokePassed = $true
+  }
   $taskIndex = Invoke-WebRequest -Uri $taskReport.origin -UseBasicParsing -TimeoutSec 10
   $taskReport.buildAssets = @([regex]::Matches($taskIndex.Content,'/assets/[^"\s>]+') | ForEach-Object { $_.Value })
   $taskReport.status = 'PASSED'

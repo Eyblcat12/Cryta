@@ -9,6 +9,7 @@ import { AuthService } from './auth.service';
 import { AccountActionsService } from './account-actions.service';
 import { CompleteAccountActionDto, RequestPasswordResetDto } from './account-actions.dto';
 import { AllowPasswordChange, JwtAuthGuard } from './jwt-auth.guard';
+import { MfaEnrollmentAckDto, MfaRecoveryDto, MfaStepUpDto, MfaTotpDto } from './mfa.dto';
 
 @ApiTags('Authentication') @Controller('auth')
 export class AuthController {
@@ -33,8 +34,43 @@ export class AuthController {
   acceptInvitation(@Body() body: CompleteAccountActionDto) {
     return this.actions.complete('INVITATION', body.token, body.newPassword);
   }
-  @Post('login') @HttpCode(200) @ApiOperation({ summary: 'Đăng nhập và tạo phiên refresh token bảo mật' })
-  async login(@Body() body: LoginDto,@Req() req: Request,@Res({passthrough:true}) res: Response) { const result=await this.auth.login(body.email,body.password,{ipAddress:req.ip,userAgent:req.headers['user-agent']}); setRefreshCookie(res,result.refreshToken); const {refreshToken:_,...safe}=result; return safe; }
+  @Post('login') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Xác thực mật khẩu và bắt đầu MFA nếu tài khoản yêu cầu' })
+  async login(@Body() body: LoginDto, @Req() req: Request, @Res({passthrough:true}) res: Response) {
+    const result = await this.auth.login(body.email, body.password, this.sessionContext(req));
+    if ('mfa' in result) { clearRefreshCookie(res); return result; }
+    return this.sessionResponse(res, result);
+  }
+
+  @Post('mfa/verify') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Xác minh TOTP và cấp phiên MFA' })
+  async verifyMfa(@Body() body: MfaTotpDto, @Req() req: Request, @Res({passthrough:true}) res: Response) {
+    return this.sessionResponse(res, await this.auth.verifyMfaLogin(body.challenge, body.totpCode, this.sessionContext(req)));
+  }
+
+  @Post('mfa/recover') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Dùng mã khôi phục một lần để bắt đầu thiết lập ứng dụng mới' })
+  recoverMfa(@Body() body: MfaRecoveryDto) { return this.auth.recoverMfa(body.challenge, body.recoveryCode); }
+
+  @Post('mfa/enrollment/verify') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Xác minh ứng dụng mới và cấp bộ mã khôi phục' })
+  verifyMfaEnrollment(@Body() body: MfaTotpDto) { return this.auth.verifyMfaEnrollment(body.challenge, body.totpCode); }
+
+  @Post('mfa/enrollment/finish') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Kích hoạt ứng dụng và tạo phiên sau khi người dùng lưu mã khôi phục' })
+  async finishMfaEnrollment(@Body() body: MfaEnrollmentAckDto, @Req() req: Request, @Res({passthrough:true}) res: Response) {
+    return this.sessionResponse(res, await this.auth.finishMfaEnrollment(body.challenge, this.sessionContext(req)));
+  }
+
+  @Get('mfa/status') @Header('Cache-Control', 'no-store') @UseGuards(JwtAuthGuard) @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xem số mã khôi phục chưa dùng của tài khoản hiện tại' })
+  mfaStatus(@CurrentUser() user: AuthUser) { return this.auth.mfaStatus(user); }
+
+  @Post('mfa/step-up') @HttpCode(200) @Header('Cache-Control', 'no-store') @UseGuards(JwtAuthGuard) @ApiBearerAuth()
+  @ApiOperation({ summary: 'Xác nhận mật khẩu và TOTP trước khi thay yếu tố hoặc cấp lại mã' })
+  stepUpMfa(@CurrentUser() user: AuthUser, @Body() body: MfaStepUpDto) {
+    return this.auth.stepUpMfa(user, body.currentPassword, body.totpCode, body.purpose);
+  }
   @Post('refresh') @HttpCode(200) @ApiOperation({ summary: 'Xoay vòng refresh token và cấp access token mới' })
   @ApiCookieAuth('refreshCookie')
   async refresh(@Req() req: Request,@Res({passthrough:true}) res: Response) { const result=await this.auth.refresh(readRefreshCookie(req),{ipAddress:req.ip,userAgent:req.headers['user-agent']}); setRefreshCookie(res,result.refreshToken); const {refreshToken:_,...safe}=result; return safe; }
@@ -45,4 +81,12 @@ export class AuthController {
   @Post('change-password') @HttpCode(200) @UseGuards(JwtAuthGuard) @ApiBearerAuth() @ApiOperation({summary:'Đổi mật khẩu và thu hồi toàn bộ phiên'})
   @AllowPasswordChange()
   async changePassword(@CurrentUser()user:AuthUser,@Body()body:ChangePasswordDto,@Res({passthrough:true})res:Response){const result=await this.auth.changePassword(user.id,body.currentPassword,body.newPassword);clearRefreshCookie(res);return result}
+
+  private sessionContext(req: Request) { return { ipAddress: req.ip, userAgent: req.headers['user-agent'] }; }
+
+  private sessionResponse<T extends { refreshToken: string }>(res: Response, result: T) {
+    const { refreshToken, ...safe } = result;
+    setRefreshCookie(res, refreshToken);
+    return safe;
+  }
 }

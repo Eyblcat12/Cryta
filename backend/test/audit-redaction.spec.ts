@@ -11,6 +11,19 @@ describe('audit metadata redaction', () => {
     expect(redactAuditMetadata({ event: 'POLICY_CHANGED', configuration: { algorithm: 'RSA', privateKey: 'secret-material', smtp_password: 'smtp-secret', nested: [{ accessToken: 'bearer-token', days: 30 }] } })).toEqual({ event: 'POLICY_CHANGED', configuration: { algorithm: 'RSA', privateKey: '[REDACTED]', smtp_password: '[REDACTED]', nested: [{ accessToken: '[REDACTED]', days: 30 }] } });
   });
 
+  it('redacts MFA enrollment, OTP and recovery material while retaining event codes', () => {
+    expect(redactAuditMetadata({ code: 'MFA_ENABLED', digits: 6, nested: {
+      otp: '123456', totpCode: '123456', mfa_code: '123456', recoveryCodes: ['ABCD-EFGH-IJKL-MNOP-QRST'],
+      mfaRecoveryCode: 'ABCD-EFGH-IJKL-MNOP-QRST', manualKey: 'PUBLIC-REFERENCE-ONLY', challenge: 'fixture-challenge',
+      otpauthUri: 'otpauth://totp/Crypta:admin@example.test?secret=PUBLIC',
+    } })).toEqual({ code: 'MFA_ENABLED', digits: 6, nested: {
+      otp: '[REDACTED]', totpCode: '[REDACTED]', mfa_code: '[REDACTED]', recoveryCodes: '[REDACTED]',
+      mfaRecoveryCode: '[REDACTED]', manualKey: '[REDACTED]', challenge: '[REDACTED]', otpauthUri: '[REDACTED]',
+    } });
+    expect(redactAuditMetadata({ reason: 'Re-enrolled; otpauth://totp/Crypta:admin@example.test?secret=PUBLIC; totp_code=123456; recoveryCode=ABCD-EFGH-IJKL-MNOP-QRST' }))
+      .toEqual({ reason: 'Re-enrolled; [REDACTED MFA ENROLLMENT] totp_code=[REDACTED]; recoveryCode=[REDACTED]' });
+  });
+
   it('redacts historical database metadata before returning legacy audit results', async () => {
     const query = vi.fn(async () => ({ rows: [{ id: 1, action: 'POLICY_VERSION_CREATED', metadata: { api_key: 'old-secret', version: 2 }, actor_name: 'Admin' }] }));
     const controller = new AuditController({ query } as unknown as Pool);

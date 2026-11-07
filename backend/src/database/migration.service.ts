@@ -169,6 +169,50 @@ BEGIN
   END IF;
 END;
 $migration$;
+`},
+{version:'019_auth_mfa',sql:`
+ALTER TABLE public.auth_sessions ADD COLUMN mfa_token_version INTEGER CHECK (mfa_token_version>0);
+
+CREATE TABLE public.auth_mfa (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  credential_id UUID UNIQUE,
+  sealed_secret TEXT,
+  last_step BIGINT,
+  recovery_hashes TEXT[] NOT NULL DEFAULT '{}',
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TIMESTAMPTZ,
+  CONSTRAINT ck_mfa_factor CHECK (
+    (credential_id IS NULL AND sealed_secret IS NULL AND last_step IS NULL AND cardinality(recovery_hashes)=0) OR
+    (credential_id IS NOT NULL AND sealed_secret IS NOT NULL AND last_step IS NOT NULL AND last_step>=0)
+  ),
+  CONSTRAINT ck_mfa_recovery_size CHECK (cardinality(recovery_hashes)<=10 AND array_position(recovery_hashes,NULL) IS NULL),
+  CONSTRAINT ck_mfa_failed_attempts CHECK (failed_attempts BETWEEN 0 AND 5)
+);
+
+CREATE TABLE public.auth_mfa_challenges (
+  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  token_version INTEGER NOT NULL CHECK (token_version>0),
+  purpose TEXT NOT NULL CHECK (purpose IN ('VERIFY','ENROLL','RECOVER','REPLACE')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  pending_id UUID UNIQUE,
+  pending_secret TEXT,
+  pending_step BIGINT,
+  pending_hashes TEXT[],
+  CONSTRAINT ck_mfa_challenge_pending CHECK ((pending_id IS NULL)=(pending_secret IS NULL)),
+  CONSTRAINT ck_mfa_challenge_verified CHECK (
+    (pending_step IS NULL AND pending_hashes IS NULL) OR
+    (pending_id IS NOT NULL AND pending_step IS NOT NULL AND pending_step>=0 AND
+      pending_hashes IS NOT NULL AND cardinality(pending_hashes)=10 AND array_position(pending_hashes,NULL) IS NULL)
+  ),
+  CONSTRAINT ck_mfa_verify_has_no_pending CHECK (purpose<>'VERIFY' OR pending_id IS NULL)
+);
+ALTER TABLE public.notifications DROP CONSTRAINT ck_notification_type;
+ALTER TABLE public.notifications ADD CONSTRAINT ck_notification_type CHECK (type IN (
+  'REQUEST_SUBMITTED','REQUEST_APPROVED','REQUEST_REJECTED','REQUEST_COMPLETED','REQUEST_RECONCILIATION_REQUIRED','REQUEST_FAILED',
+  'ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED','INVITATION','PASSWORD_RESET','PASSWORD_RESET_COMPLETED',
+  'MFA_SECURITY_CHANGED'
+));
 `}
 ];
 

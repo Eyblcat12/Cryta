@@ -36,11 +36,16 @@ $taskCiVerification = {
   if ($LASTEXITCODE -ne 0) { throw 'Real Chromium integration failed.' }
   # The signal rehearsal stops the isolated backend, so run it after browser tests.
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
-  $taskCiState.verificationPassed = $true
 }
 
 try {
   & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -VerifyStack $taskCiVerification
+  & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -RequireMfa -VerifyStack {
+    param([string]$ReportPath)
+    & node (Join-Path $taskCiRoot 'tools/test-real-mfa.cjs') $ReportPath $taskCiTooling
+    if ($LASTEXITCODE -ne 0) { throw 'Real MFA integration failed.' }
+  }
+  $taskCiState.verificationPassed = $true
 } finally {
   $taskCiAfter = @(Get-CryptaContainerInventory)
   $taskCiState.containerIdentitiesPreserved = Test-CryptaContainerIdentitiesMatch -Before $taskCiBefore -After $taskCiAfter

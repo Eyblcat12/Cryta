@@ -206,6 +206,7 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
             <button className={`icon-button ${(unreadNotificationCount??0)>0?'has-alert':''}`} aria-label={(unreadNotificationCount??0)>0?`${unreadNotificationCount} thông báo chưa đọc`:'Thông báo'} onClick={() => navigate('/notifications')}>
               <Bell size={19} />{(unreadNotificationCount??0)>0&&<span />}
             </button>
+            {user.mfaEnrolled && <button className="icon-button" aria-label="Bảo mật tài khoản" onClick={() => navigate('/account/security')}><ShieldCheck size={18}/></button>}
             <button className="icon-button" aria-label="Đăng xuất" onClick={onLogout}><LogOut size={18}/></button>
             <div className="topbar-divider" />
             <div className="role-control">

@@ -50,4 +50,4 @@ export interface RequestItem {
 }
 
 export type UserRole = 'USER' | 'APPROVER' | 'ADMIN';
-export interface AuthUser { id:string; email:string; displayName:string; departmentId:string; departmentName?:string; roles:UserRole[]; approverDepartmentIds:string[]; mustChangePassword:boolean; accountActionsEnabled?:boolean }
+export interface AuthUser { id:string; email:string; displayName:string; departmentId:string; departmentName?:string; roles:UserRole[]; approverDepartmentIds:string[]; mustChangePassword:boolean; accountActionsEnabled?:boolean; mfaEnrolled?:boolean }

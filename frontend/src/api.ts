@@ -9,6 +9,7 @@ import { recoveryAcknowledgment, type ProviderIssue, type ProviderIssueDetail, t
 import type { AuditResponse } from './api/contracts/audit';
 import type { PageResponse } from './api/contracts/page';
 import type { DashboardResponse,DashboardSummaryResponse } from './api/contracts/dashboard';
+import type { MfaChallenge, MfaCodes, MfaStepUp } from './api/contracts/mfa';
 import { sessionPermissions } from './sessionRouting';
 import { bindMutationOwner,clearMutations,rejectMutation,startMutation,updateMutation,validAcknowledgment } from './workspaceMutations';
 import type { MutationInput } from './workspaceMutations';
@@ -20,6 +21,7 @@ let accessToken:string|undefined;
 let refreshing:Promise<AuthSession>|undefined;
 let sessionGeneration=0;
 let sessionBoundary=currentCookieSessionBoundary();
+let mfaAttempt: { challenge: string; generation: number; boundary: typeof sessionBoundary } | undefined;
 let permissionKey:string|undefined;
 const activeRequests=new Set<AbortController>();
 export type SessionEvent={type:'refreshed';user:AuthUser}|{type:'expired'};
@@ -28,11 +30,12 @@ export function subscribeSession(listener:(event:SessionEvent)=>void){sessionLis
 function announceSession(event:SessionEvent){for(const listener of sessionListeners)listener(event)}
 function endedSession(value:boolean){if(typeof window==='undefined')return;try{if(value)window.sessionStorage.setItem('crypta-session-ended','1');else window.sessionStorage.removeItem('crypta-session-ended')}catch{/* In-memory boundaries still work if storage is unavailable. */}}
 function sessionEnded(){if(typeof window==='undefined')return false;try{return window.sessionStorage.getItem('crypta-session-ended')==='1'}catch{return false}}
-function beginSession(preserveCredentials=false){sessionGeneration++;if(!preserveCredentials){accessToken=undefined;permissionKey=undefined;clearMutations()}refreshing=undefined;for(const controller of activeRequests)controller.abort();activeRequests.clear();return sessionGeneration}
+function beginSession(preserveCredentials=false){sessionGeneration++;mfaAttempt=undefined;if(!preserveCredentials){accessToken=undefined;permissionKey=undefined;clearMutations()}refreshing=undefined;for(const controller of activeRequests)controller.abort();activeRequests.clear();return sessionGeneration}
 function expireSession(){beginSession();endedSession(true);announceSession({type:'expired'})}
 subscribeCookieSessionBoundary(expireSession);
 type Envelope<T>={data:T;requestId:string};
 type AuthSession={accessToken:string;tokenType:string;expiresIn:string;user:AuthUser};
+const challengeRoutes = new Set(['/auth/mfa/verify','/auth/mfa/recover','/auth/mfa/enrollment/verify','/auth/mfa/enrollment/finish']);
 
 export class ApiError extends Error { constructor(public code:string,message:string,public status:number,public requestId?:string,public outcome?:'unknown'|'rejected'){super(message)} }
 
@@ -98,7 +101,9 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
     let response:Response;
     try{response=await fetch(`${API_BASE}${path}`,{...options,signal:controller.signal,headers,credentials:'include'})}catch{assertCurrent();throw new ApiError('NETWORK_ERROR','Không thể kết nối máy chủ. Kiểm tra dịch vụ rồi thử lại.',0)}
     assertCurrent();
-    if(response.status===401&&retry&&path!=='/auth/login'&&path!=='/auth/refresh'){
+    const payload=await response.json().catch(()=>({}));
+    assertCurrent();
+    if(response.status===401&&retry&&path!=='/auth/login'&&path!=='/auth/refresh'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID'){
       try{await refresh()}catch(error){
         assertCurrent();
         if(error instanceof ApiError&&error.status===401){expireSession();throw new ApiError('SESSION_EXPIRED','Phiên đăng nhập đã hết hạn hoặc bị thu hồi.',401)}
@@ -108,10 +113,8 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
       }
       assertCurrent();return await request<T>(path,options,false);
     }
-    const payload=await response.json().catch(()=>({}));
-    assertCurrent();
     if(!response.ok){
-      if(response.status===401&&path!=='/auth/login'&&path!=='/auth/refresh'&&path!=='/auth/logout')expireSession();
+      if(response.status===401&&path!=='/auth/login'&&path!=='/auth/refresh'&&path!=='/auth/logout'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID')expireSession();
       throw new ApiError(payload?.error?.code??'REQUEST_FAILED',payload?.error?.message??'Yêu cầu không thành công.',response.status,payload?.requestId);
     }
     if(!payload||typeof payload!=='object'||!Object.prototype.hasOwnProperty.call(payload,'data'))throw new ApiError('INVALID_RESPONSE','Phản hồi máy chủ không hợp lệ. Hãy kiểm tra dữ liệu.',502,payload?.requestId);
@@ -146,8 +149,63 @@ function mapRequest(row:RequestResponse):RequestItem {
   };
 }
 
+function acceptSession(session: AuthSession) {
+  accessToken=session.accessToken;
+  permissionKey=sessionPermissions(session.user);
+  bindMutationOwner(session.user.id);
+  endedSession(false);
+  return session.user;
+}
+
+function bindMfaChallenge(result: MfaChallenge) {
+  mfaAttempt={challenge:result.challenge,generation:sessionGeneration,boundary:sessionBoundary};
+  return result;
+}
+
+function currentMfaAttempt(challenge: string) {
+  const attempt=mfaAttempt;
+  const current=()=>!!attempt&&mfaAttempt===attempt&&attempt.challenge===challenge&&
+    attempt.generation===sessionGeneration&&cookieSessionBoundaryMatches(attempt.boundary);
+  if(!current())throw new ApiError('MFA_CHALLENGE_EXPIRED','Phiên xác thực đã hết hạn. Hãy đăng nhập lại.',401);
+  return current;
+}
+
+async function mfaRequest<T>(path: string, body: { challenge: string } & Record<string, string | boolean>) {
+  const current=currentMfaAttempt(body.challenge);
+  const result=await request<T>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store'},false);
+  if(!current())throw new DOMException('Session changed','AbortError');
+  return result;
+}
+
+async function completeMfa(path: string, body: { challenge: string } & Record<string, string | boolean>) {
+  const current=currentMfaAttempt(body.challenge);
+  return withSessionCookieLock(current,async()=>{
+    const result=await mfaRequest<AuthSession>(path,body);
+    beginSession();
+    sessionBoundary=announceCookieSessionBoundary();
+    return acceptSession(result);
+  });
+}
+
 export const api={
-  async login(email:string,password:string){const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);const session=await withSessionCookieLock(current,()=>request<AuthSession>('/auth/login',{method:'POST',body:JSON.stringify({email,password})},false));if(!current())throw new DOMException('Session changed','AbortError');accessToken=session.accessToken;permissionKey=sessionPermissions(session.user);bindMutationOwner(session.user.id);endedSession(false);return session.user},
+  async login(email:string,password:string){
+    const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();
+    const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);
+    const result=await withSessionCookieLock(current,()=>request<AuthSession|MfaChallenge>('/auth/login',{method:'POST',body:JSON.stringify({email,password}),cache:'no-store'},false));
+    if(!current())throw new DOMException('Session changed','AbortError');
+    if('mfa' in result){endedSession(true);return bindMfaChallenge(result)}
+    return acceptSession(result);
+  },
+  abandonMfa(){mfaAttempt=undefined},
+  verifyMfa(challenge:string,totpCode:string){return completeMfa('/auth/mfa/verify',{challenge,totpCode})},
+  async recoverMfa(challenge:string,recoveryCode:string){return bindMfaChallenge(await mfaRequest<MfaChallenge>('/auth/mfa/recover',{challenge,recoveryCode}))},
+  verifyMfaEnrollment(challenge:string,totpCode:string){return mfaRequest<MfaCodes>('/auth/mfa/enrollment/verify',{challenge,totpCode})},
+  finishMfaEnrollment(challenge:string){return completeMfa('/auth/mfa/enrollment/finish',{challenge,savedRecoveryCodes:true})},
+  mfaStatus(signal?:AbortSignal){return request<{remaining:number}>('/auth/mfa/status',{signal,cache:'no-store'})},
+  async stepUpMfa(currentPassword:string,totpCode:string,purpose:MfaStepUp){
+    const result=await request<MfaChallenge|MfaCodes>('/auth/mfa/step-up',{method:'POST',body:JSON.stringify({currentPassword,totpCode,purpose}),cache:'no-store'});
+    return 'mfa' in result?bindMfaChallenge(result):result;
+  },
   abandonWorkspaceRequests(){beginSession(true)},
   async restore(){if(sessionEnded())throw new ApiError('SESSION_ENDED','Hãy đăng nhập để bắt đầu phiên mới.',401);const session=await refresh();return session.user},
   async logout(){const token=accessToken;const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();endedSession(true);const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);const assertCurrent=()=>{if(!current())throw new DOMException('Session changed','AbortError')};try{return await withSessionCookieLock(current,async()=>{

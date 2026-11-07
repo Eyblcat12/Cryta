@@ -12,6 +12,7 @@ export type WorkspaceView =
   | 'policies'
   | 'audit'
   | 'notifications'
+  | 'account-security'
   | 'email'
   | 'provider-recovery'
   | 'forbidden'
@@ -29,6 +30,7 @@ export const pageTitles: Record<WorkspaceView, string> = {
   policies: 'Chính sách',
   audit: 'Audit Log',
   notifications: 'Thông báo',
+  'account-security': 'Bảo mật tài khoản',
   email: 'Vận hành email',
   'provider-recovery': 'Đối soát provider',
   forbidden: 'Không có quyền',
@@ -55,6 +57,7 @@ export const routeManifest: ReadonlyArray<{
   { path: '/operations/email', view: 'email', roles: ['ADMIN'] },
   { path: '/operations/provider', view: 'provider-recovery', roles: ['ADMIN'] },
   { path: '/notifications', view: 'notifications', roles: ['USER', 'APPROVER', 'ADMIN'] },
+  { path: '/account/security', view: 'account-security', roles: ['USER', 'APPROVER', 'ADMIN'] },
 ];
 
 function normalizedPath(pathname: string) {
@@ -75,6 +78,7 @@ export function workspaceView(pathname: string): WorkspaceView {
   if (path === '/policies') return 'policies';
   if (path === '/audit') return 'audit';
   if (path === '/notifications') return 'notifications';
+  if (path === '/account/security') return 'account-security';
   if (path === '/operations/email') return 'email';
   if (path === '/operations/provider') return 'provider-recovery';
   if (path === '/forbidden') return 'forbidden';

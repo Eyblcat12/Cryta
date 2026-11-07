@@ -1,0 +1,30 @@
+.mfa-card { width: min(650px, 100%); display: grid; gap: 16px; min-width: 0; }
+.mfa-card .login-brand { margin-bottom: 0; }
+.mfa-card p { margin: 0; color: var(--text-soft); line-height: 1.55; }
+.mfa-heading { display: grid; gap: 4px; }
+.mfa-heading h1, .mfa-heading h2 { margin: 0; line-height: 1.2; }
+.mfa-heading small { color: var(--text-muted); font-weight: 650; }
+.mfa-enrollment { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-soft); }
+.mfa-enrollment canvas { width: 154px; height: 154px; max-width: 100%; object-fit: contain; background: #fff; }
+.mfa-enrollment p { margin: 4px 0 10px; }
+.mfa-manual-key { display: block; overflow-wrap: anywhere; color: var(--text); font-size: .9rem; user-select: all; }
+.mfa-otp { font-variant-numeric: tabular-nums; letter-spacing: .3em; }
+.mfa-card .text-button { justify-self: start; min-height: 36px; }
+.mfa-live:empty { display: none; }
+.mfa-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.mfa-codes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding-left: 24px; }
+.mfa-codes li { padding: 6px 7px; background: var(--surface-soft); border: 1px solid var(--border); border-radius: 6px; }
+.mfa-codes code { overflow-wrap: anywhere; }
+.mfa-ack { display: flex; align-items: flex-start; gap: 9px; line-height: 1.45; }
+.mfa-ack input { margin-top: 4px; accent-color: var(--brand); }
+.mfa-method { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.mfa-method + .mfa-method { border-top: 1px solid var(--border); padding-top: 15px; }
+.mfa-enabled { display: inline-flex; align-items: center; gap: 5px; font-weight: 650; }
+.mfa-card summary { cursor: pointer; }
+.mfa-card details p { margin-top: 6px; }
+@media (max-width: 600px) {
+  .mfa-page { padding: 12px; }
+  .mfa-card { padding: 17px; }
+  .mfa-enrollment { grid-template-columns: 1fr; }
+  .mfa-codes { grid-template-columns: minmax(0, 1fr); }
+}

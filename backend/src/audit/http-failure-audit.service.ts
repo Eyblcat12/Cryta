@@ -10,6 +10,7 @@ export const AUDIT_FAILURE_POOL = 'AUDIT_FAILURE_POOL';
 // Only route templates registered by this API can enter the durable failure log.
 const writeRoutes = new Set([
   '/auth/login', '/auth/refresh', '/auth/logout', '/auth/change-password',
+  '/auth/mfa/verify', '/auth/mfa/recover', '/auth/mfa/enrollment/verify', '/auth/mfa/enrollment/finish', '/auth/mfa/step-up',
   '/auth/password-reset', '/auth/password-reset/complete', '/auth/invitation/accept',
   '/requests', '/requests/drafts/:id', '/requests/:id/submit', '/requests/:id/decision', '/requests/:id/cancel',
   '/users', '/users/invitations', '/users/:id/invitation', '/users/:id/status', '/users/:id/access', '/users/:id/department',
@@ -18,7 +19,7 @@ const writeRoutes = new Set([
   '/operations/provider-issues/:id/actions',
 ]);
 const readRoutes = new Set([
-  '/auth/me', '/auth/account-actions', '/assets', '/assets/:id', '/assets/:id/history', '/requests', '/requests/:id', '/users', '/users/reference-data',
+  '/auth/me', '/auth/account-actions', '/auth/mfa/status', '/assets', '/assets/:id', '/assets/:id/history', '/requests', '/requests/:id', '/users', '/users/reference-data',
   '/departments', '/departments/:id', '/policies', '/policies/admin', '/policies/:id/versions',
   '/audit-logs', '/notifications', '/notifications/status', '/notifications/delivery-issues',
   '/dashboard', '/dashboard/summary', '/operations/metrics', '/operations/signals', '/operations/provider-issues', '/operations/provider-issues/:id',

@@ -7,7 +7,7 @@ $routes = @(
   '/assets/example-id', '/users?q=Nguy%E1%BB%85n', '/audit?q=login',
   '/policies', '/operations/email?status=FAILED', '/operations/provider', '/requests/example-id',
   '/requests?status=COMPLETED&page=2', '/approvals?q=TLS&emergency=1',
-  '/notifications', '/forbidden', '/unknown-route'
+  '/notifications', '/account/security', '/forbidden', '/unknown-route'
 )
 
 foreach ($route in $routes) {

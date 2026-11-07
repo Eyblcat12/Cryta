@@ -7,12 +7,12 @@ import { AuthService } from '../src/auth/auth.service';
 
 const id = '11111111-1111-4111-8111-111111111111', owner = '22222222-2222-4222-8222-222222222222';
 const secret = 'fixture-refresh-secret';
-function setup(sessionOverrides: Record<string, unknown> = {}, failAudit = false) {
+function setup(sessionOverrides: Record<string, unknown> = {}, failAudit = false, enrolled = false) {
   const session = { user_id: owner, token_hash: createHash('sha256').update(secret).digest('hex'), expires_at: new Date(Date.now() + 60_000), revoked_at: null, ...sessionOverrides };
   const query = vi.fn(async (sql: string) => {
     if (sql.includes('SELECT user_id FROM auth_sessions')) return { rows: [{ user_id: owner }] };
     if (sql.includes('SELECT user_id, token_hash')) return { rows: [session] };
-    if (sql.includes('FROM users u')) return { rows: [{ id: owner, status: 'ACTIVE', token_version: 1, roles: ['USER'], scopes: [] }] };
+    if (sql.includes('FROM users u')) return { rows: [{ id: owner, status: 'ACTIVE', token_version: 1, roles: ['USER'], scopes: [], mfa_enrolled: enrolled }] };
     if (sql.includes('INSERT INTO audit_logs') && failAudit) throw new Error('audit unavailable');
     return { rows: [], rowCount: 1 };
   });
@@ -20,6 +20,13 @@ function setup(sessionOverrides: Record<string, unknown> = {}, failAudit = false
   return { query, release, signAsync, service: new AuthService({ connect: async () => ({ query, release }) } as unknown as Pool, { signAsync } as unknown as JwtService) };
 }
 describe('refresh rotation audit and replay boundaries', () => {
+  it('refuses a retired MFA refresh cookie without revoking current verified sessions', async () => {
+    const { service, query, signAsync } = setup({ revoked_at: new Date(), mfa_token_version: null }, false, true);
+    await expect(service.refresh(`${id}.${secret}`)).rejects.toMatchObject({ response: { code: 'SESSION_INVALID' } });
+    expect(query.mock.calls.some(([sql]) => /^(INSERT|UPDATE)/.test(sql))).toBe(false);
+    expect(signAsync).not.toHaveBeenCalled();
+  });
+
   it('rejects a wrong secret without revoking any sessions or attributing a replay to the owner', async () => {
     const { service, query, release } = setup();
     await expect(service.refresh(`${id}.wrong-secret`)).rejects.toMatchObject({ status: 401 });

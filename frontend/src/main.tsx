@@ -8,6 +8,7 @@ import { WorkspaceErrorBoundary } from './WorkspaceErrorBoundary';
 import { applyMotionTokens } from './routeMotion';
 import { AcceptInvitation, captureAccountActionLink, ForgotPassword, ResetPassword } from './AccountActionScreen';
 import './styles.css';
+import './mfa.css';
 
 applyMotionTokens(document.documentElement);
 captureAccountActionLink();

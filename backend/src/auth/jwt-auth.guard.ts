@@ -15,10 +15,13 @@ export class JwtAuthGuard implements CanActivate {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     if (type !== 'Bearer' || !token) throw new UnauthorizedException({ code: 'AUTH_REQUIRED', message: 'Bạn cần đăng nhập để tiếp tục.' });
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: string; tokenVersion: number }>(token);
+      const payload = await this.jwt.verifyAsync<{ sub: string; tokenVersion: number; mfaVerified?: boolean }>(token);
       const user = await this.auth.getUserById(payload.sub);
       if (payload.tokenVersion !== user.tokenVersion) {
         throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Phiên đăng nhập đã bị thu hồi.' });
+      }
+      if (user.mfaRequired && payload.mfaVerified !== true) {
+        throw new UnauthorizedException({ code: 'MFA_REQUIRED', message: 'Hãy đăng nhập lại để xác thực hai bước.' });
       }
       request.user = user;
       if (user.mustChangePassword && !this.reflector.getAllAndOverride<boolean>('allowPasswordChange', [context.getHandler(), context.getClass()])) {

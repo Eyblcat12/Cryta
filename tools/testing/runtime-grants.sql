@@ -26,14 +26,16 @@ BEGIN
       LATERAL aclexplode(COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 's'::"char" ELSE 'r'::"char" END,c.relowner))) acl
     WHERE n.nspname='public' AND c.relname IN ('departments','roles','policies','users','user_roles',
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
-      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits','schema_migrations','audit_logs_id_seq')
+      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
+      'auth_mfa','auth_mfa_challenges','schema_migrations','audit_logs_id_seq')
       AND acl.grantee=0
   ) OR EXISTS (
     SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace,
       LATERAL aclexplode(a.attacl) acl
     WHERE n.nspname='public' AND c.relname IN ('departments','roles','policies','users','user_roles',
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
-      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits','schema_migrations') AND acl.grantee=0
+      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
+      'auth_mfa','auth_mfa_challenges','schema_migrations') AND acl.grantee=0
   ) OR EXISTS (
     SELECT 1 FROM pg_database d,LATERAL aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) acl
     WHERE d.datname=current_database() AND acl.grantee=0 AND acl.privilege_type='CREATE'
@@ -55,7 +57,7 @@ REVOKE ALL ON DATABASE :"database" FROM :"runtime_role";
 REVOKE ALL ON SCHEMA public FROM :"runtime_role";
 REVOKE ALL ON departments,roles,policies,users,user_roles,approver_scopes,auth_sessions,
   policy_versions,crypto_assets,cryptographic_keys,certificates,requests,request_decisions,
-  provider_operations,audit_logs,notifications,account_actions,account_action_limits,schema_migrations FROM :"runtime_role";
+  provider_operations,audit_logs,notifications,account_actions,account_action_limits,auth_mfa,auth_mfa_challenges,schema_migrations FROM :"runtime_role";
 REVOKE ALL ON SEQUENCE audit_logs_id_seq FROM :"runtime_role";
 DO $columns$
 DECLARE column_acl RECORD;
@@ -65,7 +67,8 @@ BEGIN
       JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='public' AND c.relname IN ('departments','roles','policies','users','user_roles',
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
-      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits','schema_migrations')
+      'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
+      'auth_mfa','auth_mfa_challenges','schema_migrations')
       AND a.attnum>0 AND NOT a.attisdropped AND a.attacl IS NOT NULL
   LOOP
     EXECUTE format('REVOKE ALL (%I) ON TABLE public.%I FROM %I',column_acl.attname,column_acl.relname,current_setting('crypta.grants_runtime_role'));
@@ -78,11 +81,15 @@ GRANT CONNECT ON DATABASE :"database" TO :"runtime_role";
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT ON departments,roles,policies,users,user_roles,approver_scopes,auth_sessions,
   policy_versions,crypto_assets,cryptographic_keys,certificates,requests,request_decisions,
-  provider_operations,audit_logs,notifications,account_actions,account_action_limits,schema_migrations TO :"runtime_role";
+  provider_operations,audit_logs,notifications,account_actions,account_action_limits,auth_mfa,auth_mfa_challenges,schema_migrations TO :"runtime_role";
 GRANT INSERT ON departments,users,user_roles,approver_scopes,auth_sessions,policy_versions,crypto_assets,
   cryptographic_keys,certificates,requests,request_decisions,provider_operations,audit_logs,notifications,account_actions,account_action_limits TO :"runtime_role";
 GRANT INSERT(code,name) ON policies TO :"runtime_role";
 GRANT DELETE ON user_roles,approver_scopes,account_action_limits TO :"runtime_role";
+GRANT INSERT ON auth_mfa,auth_mfa_challenges TO :"runtime_role";
+GRANT DELETE ON auth_mfa_challenges TO :"runtime_role";
+GRANT UPDATE(credential_id,sealed_secret,last_step,recovery_hashes,failed_attempts,locked_until) ON auth_mfa TO :"runtime_role";
+GRANT UPDATE(token_hash,token_version,purpose,expires_at,pending_id,pending_secret,pending_step,pending_hashes) ON auth_mfa_challenges TO :"runtime_role";
 GRANT UPDATE(password_hash,must_change_password,token_version,failed_login_attempts,locked_until,last_login_at,status,department_id,invitation_pending) ON users TO :"runtime_role";
 GRANT UPDATE(code,name,is_active,version) ON departments TO :"runtime_role";
 GRANT UPDATE(used_at,revoked_at) ON account_actions TO :"runtime_role";

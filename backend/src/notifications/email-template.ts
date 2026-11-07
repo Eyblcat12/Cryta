@@ -109,3 +109,16 @@ export function passwordResetCompletedEmail(recipientName: string, config: Email
     footer: 'Nếu bạn không thực hiện thay đổi này, hãy liên hệ quản trị viên ngay.',
   });
 }
+
+export function mfaSecurityChangedEmail(recipientName: string, occurredAt: Date | string | null, config: EmailConfiguration): EmailMessage {
+  const occurred = dateLabel(occurredAt, config);
+  return message({
+    title: 'Cập nhật xác thực hai bước trong Crypta',
+    description: 'Tài khoản của bạn vừa có thao tác thiết lập, thay ứng dụng xác thực, khôi phục quyền truy cập hoặc tạo bộ mã khôi phục mới.',
+    recipientName,
+    actionUrl: config.appUrl,
+    actionLabel: 'Mở Crypta',
+    details: occurred ? [['Thời gian', occurred]] : [],
+    footer: 'Nếu bạn không thực hiện thao tác này, hãy liên hệ quản trị viên ngay.',
+  });
+}

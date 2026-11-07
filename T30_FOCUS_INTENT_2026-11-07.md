@@ -11,6 +11,7 @@ Callback đưa focus về tiêu đề có thể chạy sau khi người dùng đ
 - Frontend build, 147/147 unit và lint đạt.
 - Bộ PostgreSQL/API/Nginx/Chromium đạt 39/39 nhóm. Ca mới giữ callback focus của cả hàng chờ và chi tiết, cho chúng chạy ngay lúc nút nhận focus, rồi dùng Enter. Trang chi tiết và hộp từ chối đều mở. Escape trả focus về đúng nút. [Kết quả](tools/test-artifacts/integration/crypta-t30-test-9786d0438cb1/real-chromium-1794028167952/results.json)
 - Hai ca từ chối ở 1440 px sáng và 390 px tối đạt. Stack được dọn sau lượt kiểm. [Stack](tools/test-artifacts/integration/crypta-t30-test-9786d0438cb1/report.json)
+- GitHub Actions trên commit `7a02147` đạt đủ năm job và 160/160 nhóm tích hợp. Ca bàn phím mới thả hai callback và cả hai ca từ chối đều đạt trên Ubuntu. Artifact xác nhận stack đã được dọn. [Workflow](https://github.com/Eyblcat12/Cryta/actions/runs/42342227754) · [Digest](docs/CI_REMOTE_2026-11-07.md)
 
 Lượt CI trước sửa có 37/38 nhóm Chromium, lỗi khi tìm nút Từ chối. Các bộ quyền runtime 49/49, ledger 11/11, worker 27/27, expiry 19/19 và email 11/11 cùng lượt đã đạt. [CI a144b43](https://github.com/Eyblcat12/Cryta/actions/runs/42339612363)
 

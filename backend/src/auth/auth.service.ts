@@ -6,12 +6,14 @@ import type { Pool, PoolClient } from 'pg';
 import type { AuthUser, RoleCode } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
 import { auditMetadata } from '../audit/audit-context';
+import { MfaService, mfaChallengeExpired, mfaInvalidCode, requiresMfa, type MfaPurpose } from './mfa.service';
 
-type UserRow = { id: string; email: string; display_name: string; department_id: string; department_name: string; token_version: number; password_hash: string; status: string; failed_login_attempts:number;locked_until:Date|null;must_change_password:boolean;roles: RoleCode[] | null; scopes: string[] | null };
+type UserRow = { id: string; email: string; display_name: string; department_id: string; department_name: string; token_version: number; password_hash: string; status: string; failed_login_attempts:number;locked_until:Date|null;must_change_password:boolean;roles: RoleCode[] | null; scopes: string[] | null; mfa_enrolled: boolean };
 type SessionContext = { ipAddress?: string; userAgent?: string };
 
 @Injectable()
 export class AuthService {
+  private readonly mfa = new MfaService();
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool, private readonly jwt: JwtService) {}
 
   async login(email: string, password: string, context: SessionContext = {}) {
@@ -30,11 +32,15 @@ export class AuthService {
         throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
       }
       const user = this.toAuthUser(current);
-      const refreshToken = await this.createSession(client, user.id, context);
-      await client.query('UPDATE users SET last_login_at=NOW(),failed_login_attempts=0,locked_until=NULL WHERE id=$1', [user.id]);
-      await this.appendAuthAudit(client, user.id, 'LOGIN_SUCCESS', 'SUCCESS');
+      if (user.mfaRequired) {
+        const challenge = await this.mfa.start(client, user, user.mfaEnrolled ? 'VERIFY' : 'ENROLL');
+        await client.query('UPDATE users SET failed_login_attempts=0,locked_until=NULL WHERE id=$1', [user.id]);
+        await client.query('COMMIT');
+        return challenge;
+      }
+      const result = await this.loginSession(client, user, context, false);
       await client.query('COMMIT');
-      return { ...await this.issueAccessToken(user), refreshToken };
+      return result;
     } catch (error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
   }
@@ -53,10 +59,14 @@ export class AuthService {
       // Lock user before session, matching password/access/status changes. Recheck the
       // session after waiting, so rotation cannot escape another transaction's revocation.
       await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [owner.user_id]);
-      const found = await client.query<{ user_id: string; token_hash: string; expires_at: Date; revoked_at: Date | null }>('SELECT user_id, token_hash, expires_at, revoked_at FROM auth_sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+      const found = await client.query<{ user_id: string; token_hash: string; expires_at: Date; revoked_at: Date | null; mfa_token_version: number | null }>('SELECT user_id, token_hash, expires_at, revoked_at, mfa_token_version FROM auth_sessions WHERE id = $1 FOR UPDATE', [sessionId]);
       const session = found.rows[0];
       // A guessed session UUID with a wrong secret must not revoke another user's sessions.
       if (!session || session.token_hash !== this.hash(secret)) throw this.invalidSession();
+      const user = await this.getUserById(session.user_id, client);
+      const verified = session.mfa_token_version === user.tokenVersion;
+      // Credentials retired by MFA enrollment or replacement must not revoke the new sessions.
+      if (user.mfaRequired && !verified) throw this.invalidSession();
       if (session.revoked_at || session.expires_at <= new Date()) {
         await client.query('UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, NOW()) WHERE user_id = $1', [session.user_id]);
         await this.appendAuthAudit(client, session.user_id, 'SESSION_REPLAY_REJECTED', 'DENIED');
@@ -64,15 +74,126 @@ export class AuthService {
         committed = true;
         throw this.invalidSession();
       }
-      const user = await this.getUserById(session.user_id, client);
-      const nextToken = await this.createSession(client, user.id, context);
+      const nextToken = await this.createSession(client, user, context, verified);
       await client.query('UPDATE auth_sessions SET revoked_at = NOW(), last_used_at = NOW(), replaced_by = $2 WHERE id = $1', [sessionId, nextToken.split('.')[0]]);
       await this.appendAuthAudit(client, user.id, 'SESSION_REFRESHED', 'SUCCESS');
       await client.query('COMMIT');
       committed = true;
-      return { ...await this.issueAccessToken(user), refreshToken: nextToken };
+      return { ...await this.issueAccessToken(user, verified), refreshToken: nextToken };
     } catch (error) { if (!committed) await client.query('ROLLBACK').catch(() => undefined); throw error; }
     finally { client.release(); }
+  }
+
+  async verifyMfaLogin(challenge: string, code: string, context: SessionContext) {
+    return this.withMfaChallenge(challenge, ['VERIFY'], async (client, user) => {
+      if (!await this.mfa.verifyCurrent(client, user.id, code, await this.mfa.factor(client, user.id))) return null;
+      await this.mfa.consume(client, user.id);
+      return this.loginSession(client, user, context, true);
+    });
+  }
+
+  async recoverMfa(challenge: string, code: string) {
+    return this.withMfaChallenge(challenge, ['VERIFY'], async (client, user) => {
+      if (!await this.mfa.useRecoveryCode(client, user.id, code, await this.mfa.factor(client, user.id))) return null;
+      const tokenVersion = await this.revokeMfaSessions(client, user.id);
+      await this.appendAuthAudit(client, user.id, 'MFA_RECOVERY_STARTED', 'SUCCESS');
+      await this.queueMfaAlert(client, user.id);
+      return this.mfa.start(client, { ...user, tokenVersion }, 'RECOVER');
+    });
+  }
+
+  async verifyMfaEnrollment(challenge: string, code: string) {
+    return this.withMfaChallenge(challenge, ['ENROLL', 'RECOVER', 'REPLACE'], async (client, user, row) => {
+      await this.mfa.factor(client, user.id);
+      const recoveryCodes = await this.mfa.verifyEnrollment(client, row, code);
+      return recoveryCodes ? { recoveryCodes } : null;
+    });
+  }
+
+  async finishMfaEnrollment(challenge: string, context: SessionContext) {
+    return this.withMfaChallenge(challenge, ['ENROLL', 'RECOVER', 'REPLACE'], async (client, user, row) => {
+      await this.mfa.factor(client, user.id);
+      await this.mfa.activate(client, row);
+      const tokenVersion = await this.revokeMfaSessions(client, user.id);
+      await this.appendAuthAudit(client, user.id, row.purpose === 'ENROLL' ? 'MFA_ENROLLED' : 'MFA_FACTOR_CHANGED', 'SUCCESS');
+      await this.queueMfaAlert(client, user.id);
+      return this.loginSession(client, { ...user, tokenVersion, mfaEnrolled: true, mfaRequired: true }, context, true);
+    });
+  }
+
+  async mfaStatus(actor: AuthUser) {
+    const client = await this.pool.connect();
+    try { return await this.mfa.remainingCodes(client, actor.id); }
+    finally { client.release(); }
+  }
+
+  async stepUpMfa(actor: AuthUser, password: string, code: string, purpose: 'CODES' | 'REPLACE') {
+    return this.mfaTransaction(async client => {
+      const row = await this.lockUser(client, actor.id);
+      if (row.token_version !== actor.tokenVersion || !row.mfa_enrolled || row.must_change_password) throw this.invalidSession();
+      const factor = await this.mfa.factor(client, actor.id);
+      if (!await compare(password, row.password_hash) || !await this.mfa.verifyCurrent(client, actor.id, code, factor)) {
+        return this.failedMfa(client, actor.id);
+      }
+      if (purpose === 'REPLACE') return this.mfa.start(client, actor, 'REPLACE');
+      const recoveryCodes = await this.mfa.rotateRecoveryCodes(client, actor.id, factor);
+      await this.appendAuthAudit(client, actor.id, 'MFA_RECOVERY_CODES_ROTATED', 'SUCCESS');
+      await this.queueMfaAlert(client, actor.id);
+      return { recoveryCodes };
+    });
+  }
+
+  private async withMfaChallenge<T>(challenge: string, purposes: MfaPurpose[], operation: (client: PoolClient, user: AuthUser, row: Awaited<ReturnType<MfaService['challenge']>>) => Promise<T | null>) {
+    return this.mfaTransaction(async client => {
+      const id = await this.mfa.owner(client, challenge);
+      if (!id) throw mfaChallengeExpired();
+      const user = this.toAuthUser(await this.lockUser(client, id));
+      if (!user.mfaRequired) throw mfaChallengeExpired();
+      const row = await this.mfa.challenge(client, user, challenge, purposes);
+      const result = await operation(client, user, row);
+      return result === null ? this.failedMfa(client, id) : result;
+    });
+  }
+
+  private async lockUser(client: PoolClient, id: string) {
+    await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [id]);
+    const row = (await client.query<UserRow>(this.userQuery('u.id = $1'), [id])).rows[0];
+    if (!row || row.status !== 'ACTIVE') throw mfaChallengeExpired();
+    return row;
+  }
+
+  private async mfaTransaction<T>(operation: (client: PoolClient) => Promise<T | UnauthorizedException>): Promise<T> {
+    const client = await this.pool.connect();
+    let result: T | UnauthorizedException;
+    try {
+      await client.query('BEGIN');
+      result = await operation(client);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally { client.release(); }
+    // Preserve failure counters and audit even when the HTTP response is a denial.
+    if (result instanceof UnauthorizedException) throw result;
+    return result;
+  }
+
+  private async failedMfa(client: PoolClient, id: string) {
+    await this.mfa.recordFailure(client, id);
+    await this.appendAuthAudit(client, id, 'MFA_VERIFICATION_DENIED', 'DENIED');
+    return mfaInvalidCode();
+  }
+
+  private async revokeMfaSessions(client: PoolClient, id: string) {
+    const result = await client.query<{ token_version: number }>('UPDATE users SET token_version=token_version+1 WHERE id=$1 RETURNING token_version', [id]);
+    await client.query('UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=$1', [id]);
+    return result.rows[0].token_version;
+  }
+
+  private async queueMfaAlert(client: PoolClient, id: string) {
+    if (process.env.SMTP_ENABLED !== 'true') return;
+    await client.query(`INSERT INTO notifications (recipient_id,type,channel,deduplication_key)
+      VALUES ($1,'MFA_SECURITY_CHANGED','EMAIL',$2)`, [id, `mfa-security:${randomUUID()}`]);
   }
 
   async logout(rawToken: string | undefined, actorId?: string) {
@@ -107,15 +228,27 @@ export class AuthService {
   }
 
   private async findUserByEmail(email: string) { return (await this.pool.query<UserRow>(this.userQuery('LOWER(u.email) = LOWER($1)'), [email.trim()])).rows[0]; }
-  private userQuery(where: string) { return `SELECT u.id,u.email,u.display_name,u.department_id,d.name AS department_name,u.token_version,u.password_hash,u.status,u.failed_login_attempts,u.locked_until,u.must_change_password,COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL),'{}') AS roles,COALESCE(array_agg(DISTINCT s.department_id::text) FILTER (WHERE s.department_id IS NOT NULL),'{}') AS scopes FROM users u JOIN departments d ON d.id=u.department_id LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id LEFT JOIN approver_scopes s ON s.user_id=u.id WHERE ${where} GROUP BY u.id,d.id`; }
-  private async issueAccessToken(user: AuthUser) { return { accessToken: await this.jwt.signAsync({ sub: user.id, email: user.email, tokenVersion: user.tokenVersion }), tokenType: 'Bearer', expiresIn: process.env.JWT_ACCESS_TTL ?? '15m', user }; }
-  private async createSession(client: PoolClient, userId: string, context: SessionContext) {
+  private userQuery(where: string) { return `SELECT u.id,u.email,u.display_name,u.department_id,d.name AS department_name,u.token_version,u.password_hash,u.status,u.failed_login_attempts,u.locked_until,u.must_change_password,COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL),'{}') AS roles,COALESCE(array_agg(DISTINCT s.department_id::text) FILTER (WHERE s.department_id IS NOT NULL),'{}') AS scopes,EXISTS(SELECT 1 FROM auth_mfa m WHERE m.user_id=u.id AND m.credential_id IS NOT NULL) AS mfa_enrolled FROM users u JOIN departments d ON d.id=u.department_id LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id LEFT JOIN approver_scopes s ON s.user_id=u.id WHERE ${where} GROUP BY u.id,d.id`; }
+  private async issueAccessToken(user: AuthUser, mfaVerified: boolean) { return { accessToken: await this.jwt.signAsync({ sub: user.id, email: user.email, tokenVersion: user.tokenVersion, ...(mfaVerified && { mfaVerified: true }) }), tokenType: 'Bearer', expiresIn: process.env.JWT_ACCESS_TTL ?? '15m', user }; }
+  private async loginSession(client: PoolClient, user: AuthUser, context: SessionContext, mfaVerified: boolean) {
+    const refreshToken = await this.createSession(client, user, context, mfaVerified);
+    await client.query('UPDATE users SET last_login_at=NOW(),failed_login_attempts=0,locked_until=NULL WHERE id=$1', [user.id]);
+    await this.appendAuthAudit(client, user.id, 'LOGIN_SUCCESS', 'SUCCESS');
+    return { ...await this.issueAccessToken(user, mfaVerified), refreshToken };
+  }
+  private async createSession(client: PoolClient, user: AuthUser, context: SessionContext, mfaVerified: boolean) {
     const id = randomUUID(), secret = randomBytes(48).toString('base64url'), days = Math.max(1, Number(process.env.JWT_REFRESH_TTL_DAYS ?? 30));
-    await client.query(`INSERT INTO auth_sessions (id,user_id,token_hash,user_agent,ip_address,expires_at) VALUES ($1,$2,$3,$4,$5,NOW()+($6 || ' days')::interval)`, [id,userId,this.hash(secret),context.userAgent?.slice(0,500)??null,context.ipAddress??null,days]);
+    await client.query(`INSERT INTO auth_sessions (id,user_id,token_hash,user_agent,ip_address,expires_at,mfa_token_version) VALUES ($1,$2,$3,$4,$5,NOW()+($6 || ' days')::interval,$7)`, [id,user.id,this.hash(secret),context.userAgent?.slice(0,500)??null,context.ipAddress??null,days,mfaVerified?user.tokenVersion:null]);
     return `${id}.${secret}`;
   }
   private hash(value: string) { return createHash('sha256').update(value).digest('hex'); }
   private invalidSession() { return new UnauthorizedException({ code: 'SESSION_INVALID', message: 'Phiên đăng nhập không còn hợp lệ.' }); }
-  private toAuthUser(row: UserRow): AuthUser { return { id: row.id,email: row.email,displayName: row.display_name,departmentId: row.department_id,departmentName: row.department_name,tokenVersion: row.token_version,roles: row.roles??[],approverDepartmentIds: row.scopes??[],mustChangePassword:row.must_change_password,...(process.env.ACCOUNT_ACTIONS_ENABLED==='true'&&{accountActionsEnabled:true}) }; }
+  private toAuthUser(row: UserRow): AuthUser {
+    const roles = row.roles ?? [], enrolled = row.mfa_enrolled === true;
+    return { id: row.id,email: row.email,displayName: row.display_name,departmentId: row.department_id,departmentName: row.department_name,tokenVersion: row.token_version,roles,approverDepartmentIds: row.scopes??[],mustChangePassword:row.must_change_password,
+      ...(requiresMfa(roles, enrolled, row.must_change_password) && { mfaRequired: true }),
+      ...(enrolled && { mfaEnrolled: true }),
+      ...(process.env.ACCOUNT_ACTIONS_ENABLED==='true'&&{accountActionsEnabled:true}) };
+  }
   private appendAuthAudit(queryable: Pick<Pool,'query'>|Pick<PoolClient,'query'>, actorId: string, action: string, outcome: string) { return queryable.query(`INSERT INTO audit_logs (actor_id,actor_type,action,entity_type,entity_id,outcome,metadata) VALUES ($1::uuid,'USER',$2,'SESSION',$1::text,$3,$4::jsonb)`,[actorId,action,outcome,JSON.stringify(auditMetadata())]); }
 }

@@ -4,7 +4,7 @@ import type { Pool } from 'pg';
 import { DrainablePoll } from '../common/drainable-poll';
 import { DATABASE_POOL } from '../database/database.constants';
 import { OperationsMetricsService } from '../operations/operations-metrics.service';
-import { accountEmail, emailConfiguration, notificationEmail, passwordResetCompletedEmail } from './email-template';
+import { accountEmail, emailConfiguration, mfaSecurityChangedEmail, notificationEmail, passwordResetCompletedEmail } from './email-template';
 import { deriveAccountActionToken, matchesAccountActionHash, readAccountActionKey, type AccountActionPurpose } from '../auth/account-action-token';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
 
@@ -150,6 +150,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
       if(!eligible.rowCount)throw new Error('ASSET_ALERT_RECIPIENT_NO_LONGER_ELIGIBLE');
     }
     if (job.type === 'PASSWORD_RESET_COMPLETED') return passwordResetCompletedEmail(job.recipient_name, config);
+    if (job.type === 'MFA_SECURITY_CHANGED') return mfaSecurityChangedEmail(job.recipient_name, job.created_at ?? null, config);
     if (job.type === 'INVITATION' || job.type === 'PASSWORD_RESET') {
       if (process.env.ACCOUNT_ACTIONS_ENABLED !== 'true') throw new Error('ACCOUNT_ACTIONS_DISABLED');
       const result = await this.pool.query<AccountDelivery>(`SELECT a.id,a.user_id,a.purpose,a.token_hash,a.created_at,a.expires_at
