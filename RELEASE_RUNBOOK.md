@@ -32,6 +32,14 @@ docker compose --env-file $taskConfigPath -f docker-compose.production.yml up -d
 docker compose --env-file $taskConfigPath -f docker-compose.production.yml ps
 ```
 
+Chạy smoke từ máy operator qua điểm vào HTTPS mà người dùng sẽ truy cập. Thay URL ví dụ bằng `APP_ORIGIN` của môi trường. Nếu proxy dùng CA nội bộ, cấp CA công khai đã xác minh qua `NODE_EXTRA_CA_CERTS` trước khi chạy Node. Smoke chỉ đọc, dùng URL cố định không chứa thông tin đăng nhập và trả mã thoát khác 0 khi có lỗi.
+
+```powershell
+node tools/smoke-deployment.cjs https://crypta.example.org
+```
+
+Smoke kiểm liveness, readiness của PostgreSQL, trang SPA qua URL sâu, chính sách referrer của hai luồng tài khoản, MIME của JS/CSS và HTTP 404 cho chunk mất và API lạ. Đối chiếu image/digest với manifest riêng trước khi mở lưu lượng.
+
 ## Khởi tạo Admin đầu tiên
 
 Giữ API chưa chạy trong bước cấp tài khoản đầu tiên. Điền [mẫu operator](deploy/bootstrap-admin.env.example) vào tệp được bảo vệ và ghi nhận người duyệt. `BOOTSTRAP_DATABASE_NAME` phải trùng tên database đích. `DATABASE_URL_FILE` chứa URL của migrator/owner với tham số duy nhất `sslmode=verify-full`. Nếu dùng migrator LOGIN tách biệt, đặt `DATABASE_MIGRATION_OWNER_ROLE` thành owner NOLOGIN đã cấp quyền chuyển role.
@@ -63,9 +71,9 @@ Thành công trả mã 0 với `BOOTSTRAP_ADMIN_CREATED`. Lệnh chạy lại tr
 
 ## Nâng cấp và xác nhận dịch vụ
 
-1. Chạy CLI migration của đúng image mới với credential migrator. Chờ exit 0. Kiểm 20 dòng ledger, checksum, `indisvalid` của `public.idx_audit_text_trgm` và các trigger `trg_key_asset_identity`, `trg_sensitive_request_approval`. Áp lại quyền runtime để cấp quyền giới hạn cho các bảng MFA và thu hồi UPDATE cột `policy_versions.id`. Trên database demo, đối chiếu ba khóa mẫu và chứng thư `CRT-FIN-ACTIVE` với phạm vi MOCK. Trên database thật, xác minh mapping từng tài sản theo bằng chứng từ provider. Tài sản nhập cũ thiếu bằng chứng tiếp tục ở trạng thái phạm vi provider chưa xác minh. [Điều kiện migration](DATABASE_MIGRATIONS.md) · [Cấu hình MFA](docs/MFA_X01.md)
+1. Chạy CLI migration của đúng image mới với credential migrator. Chờ exit 0. Đối chiếu phiên bản và checksum trong ledger bằng validator của image đó. Kiểm `indisvalid` của các chỉ mục mới và các trigger `trg_key_asset_identity`, `trg_sensitive_request_approval`. Rà và áp lại template quyền runtime của cùng commit. Trên database demo, đối chiếu ba khóa mẫu và chứng thư `CRT-FIN-ACTIVE` với phạm vi MOCK. Trên database thật, xác minh mapping từng tài sản theo bằng chứng từ provider. Tài sản nhập cũ thiếu bằng chứng tiếp tục ở trạng thái phạm vi provider chưa xác minh. [Điều kiện migration và template quyền](DATABASE_MIGRATIONS.md)
 2. Khởi động API với credential runtime và `DATABASE_MIGRATION_MODE=validate`. Kiểm `/api/v1/health/live` và `/api/v1/health/ready` qua điểm vào sẽ dùng. Kiểm lỗi startup, job và queue trước khi mở ghi. Migration lỗi hoặc API chưa ready thì giữ cửa sổ bảo trì.
-3. Qua proxy, kiểm JS/CSS thuộc đúng bản build và có đúng MIME. Yêu cầu thử một URL chunk đã mất và một API không tồn tại. Chunk phải trả HTTP 404 và API phải trả JSON với HTTP 404. Mở trực tiếp URL chi tiết tài sản để kiểm trang SPA vẫn tải. Kiểm login theo vai trò, tra tài sản và lịch sử, tra audit và luồng được chọn trong smoke. Dùng người nhận/provider được cấp phép cho kiểm thử có tác động. Đối chiếu số liệu trước/sau và dấu hiệu monitor.
+3. Chạy `node tools/smoke-deployment.cjs <APP_ORIGIN>` qua proxy HTTPS. Tiếp tục kiểm login theo vai trò, tra tài sản và lịch sử, tra audit và luồng nghiệp vụ đã chọn. Dùng người nhận/provider được cấp phép cho kiểm thử có tác động. Đối chiếu số liệu trước/sau và dấu hiệu monitor.
 4. Mở lại lưu lượng theo kế hoạch triển khai. Ghi thời gian migrate, restart, smoke và kết quả. Giữ backup trước nâng cấp tới khi hết cửa sổ rollback đã thống nhất.
 
 ## Chọn phương án phục hồi
