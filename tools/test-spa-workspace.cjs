@@ -8,6 +8,11 @@ const origin = process.env.CRYPTA_UI_TEST_URL || 'http://127.0.0.1:4173';
 const output = path.resolve(process.env.CRYPTA_UI_TEST_OUTPUT||path.join(__dirname,'test-artifacts','spa',process.env.CRYPTA_TEST_BROWSER==='chrome'?'chrome':''));
 const results=[];
 const testFilter=process.env.CRYPTA_UI_TEST_FILTER??'';
+const motionMode=process.env.CRYPTA_UI_TEST_MOTION??'on';
+assert.ok(['on','off'].includes(motionMode),'Use CRYPTA_UI_TEST_MOTION=on or off for the matching frontend build.');
+const motionEnabled=motionMode==='on';
+const routeAnimationCount=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>
+  requestAnimationFrame(()=>resolve(window.__routeAnimations)))));
 const assets=Array.from({length:320},(_,i)=>({id:`asset-${i+1}`,code:`ASSET-${String(i+1).padStart(4,'0')}`,purpose:`Tài sản ${i+1}`,type:'KEY',status:i%7===0?'EXPIRED':'ACTIVE',algorithm:'RSA',keySize:2048,expiresAt:'2027-09-30T00:00:00Z',providerReference:`mock/${i+1}`,publicKeyFingerprint:'public-fingerprint',policyVersionId:'version-1',policyCode:'RSA',version:3,ownerId:'session-USER',departmentId:'department-1',ownerName:'Người dùng mẫu',departmentName:'Đơn vị mẫu'}));
 const requests=Array.from({length:75},(_,i)=>({id:`request-${i+1}`,reason:`Yêu cầu kiểm thử ${i+1}`,type:'CREATE',status:i%3===0?'PENDING':'COMPLETED',submittedAt:'2026-09-30T01:00:00Z',creatorId:'session-USER',departmentId:'department-1',creatorName:'Người gửi mẫu',departmentName:'Đơn vị mẫu',version:7,emergency:i%6===0}));
 const policy={id:'version-1',policyId:'policy-1',name:'Chính sách RSA',code:'RSA',version:1,configuration:{algorithm:'RSA',minimum_key_size:2048,maximum_validity_days:365,warning_days:[30,7,1]}};
@@ -279,7 +284,10 @@ if(require.main===module)(async()=>{
       const tokens=await read();assert.deepEqual(tokens.slice(0,3),['120ms','160ms','180ms']);const hoverLink=page.locator('.nav-item').first();assert.equal(await hoverLink.evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0s');await hoverLink.hover();assert.equal(await hoverLink.evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0.12s');await page.mouse.move(0,0);assert.equal(await page.locator('.nav-item-active').evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0s');
       await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();assert.deepEqual(await read(),tokens);await page.getByRole('button',{name:'Thêm người dùng'}).click();const form=page.getByRole('dialog');assert.equal(await form.evaluate(element=>getComputedStyle(element).animationDuration),'0.18s');await form.getByRole('button',{name:'Hủy',exact:true}).click();
       await page.evaluate(()=>{const original=Element.prototype.animate;Element.prototype.animate=function(...args){const animation=original.apply(this,args);if(this.id==='main-content')window.__tokenRouteAnimation=animation;return animation}});
-      await page.getByRole('link',{name:'Chính sách',exact:true}).click();await page.waitForFunction(()=>!!window.__tokenRouteAnimation);const duration=await page.evaluate(()=>window.__tokenRouteAnimation.effect.getTiming().duration);assert.equal(duration,parseFloat(tokens[1]));
+      await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');
+      assert.equal(await routeAnimationCount(page),Number(motionEnabled));
+      const duration=await page.evaluate(()=>window.__tokenRouteAnimation?.effect.getTiming().duration ?? null);
+      assert.equal(duration,motionEnabled?parseFloat(tokens[1]):null);
     }));
     for(const role of ['USER','APPROVER','ADMIN'])for(const theme of ['light','dark'])for(const width of [1440,1024,768,390])await test(browser,`L-matrix ${role} ${theme} ${width}px preserves shell, focus, reading colors and overflow containment`,()=>withFixture(browser,role,async({page,mutations})=>{
       await page.setViewportSize({width,height:1000});await page.goto(origin+'/dashboard');await page.locator('.resource-region[aria-busy=false]').waitFor();if(theme==='dark')await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();
@@ -356,10 +364,22 @@ if(require.main===module)(async()=>{
     await test(browser,'L/N skip link gives main keyboard focus without changing the workspace route',()=>withFixture(browser,'ADMIN',async({page})=>{
       await page.goto(origin+'/users');await visible(page,'Người dùng và vai trò');const skip=page.getByRole('link',{name:'Bỏ qua điều hướng',exact:true});await skip.focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.activeElement?.id==='main-content');assert.equal(new URL(page.url()).pathname,'/users');await page.keyboard.press('Tab');assert.equal(await page.evaluate(()=>document.activeElement?.textContent?.includes('Mở phân quyền')),true);
     }));
-    await test(browser,'L/N reduced motion changed during a running transition cancels it and subsequent pages stay immediate',()=>withFixture(browser,'ADMIN',async({page})=>{
-      await page.goto(origin+'/dashboard');await visible(page,'Sức khỏe tài sản mật mã');await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#main-content').getAnimations().length>0);
+    await test(browser,'L/N reduced motion changed during navigation cancels enabled motion and subsequent pages stay immediate',()=>withFixture(browser,'ADMIN',async({page})=>{
+      await page.goto(origin+'/dashboard');await visible(page,'Sức khỏe tài sản mật mã');
+      if(motionEnabled)await page.evaluate(()=>{
+        const original=Element.prototype.animate;
+        Element.prototype.animate=function(...args){
+          const animation=original.apply(this,args);
+          if(this.id==='main-content')animation.updatePlaybackRate(0.01);
+          return animation;
+        };
+      });
+      await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();
+      await visible(page,'Người dùng và vai trò');
+      if(motionEnabled)await page.waitForFunction(()=>document.querySelector('#main-content').getAnimations().length>0);
+      assert.equal(await routeAnimationCount(page),Number(motionEnabled));
       await page.emulateMedia({reducedMotion:'reduce'});await page.waitForFunction(()=>document.querySelector('#main-content').getAnimations().length===0);const count=await page.evaluate(()=>window.__routeAnimations);await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');assert.equal(await page.evaluate(()=>window.__routeAnimations),count);assert.equal(await page.locator('#main-content').evaluate(element=>getComputedStyle(element).opacity),'1');
-      await page.emulateMedia({reducedMotion:'no-preference'});await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await visible(page,'Người dùng và vai trò');assert.equal(await page.evaluate(()=>window.__routeAnimations),count+1);
+      await page.emulateMedia({reducedMotion:'no-preference'});await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await visible(page,'Người dùng và vai trò');assert.equal(await routeAnimationCount(page),count+Number(motionEnabled));
     }));
     for(const fallback of ['noAnimation','brokenAnimation'])await test(browser,`L/N ${fallback} still navigates, focuses content and preserves the shell`,()=>withFixture(browser,'ADMIN',async({page})=>{
       await page.goto(origin+'/dashboard');await visible(page,'Sức khỏe tài sản mật mã');await page.locator('.sidebar').evaluate(element=>element.dataset.testIdentity='fallback-shell');await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await visible(page,'Người dùng và vai trò');await page.waitForFunction(()=>document.activeElement?.id==='page-title');await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');assert.equal(await page.locator('#main-content').evaluate(element=>getComputedStyle(element).opacity),'1');assert.equal(await page.locator('.sidebar').getAttribute('data-test-identity'),'fallback-shell');assert.equal(await page.evaluate(()=>performance.getEntriesByType('navigation').length),1);
@@ -395,7 +415,7 @@ if(require.main===module)(async()=>{
       await page.locator('.asset-detail-page').getByRole('button',{name:'Về danh sách',exact:true}).last().click();
       await visible(page,'Hàng chờ cần quyết định');await page.getByRole('button',{name:requestId,exact:true}).waitFor();assert.equal(page.url(),queueUrl);
     },{requestVersion:11,decisionConflict:conflict}));
-    await test(browser,'NAV-27 menu and Back blockers preserve dirty input during a real running page animation',()=>withFixture(browser,'ADMIN',async({page,mutations})=>{
+    await test(browser,'NAV-27 menu and Back blockers preserve dirty input in the selected motion mode',()=>withFixture(browser,'ADMIN',async({page,mutations})=>{
       await page.goto(origin+'/users');await page.getByRole('table').getByText('person1@example.test',{exact:true}).waitFor();
       await page.evaluate(()=>{
         const original=Element.prototype.animate;
@@ -408,22 +428,22 @@ if(require.main===module)(async()=>{
       await page.getByRole('link',{name:'Chính sách',exact:true}).click();await page.getByRole('button',{name:'Tạo phiên bản',exact:true}).click();
       const form=page.getByRole('form',{name:'Tạo phiên bản chính sách'}),field=form.locator('input[type=number]').first();await field.fill('366');
       const running=()=>page.evaluate(()=>{const animation=window.__nav27Animation;return animation instanceof Animation&&animation.playState==='running'&&animation.effect.target.id==='main-content'&&animation.effect.getTiming().duration===160&&animation.currentTime<160});
-      assert.equal(await running(),true);const animations=await page.evaluate(()=>window.__routeAnimations);
+      assert.equal(await running(),motionEnabled);const animations=await routeAnimationCount(page);
+      assert.equal(animations,Number(motionEnabled));
       const checkStayed=async()=>{
         assert.equal(new URL(page.url()).pathname,'/policies');assert.equal(await field.inputValue(),'366');
         assert.equal(await page.locator('.nav-item[href="/policies"]').getAttribute('aria-current'),'page');
-        assert.equal(await page.evaluate(()=>window.__routeAnimations),animations);assert.equal(await running(),true);assert.equal(mutations.length,0);
+        assert.equal(await routeAnimationCount(page),animations);assert.equal(await running(),motionEnabled);assert.equal(mutations.length,0);
       };
       await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).dispatchEvent('click');const blocker=page.getByRole('alertdialog');await blocker.waitFor();
-      assert.equal(await running(),true);await blocker.getByRole('button',{name:'Ở lại',exact:true}).click();await blocker.waitFor({state:'hidden'});await checkStayed();
+      assert.equal(await running(),motionEnabled);await blocker.getByRole('button',{name:'Ở lại',exact:true}).click();await blocker.waitFor({state:'hidden'});await checkStayed();
       await page.waitForFunction(()=>document.activeElement?.closest('form')?.getAttribute('aria-label')==='Tạo phiên bản chính sách');
-      await page.goBack();await blocker.waitFor();assert.equal(await running(),true);await blocker.getByRole('button',{name:'Ở lại',exact:true}).click();await blocker.waitFor({state:'hidden'});await checkStayed();
-      await page.goBack();await blocker.waitFor();assert.equal(await running(),true);await blocker.getByRole('button',{name:'Bỏ thay đổi'}).click();
+      await page.goBack();await blocker.waitFor();assert.equal(await running(),motionEnabled);await blocker.getByRole('button',{name:'Ở lại',exact:true}).click();await blocker.waitFor({state:'hidden'});await checkStayed();
+      await page.goBack();await blocker.waitFor();assert.equal(await running(),motionEnabled);await blocker.getByRole('button',{name:'Bỏ thay đổi'}).click();
       await visible(page,'Người dùng và vai trò');await page.getByRole('table').getByText('person1@example.test',{exact:true}).waitFor();
       assert.equal(await form.count(),0);assert.equal(await page.getByRole('alertdialog').count(),0);
-      assert.equal(await page.evaluate(()=>window.__nav27Animation.playState),'idle');
-      await page.waitForFunction(expected=>window.__routeAnimations===expected,animations+1);
-      assert.equal(await page.evaluate(()=>window.__routeAnimations),animations+1);assert.equal(mutations.length,0);
+      if(motionEnabled)assert.equal(await page.evaluate(()=>window.__nav27Animation.playState),'idle');
+      assert.equal(await routeAnimationCount(page),animations+Number(motionEnabled));assert.equal(mutations.length,0);
       assert.equal(await page.evaluate(()=>performance.getEntriesByType('navigation').length),1);
     }));
     await test(browser,'NAV-28 ten rapid routes followed by logout discard a pending old-account read before another account enters',()=>withFixture(browser,'ADMIN',async({page,state,calls,mutations})=>{
@@ -532,14 +552,16 @@ if(require.main===module)(async()=>{
       const frames=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.setViewportSize({width:1440,height:800});
       await page.goto(origin+'/users?pageSize=10');await page.getByRole('table').getByText('person1@example.test',{exact:true}).waitFor();
-      await page.mouse.move(700,500);await page.mouse.wheel(0,650);await page.waitForFunction(()=>scrollY>500);
+      await page.evaluate(()=>window.scrollTo(0,900));await frames();
       const saved=await page.evaluate(()=>scrollY);await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');await frames();assert.equal(await page.evaluate(()=>scrollY),0);
       let releaseBack,releaseQuery;state.userReadGate=new Promise(resolve=>{releaseBack=resolve});
       try{
         await page.goBack();await visible(page,'Người dùng và vai trò');await page.locator('.table-shell[aria-busy="true"]').waitFor();
-        assert(await page.evaluate(()=>document.documentElement.scrollHeight-innerHeight)<saved,'The pending list must be too short to restore the saved offset.');
+        const pendingRange=await page.evaluate(()=>document.documentElement.scrollHeight-innerHeight);
+        assert(pendingRange<saved,`The pending list scroll range (${pendingRange}) must be below the saved offset (${saved}).`);
         await page.getByRole('link',{name:'Audit Log',exact:true}).click();await page.getByRole('table').locator('tbody tr:not([aria-hidden])').first().waitFor();await frames();
-        assert(await page.evaluate(()=>document.documentElement.scrollHeight-innerHeight)>saved,'The new page must have room for an incorrect stale scroll restoration.');
+        const auditRange=await page.evaluate(()=>document.documentElement.scrollHeight-innerHeight);
+        assert(auditRange>saved,`The audit scroll range (${auditRange}) must exceed the saved offset (${saved}).`);
         assert.equal(await page.evaluate(()=>scrollY),0);state.userReadGate=null;releaseBack();await frames();assert.equal(await page.evaluate(()=>scrollY),0);
         await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await page.getByRole('table').getByText('person1@example.test',{exact:true}).waitFor();
         await page.setViewportSize({width:1440,height:1600});
@@ -765,7 +787,13 @@ if(require.main===module)(async()=>{
       await page.getByLabel('Số dòng mỗi trang').selectOption('20');await page.waitForFunction(()=>new URL(location.href).searchParams.get('pageSize')==='20'||new URL(location.href).searchParams.get('pageSize')===null);await page.getByText(title,{exact:true}).waitFor();assert(calls.some(call=>call.startsWith('GET '+endpoint+'?')&&call.includes('pageSize=20')));
     }));
     await test(browser,'Personal projections remain owner/creator scoped with multiple granted roles',()=>withFixture(browser,'USER',async({page,calls})=>{
-      await page.goto(origin+'/assets');await page.getByRole('button',{name:'ASSET-0020',exact:true}).waitFor();
+      await page.goto(origin+'/assets');
+      await page.getByRole('button',{name:'Vai trò hiện tại: Người phê duyệt'}).click();
+      await page.getByRole('menuitemradio',{name:/Nhân viên/}).click();
+      await page.getByRole('button',{name:'Vai trò hiện tại: Nhân viên'}).waitFor();
+      await page.getByRole('link',{name:/^Tài sản của tôi/}).click();
+      await visible(page,'Tài sản của tôi');
+      await page.getByRole('button',{name:'ASSET-0020',exact:true}).waitFor();
       assert.equal(await page.getByRole('button',{name:'ASSET-0021',exact:true}).count(),0);assert(calls.some(call=>call.startsWith('GET /assets?')&&call.includes('ownedOnly=true')));
       await page.getByRole('link',{name:/Yêu cầu/}).first().click();await visible(page,'Yêu cầu của tôi');await page.locator('.request-item').last().waitFor();
       assert.equal(await page.locator('.request-item').count(),5);assert(calls.some(call=>call.startsWith('GET /requests?')&&call.includes('createdByMe=true')));
@@ -965,7 +993,16 @@ if(require.main===module)(async()=>{
       await page.goto(origin+'/dashboard');await visible(page,'Sức khỏe tài sản mật mã');
       await page.locator('.sidebar').evaluate(el=>el.dataset.testIdentity='persistent-shell');
       await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();
-      await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');
+      let releaseChunk;
+      const chunkGate=new Promise(resolve=>{releaseChunk=resolve});
+      await page.route(/\/assets\/PoliciesPage-[^/]+\.js$/,async route=>{await chunkGate;await route.continue()});
+      try {
+        await page.getByRole('link',{name:'Chính sách',exact:true}).click();
+        await page.getByRole('status').filter({hasText:'Đang tải chính sách…'}).waitFor();
+        await routeAnimationCount(page);
+        assert.equal(await page.locator('#page-title').count(),0);
+      } finally {releaseChunk()}
+      await visible(page,'Chính sách mật mã');
       assert.equal(await page.locator('.sidebar').getAttribute('data-test-identity'),'persistent-shell');
       assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
       await page.waitForFunction(()=>document.activeElement?.id==='page-title');
@@ -1107,16 +1144,15 @@ if(require.main===module)(async()=>{
     await test(browser,'Normal route motion never replays for query or theme changes',()=>withFixture(browser,'USER',async({page})=>{
       // Route entrance starts on the next frame. Observe it before recording
       // the query-only baseline, then allow a frame for any unexpected replay.
-      const countAfterFrame=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>
-        requestAnimationFrame(()=>resolve(window.__routeAnimations)))));
+      const countAfterFrame=()=>routeAnimationCount(page);
       await page.goto(origin+'/assets');await page.getByRole('button',{name:'ASSET-0001',exact:true}).waitFor();assert.equal(await countAfterFrame(),0);
-      await page.getByRole('link',{name:'Tổng quan',exact:true}).click();await visible(page,'Tổng quan tài sản mã hóa');assert.equal(await countAfterFrame(),1);
-      await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();assert.equal(await countAfterFrame(),1);
+      await page.getByRole('link',{name:'Tổng quan',exact:true}).click();await visible(page,'Tổng quan tài sản mã hóa');assert.equal(await countAfterFrame(),Number(motionEnabled));
+      await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();assert.equal(await countAfterFrame(),Number(motionEnabled));
       await page.getByRole('link',{name:/Tài sản của tôi/}).click();await page.getByRole('button',{name:'ASSET-0001',exact:true}).waitFor();
-      const count=await countAfterFrame();assert.equal(count,2);
+      const count=await countAfterFrame();assert.equal(count,2*Number(motionEnabled));
       await page.getByRole('button',{name:'Sau',exact:true}).click();await page.getByRole('button',{name:'ASSET-0026',exact:true}).waitFor();assert.equal(await countAfterFrame(),count);
     }));
-  }finally{const browserVersion=browser.version(),browserChannel=requestedBrowser;await browser.close();const html=await fetch(origin).then(response=>response.text());const buildAssets=[...html.matchAll(/\/assets\/[^\"']+/g)].map(match=>match[0]);await fs.writeFile(path.join(output,testFilter?'results-filtered.json':browserChannel==='msedge'?'results.json':`results-${browserChannel}.json`),JSON.stringify({origin,browserVersion,browserChannel,browserEngine,buildAssets,fixtureOnly:true,testFilter,results},null,2))}
+  }finally{const browserVersion=browser.version(),browserChannel=requestedBrowser;await browser.close();const html=await fetch(origin).then(response=>response.text());const buildAssets=[...html.matchAll(/\/assets\/[^\"']+/g)].map(match=>match[0]);await fs.writeFile(path.join(output,testFilter?'results-filtered.json':browserChannel==='msedge'?'results.json':`results-${browserChannel}.json`),JSON.stringify({origin,browserVersion,browserChannel,browserEngine,buildAssets,fixtureOnly:true,motionMode,testFilter,results},null,2))}
   if(testFilter&&results.length===0)throw new Error('CRYPTA_UI_TEST_FILTER did not match any test.');
   console.log(`${results.filter(result=>result.status==='passed').length}/${results.length} browser regressions passed`);
 })().catch(error=>{console.error(error);process.exitCode=1});

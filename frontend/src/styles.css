@@ -846,6 +846,7 @@ tbody tr:hover { background: var(--surface-hover); }
 .policy-confirm input { flex: 0 0 auto; }
 @media (max-width: 640px) { .policy-history { padding-inline: 16px; } }
 .users-table td { white-space: normal; overflow-wrap: anywhere; }
+#users .users-table td { height: 86px; }
 .table-scroll { position: relative; }
 .table-pending { position: absolute; top: 48px; right: 14px; z-index: 1; border-radius: 4px; background: var(--surface); color: var(--text-muted); font-size: 13px; }
 .table-pending:not(:empty) { padding: 5px 8px; }

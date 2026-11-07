@@ -24,7 +24,7 @@ Users
 import type { ReactNode } from 'react';
 import { NavLink,useNavigate } from 'react-router';
 import { useLocation } from 'react-router';
-import { useEffect,useRef } from 'react';
+import { useEffect,useLayoutEffect,useRef } from 'react';
 import type { UserRole } from './types';
 
 import { Outlet } from 'react-router';
@@ -56,16 +56,23 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
   const location=useLocation();
   const sidebarRef=useRef<HTMLElement>(null);
   const mobileTriggerRef=useRef<HTMLButtonElement>(null);
+  const currentPath=useRef(location.pathname);
+  const menuOpenedAt=useRef<string|null>(null);
+  useLayoutEffect(()=>{currentPath.current=location.pathname},[location.pathname]);
   useEffect(()=>{
+    if(mobileNav)menuOpenedAt.current=currentPath.current;
     const media=window.matchMedia('(max-width: 820px)');
     const update=()=>{
       const sidebar=sidebarRef.current;
       if(!sidebar)return;
+      if(media.matches&&!mobileNav&&sidebar.contains(document.activeElement)&&
+        (menuOpenedAt.current===null||menuOpenedAt.current===currentPath.current)){
+        mobileTriggerRef.current?.focus({preventScroll:true});
+      }
       sidebar.inert=media.matches&&!mobileNav;
-      if(media.matches&&!mobileNav){
-        sidebar.setAttribute('aria-hidden','true');
-        if(sidebar.contains(document.activeElement))mobileTriggerRef.current?.focus({preventScroll:true});
-      }else sidebar.removeAttribute('aria-hidden');
+      if(media.matches&&!mobileNav)sidebar.setAttribute('aria-hidden','true');
+      else sidebar.removeAttribute('aria-hidden');
+      if(!mobileNav)menuOpenedAt.current=null;
       if(!media.matches&&mobileNav)setMobileNav(false);
     };
     update();media.addEventListener('change',update);return()=>{media.removeEventListener('change',update)};
@@ -83,7 +90,7 @@ export function AppShell({ context, theme, setTheme, mobileNav, setMobileNav, ro
       }
     };
     document.addEventListener('keydown',keydown,true);
-    return()=>{window.cancelAnimationFrame(frame);document.removeEventListener('keydown',keydown,true);if(window.matchMedia('(max-width: 820px)').matches&&sidebarRef.current?.contains(document.activeElement))mobileTriggerRef.current?.focus({preventScroll:true})};
+    return()=>{window.cancelAnimationFrame(frame);document.removeEventListener('keydown',keydown,true)};
   },[mobileNav]);
   useEffect(()=>{setMobileNav(false);setRoleMenu(false)},[location.key]);
   const { user, role } = context;

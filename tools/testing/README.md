@@ -119,6 +119,8 @@ Lượt 04/10 bổ sung kiểm tra hai tab dùng chung cookie với Web Locks na
 
 Measurement mặc định tắt cả filmstrip Chrome. Đặt `CRYPTA_MOTION_FILMSTRIP=1` nếu cần filmstrip; phải dùng cùng giá trị ở đối chứng trước/sau. `VITE_ROUTE_MOTION=off` là công tắc build; `CRYPTA_MOTION_OUTPUT` và `CRYPTA_MOTION_REPEATS=3` giữ artifact/ba vòng riêng. Không chạy đo cùng build hoặc browser/DB suite khác.
 
+Khi chạy `test-spa-workspace.cjs`, đặt `CRYPTA_UI_TEST_MOTION=off` cho bản build tắt fade và `on` cho bản build bật. Report ghi chế độ cùng browser và bundle. Cả hai chế độ kiểm giữ bản nháp qua Back, menu và đóng tab, giữ bộ lọc khi đổi query, và giảm chuyển động khi người dùng đổi tùy chọn trong phiên.
+
 Ngày04/10: backend logout sửa format/actor/hashsecret đạt **21/21 nhóm thật mỗi Edge/Chrome**, gồm malformed200, session actor/secret sai được giữ, own session bị thu hồi và logout lặp200. Phase TTL12s2/2 mỗi browser thuộc image trước sửa logout. Generated stack đã dọn và xác minh trigger/function0/0, không còn test container/volume/network, ID vận hành giữ nguyên; [report04/10](../../T30_PROGRESS_2026-10-04_SESSION_PICKER_PERF.md) phân biệt từng image/bundle/phase. Docker lỗi `dockerInference` đã phục hồi qua `docker desktop stop --timeout 30` rồi mở Desktop; socket tự gỡ khi dừng, không factory reset hoặc xóa dữ liệu.
 
 Analyzer ngày04/10 bổ sung union khoảng renderer main trong650ms từ click của từng route. UpdateLayoutTree/Layout/PrePaint/Paint/Layerize được clip và merge, tránh đếm trùng Paint cha/con; FireAnimationFrame có union riêng, có thể trùng render nên không cộng. Report lưu comparison/analyzer SHA-256 và cấu hình/build/scenario; các đại lượng này không phải latency, compositor/GPU hoặc bằng chứng causal acceptance.

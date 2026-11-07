@@ -294,9 +294,19 @@ async function main() {
         resolve(window.__routeAnimationCount);
       })));
       assert.equal(count, 0);
+      await page.setViewportSize({ width: 390, height: 844 });
+      const menu = page.getByRole('button', { name: 'Mở điều hướng', exact: true });
+      await menu.press('Enter');
+      await page.waitForFunction(() => document.activeElement?.closest('.sidebar-open'));
+      const policies = page.getByRole('link', { name: 'Chính sách', exact: true });
+      await policies.press('Enter');
+      await page.waitForURL('**/policies');
+      await page.waitForFunction(() => document.activeElement?.id === 'page-title');
+      assert.equal(await menu.getAttribute('aria-expanded'), 'false');
+      assert.equal(await page.evaluate(() => window.__routeAnimationCount), 0);
       assert.equal(await page.evaluate(() => performance.getEntriesByType('navigation').length), 1);
       assert.deepEqual(errors, []);
-      return { routeAnimations: count, oneDocument: true, pageFocus: true };
+      return { routeAnimations: count, oneDocument: true, pageFocus: true, mobileKeyboardMenu: true };
     } finally { await context.close(); }
   });
   await test('T29: dashboard counters use the email channel and charts use their displayed periods', async () => {
