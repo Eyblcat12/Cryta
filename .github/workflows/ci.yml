@@ -1,4 +1,4 @@
-name: Build and test
+name: CI failure gate proof
 on:
   push:
   pull_request:
@@ -98,11 +98,11 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
         run: node tools/ci/node_modules/playwright/cli.js install --with-deps chromium
-      - name: Verify PostgreSQL, runtime grants, worker and real browser
+      - name: Verify intentional integration failure and cleanup
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
         shell: pwsh
-        run: ./tools/ci/run-integration.ps1
+        run: ./tools/ci/run-integration.ps1 -ProveFailureGate
       - name: Preserve isolated integration reports
         if: always()
         uses: actions/upload-artifact@v4
