@@ -5,7 +5,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
-const { AlertTracker, collect, monitorOrigin } = require('./monitor-operations.cjs');
+const { AlertTracker, MonitorJournal, collect, monitorOrigin } = require('./monitor-operations.cjs');
 
 function docker(args, input, includeStderr = false) {
   const result = spawnSync('docker', args, {
@@ -58,7 +58,15 @@ async function main(reportArg, tokenArg) {
     signal: AbortSignal.timeout(5000),
   });
   const sample = () => collect({ origin, tokenFile });
-  const tracker = new AlertTracker();
+  let tracker = new AlertTracker();
+  const journalFile = path.join(path.dirname(reportPath), 'operations-monitor-state.json');
+  const journal = new MonitorJournal(journalFile, origin);
+  async function restartTracker() {
+    await journal.save(tracker.openCodes(), []);
+    const saved = await new MonitorJournal(journalFile, origin).load();
+    tracker = new AlertTracker(2, saved.openCodes);
+    reportOut.collectorStateReloads = (reportOut.collectorStateReloads ?? 0) + 1;
+  }
   function observe(value, expected = []) {
     const events = tracker.observe(value);
     assert.deepEqual(events.map(event => [event.event, event.code]), expected);
@@ -116,6 +124,7 @@ async function main(reportArg, tokenArg) {
       ['operations.alert_opened', 'PROVIDER_RECONCILIATION_REQUIRED'],
       ['operations.alert_opened', 'EMAIL_RECONCILIATION_REQUIRED'],
     ]);
+    await restartTracker();
     observe(await sample());
 
     try {
@@ -127,6 +136,7 @@ async function main(reportArg, tokenArg) {
       assert.equal(outage.EMAIL_RECONCILIATION_REQUIRED, undefined);
       observe(outage);
       observe(await sample(), [['operations.alert_opened', 'DATABASE_UNAVAILABLE']]);
+      await restartTracker();
       observe(await sample());
     } finally {
       docker(['start', postgres.Id]);
@@ -151,6 +161,7 @@ async function main(reportArg, tokenArg) {
     Object.assign(reportOut, { backendUnchanged: true, fixturesRemoved: true, secretAbsent: true, success: true });
   } finally {
     if (fixturesInserted) remove();
+    await fs.unlink(journalFile).catch(error => { if (error.code !== 'ENOENT') throw error; });
     await fs.writeFile(resultFile, JSON.stringify(reportOut, null, 2));
   }
   process.stdout.write(`PASS operations monitor: ${resultFile}\n`);

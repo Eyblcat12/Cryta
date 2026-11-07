@@ -69,12 +69,15 @@ Lượt này kiểm số liệu, tín hiệu hàng đợi và quyền truy cập
 ```powershell
 $env:CRYPTA_MONITOR_ORIGIN = 'https://crypta.example.invalid'
 $env:CRYPTA_MONITOR_TOKEN_FILE = 'C:\secrets\crypta-monitor.token'
+$env:CRYPTA_MONITOR_STATE_FILE = 'C:\crypta-monitor\state.json'
 node tools/monitor-operations.cjs
 ```
 
 Origin là HTTPS, hoặc HTTP loopback để thử. Monitor từ chối redirect. Mỗi probe có thời hạn 4 giây và giới hạn body 16 KiB. Monitor đợi 15 giây giữa các lượt. Hai mẫu liên tiếp mở hoặc đóng cảnh báo. Khi API hoặc DB không cho phép quan sát hàng đợi, trạng thái cảnh báo hàng đợi được giữ đến khi có mẫu mới.
 
-Kênh hiện có là stdout JSON, độc lập với SMTP. `operations.alert_opened` và `operations.alert_resolved` mang mã, mức độ, thời gian và nhãn nhóm xử lý. Collector của môi trường triển khai có thể định tuyến theo `owner` đến người trực platform, database, mật mã, mail hoặc job. Trạng thái trong monitor nằm trong bộ nhớ, nên sau restart nhóm nhận cần gộp sự kiện theo môi trường và mã.
+Kênh hiện có là stdout JSON, độc lập với SMTP. `operations.alert_opened` và `operations.alert_resolved` mang `eventId`, mã cảnh báo, mức độ, thời gian và nhãn nhóm xử lý. Collector của môi trường triển khai có thể định tuyến theo `owner` đến người trực platform, database, mật mã, mail hoặc job.
+
+`CRYPTA_MONITOR_STATE_FILE` là tùy chọn. Dùng một tiến trình monitor cho mỗi file trong thư mục cục bộ có quyền ghi, chỉ tài khoản monitor được truy cập. File giữ mã cảnh báo đang mở và các chuyển trạng thái chưa ghi xong ra stdout. Sau restart, monitor nạp lại cảnh báo đang mở, phát lại bản ghi đang chờ với cùng `eventId` và bắt đầu lại bộ đếm mẫu. Collector khử trùng bản ghi phát lại theo `eventId`. Khi chưa cấu hình file, trạng thái chỉ nằm trong bộ nhớ. File hỏng hoặc gắn với origin khác làm monitor dừng với `MONITOR_INVALID_STATE` để người vận hành kiểm tra. Ghi xong stdout xác nhận việc chuyển vào luồng log của tiến trình. Kiểm định tuyến và nhận cảnh báo ở kênh trực được thực hiện riêng.
 
 | Kiểm tra | Kết quả | Bằng chứng |
 | --- | --- | --- |
@@ -90,3 +93,5 @@ T44 còn nối collector stdout vào kênh người trực đã chọn, kiểm n
 Migration 025 lưu trạng thái quét hết hạn trong PostgreSQL. Replica không lấy được khóa giữ nguyên trạng thái chung. Lượt thành công chỉ cập nhật mốc sau khi công việc cùng giao dịch có thể commit. Lượt thất bại ghi sau rollback nếu database còn truy cập được. Một lỗi cũ ghi muộn không ghi đè lượt thành công mới hơn. Kết quả trong `process.jobs` vẫn mô tả riêng từng tiến trình, còn mã cảnh báo đọc từ database chung. Khi PostgreSQL gián đoạn, theo dõi readiness cùng tín hiệu lỗi cục bộ.
 
 Bộ expiry PostgreSQL đạt 21/21, gồm hai bộ đọc metrics dùng chung DB, khởi tạo lại bộ đọc, bỏ qua lượt thua khóa và mô phỏng lỗi ghi muộn. Ca kiểm đưa mốc thành công về ba giờ trước để xác minh `EXPIRY_SCAN_STALE`. Còn kiểm nhiều máy và chuyển cảnh báo đến người trực trên môi trường đích. [Kết quả cách ly](tools/test-artifacts/integration/crypta-t30-test-b97d86ae9c93/expiry-scan-c609ce13b0f8/results.json)
+
+Collector đạt 6/6 ca CLI và HTTP loopback, gồm phát lại sự kiện đang chờ với cùng ID sau lỗi ghi, giữ trạng thái đang mở và đóng sau hai mẫu khỏe. Diễn tập Nginx/PostgreSQL dừng rồi khởi động lại riêng database thử, nạp lại trạng thái collector hai lần, ghi sáu chuyển trạng thái với sáu ID riêng và giữ nguyên tiến trình API. [Kết quả collector](tools/test-artifacts/integration/crypta-t30-test-80255a70f4f0/operations-monitor.json)

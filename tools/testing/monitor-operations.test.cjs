@@ -6,7 +6,8 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { test } = require('node:test');
-const { AlertTracker, collect, monitorOrigin } = require('../monitor-operations.cjs');
+const { setTimeout: delay } = require('node:timers/promises');
+const { AlertTracker, MonitorJournal, collect, monitorOrigin, publishAlerts } = require('../monitor-operations.cjs');
 
 test('requires consecutive observations, keeps open alerts through missing samples and avoids duplicates', () => {
   const tracker = new AlertTracker();
@@ -21,6 +22,91 @@ test('requires consecutive observations, keeps open alerts through missing sampl
   assert.deepEqual(tracker.observe(closed), []);
   assert.equal(tracker.observe(closed)[0].event, 'operations.alert_resolved');
   assert.deepEqual(tracker.observe(closed), []);
+});
+
+test('journal replays an interrupted write with the same ID and resolves after restart', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'crypta-monitor-journal-'));
+  const file = path.join(directory, 'monitor.json');
+  const origin = 'https://crypta.example.test';
+  const journal = new MonitorJournal(file, origin);
+  const sample = { DATABASE_UNAVAILABLE: true };
+  const tracker = new AlertTracker();
+  try {
+    assert.deepEqual(await journal.load(), { openCodes: [], pending: [] });
+    tracker.observe(sample);
+    const events = tracker.observe(sample);
+    await assert.rejects(publishAlerts(events, tracker, journal, async () => { throw new Error('sink closed'); }), /sink closed/);
+    const saved = await new MonitorJournal(file, origin).load();
+    assert.deepEqual(saved, { openCodes: ['DATABASE_UNAVAILABLE'], pending: events });
+    assert.match(events[0].eventId, /^[a-f0-9-]{36}$/);
+
+    const restarted = new AlertTracker(2, saved.openCodes);
+    const delivered = [];
+    const write = async event => { delivered.push(event); };
+    await publishAlerts(saved.pending, restarted, journal, write, true);
+    assert.deepEqual(delivered, events);
+    assert.deepEqual(restarted.observe(sample), []);
+    assert.deepEqual(await journal.load(), { openCodes: saved.openCodes, pending: [] });
+
+    const healthy = { DATABASE_UNAVAILABLE: false };
+    assert.deepEqual(restarted.observe(healthy), []);
+    await publishAlerts(restarted.observe(healthy), restarted, journal, write);
+    assert.equal(delivered[1].event, 'operations.alert_resolved');
+    assert.notEqual(delivered[1].eventId, delivered[0].eventId);
+    assert.deepEqual(await journal.load(), { openCodes: [], pending: [] });
+    assert.deepEqual(await fs.readdir(directory), ['monitor.json']);
+  } finally {
+    await fs.unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    await fs.rmdir(directory);
+  }
+});
+
+test('journal rejects state from another origin and malformed pending records', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'crypta-monitor-invalid-'));
+  const file = path.join(directory, 'monitor.json');
+  const origin = 'https://crypta.example.test';
+  const journal = new MonitorJournal(file, origin);
+  try {
+    await journal.save(['DATABASE_UNAVAILABLE'], []);
+    await assert.rejects(new MonitorJournal(file, 'https://other.example.test').load(), /MONITOR_INVALID_STATE/);
+    await journal.save(['DATABASE_UNAVAILABLE'], [{ code: 'UNRECOGNIZED', eventId: 'fixture-invalid' }]);
+    await assert.rejects(journal.load(), /MONITOR_INVALID_STATE/);
+    await fs.writeFile(file, '{');
+    await assert.rejects(journal.load(), /MONITOR_INVALID_STATE/);
+    assert.equal(await fs.readFile(file, 'utf8'), '{');
+  } finally {
+    await fs.unlink(file).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    await fs.rmdir(directory);
+  }
+});
+
+test('CLI replays persisted alerts before polling and clears pending after writing', { timeout: 10_000 }, async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'crypta-monitor-replay-'));
+  const stateFile = path.join(directory, 'state.json');
+  const origin = 'http://127.0.0.1:1';
+  const journal = new MonitorJournal(stateFile, origin);
+  const tracker = new AlertTracker(1);
+  const events = tracker.observe({ API_UNAVAILABLE: true });
+  await journal.save(tracker.openCodes(), events);
+  const child = spawn(process.execPath, [path.join(__dirname, '../monitor-operations.cjs')], {
+    env: { ...process.env, CRYPTA_MONITOR_ORIGIN: origin, CRYPTA_MONITOR_STATE_FILE: stateFile,
+      CRYPTA_MONITOR_TOKEN_FILE: path.join(directory, 'unused.token') },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const closed = once(child, 'close');
+  let stdout = '';
+  child.stdout.on('data', chunk => { stdout += chunk; });
+  try {
+    const deadline = Date.now() + 5000;
+    while ((!stdout.includes('\n') || (await journal.load()).pending.length) && Date.now() < deadline) await delay(25);
+    assert.deepEqual(await journal.load(), { openCodes: ['API_UNAVAILABLE'], pending: [] });
+    assert.deepEqual(stdout.trim().split('\n').map(JSON.parse), events);
+  } finally {
+    child.kill();
+    await closed;
+    for (const entry of await fs.readdir(directory)) await fs.unlink(path.join(directory, entry));
+    await fs.rmdir(directory);
+  }
 });
 
 test('validates origin and treats missing, redirected, oversized and invalid signals as unobserved', async () => {
@@ -83,6 +169,7 @@ test('CLI emits a JSON alert on stdout after two failed API probes', { timeout: 
       ...process.env,
       CRYPTA_MONITOR_ORIGIN: `http://127.0.0.1:${fixture.address().port}`,
       CRYPTA_MONITOR_TOKEN_FILE: path.join(os.tmpdir(), 'unused-while-unavailable.test'),
+      CRYPTA_MONITOR_STATE_FILE: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

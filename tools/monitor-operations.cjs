@@ -1,5 +1,7 @@
 // Independent operations monitor. Each transition is a JSON line on stdout.
-const { readFile } = require('node:fs/promises');
+const { randomUUID } = require('node:crypto');
+const { open, readFile, rename, unlink } = require('node:fs/promises');
+const { relative } = require('node:path');
 const { setTimeout: delay } = require('node:timers/promises');
 
 const queueRules = {
@@ -89,9 +91,13 @@ async function collect({ origin, tokenFile, timeoutMs = 4_000 }) {
 }
 
 class AlertTracker {
-  constructor(requiredSamples = 2) {
+  constructor(requiredSamples = 2, openCodes = []) {
     this.requiredSamples = requiredSamples;
-    this.states = new Map();
+    this.states = new Map(openCodes.map(code => [code, { open: true, streak: 0 }]));
+  }
+
+  openCodes() {
+    return [...this.states].filter(([, state]) => state.open).map(([code]) => code);
   }
 
   observe(sample) {
@@ -105,7 +111,7 @@ class AlertTracker {
         state.streak = 0;
         events.push({
           event: active ? 'operations.alert_opened' : 'operations.alert_resolved',
-          code, severity, owner, timestamp: new Date().toISOString(),
+          eventId: randomUUID(), code, severity, owner, timestamp: new Date().toISOString(),
         });
       }
       this.states.set(code, state);
@@ -114,17 +120,93 @@ class AlertTracker {
   }
 }
 
+const version = 1;
+const codes = Object.keys(rules);
+const opened = 'operations.alert_opened';
+const resolved = 'operations.alert_resolved';
+
+function parseState(raw, origin) {
+  let state;
+  try { state = JSON.parse(raw); } catch { throw new Error('MONITOR_INVALID_STATE'); }
+  if (state?.version !== version || state.origin !== origin || !Array.isArray(state.openCodes) ||
+      new Set(state.openCodes).size !== state.openCodes.length || !state.openCodes.every(code => codes.includes(code)) ||
+      !Array.isArray(state.pending) || state.pending.length > codes.length) throw new Error('MONITOR_INVALID_STATE');
+  const pendingCodes = new Set();
+  const pendingIds = new Set();
+  const pending = state.pending.map(item => {
+    const { code, event, eventId, timestamp } = item ?? {};
+    if (!codes.includes(code) || pendingCodes.has(code) || pendingIds.has(eventId) ||
+        event !== (state.openCodes.includes(code) ? opened : resolved) ||
+        typeof eventId !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(eventId) ||
+        typeof timestamp !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(timestamp) ||
+        !Number.isFinite(Date.parse(timestamp))) throw new Error('MONITOR_INVALID_STATE');
+    pendingCodes.add(code);
+    pendingIds.add(eventId);
+    const [severity, owner] = rules[code];
+    return { event, eventId, code, severity, owner, timestamp };
+  });
+  return { openCodes: state.openCodes, pending };
+}
+
+class MonitorJournal {
+  constructor(file, origin) {
+    this.file = file;
+    this.origin = origin;
+  }
+
+  async load() {
+    let raw;
+    try { raw = await readFile(this.file, 'utf8'); }
+    catch (error) {
+      if (error.code === 'ENOENT') return { openCodes: [], pending: [] };
+      throw error;
+    }
+    return parseState(raw, this.origin);
+  }
+
+  async save(openCodes, pending) {
+    const temporary = `${this.file}.${randomUUID()}.tmp`;
+    const handle = await open(temporary, 'wx', 0o600);
+    try {
+      try {
+        await handle.writeFile(JSON.stringify({ version, origin: this.origin, openCodes, pending }) + '\n');
+        await handle.sync();
+      } finally { await handle.close(); }
+      await rename(temporary, this.file);
+    } finally {
+      await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    }
+  }
+}
+
+async function publishAlerts(events, tracker, journal, write, alreadyPending = false) {
+  if (!events.length) return;
+  const openCodes = tracker.openCodes();
+  if (!alreadyPending) await journal?.save(openCodes, events);
+  for (const event of events) await write(event);
+  await journal?.save(openCodes, []);
+}
+
 async function main() {
   const origin = monitorOrigin(process.env.CRYPTA_MONITOR_ORIGIN);
   const tokenFile = process.env.CRYPTA_MONITOR_TOKEN_FILE;
   if (!tokenFile) throw new Error('MONITOR_TOKEN_FILE_REQUIRED');
-  const tracker = new AlertTracker();
+  const stateFile = process.env.CRYPTA_MONITOR_STATE_FILE;
+  if (stateFile && relative(stateFile, tokenFile) === '') throw new Error('MONITOR_INVALID_STATE');
+  const journal = stateFile ? new MonitorJournal(stateFile, origin) : undefined;
+  const saved = await journal?.load();
+  const tracker = new AlertTracker(2, saved?.openCodes);
+  const write = event => new Promise((done, reject) => {
+    process.stdout.write(JSON.stringify(event) + '\n', error => error ? reject(error) : done());
+  });
+  process.stdout.on('error', () => { /* The write callback reports delivery failure. */ });
   const controller = new AbortController();
   process.once('SIGINT', () => controller.abort());
   process.once('SIGTERM', () => controller.abort());
+  await publishAlerts(saved?.pending ?? [], tracker, journal, write, true);
   while (!controller.signal.aborted) {
     const sample = await collect({ origin, tokenFile });
-    for (const event of tracker.observe(sample)) process.stdout.write(JSON.stringify(event) + '\n');
+    await publishAlerts(tracker.observe(sample), tracker, journal, write);
     try {
       await delay(15_000, undefined, { signal: controller.signal });
     } catch (error) {
@@ -135,11 +217,11 @@ async function main() {
 
 if (require.main === module) {
   main().catch(error => {
-    const startupErrors = ['MONITOR_INVALID_ORIGIN', 'MONITOR_TOKEN_FILE_REQUIRED'];
+    const startupErrors = ['MONITOR_INVALID_ORIGIN', 'MONITOR_TOKEN_FILE_REQUIRED', 'MONITOR_INVALID_STATE'];
     const code = startupErrors.includes(error.message) ? error.message : 'MONITOR_FAILED';
     process.stderr.write(JSON.stringify({ event: 'operations.monitor_failed', code }) + '\n');
     process.exitCode = 1;
   });
 }
 
-module.exports = { AlertTracker, collect, monitorOrigin };
+module.exports = { AlertTracker, MonitorJournal, collect, monitorOrigin, publishAlerts };
