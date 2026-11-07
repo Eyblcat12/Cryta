@@ -144,6 +144,7 @@ function mapRequest(row:RequestResponse):RequestItem {
     id:row.id,type:row.type,subject:row.reason||'Yêu cầu chưa có lý do',status:row.status,
     submittedAt:row.submittedAt?new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short'}).format(new Date(row.submittedAt)):'Chưa gửi',
     submitted:row.submittedAt!==null,cancellationReason:row.cancellationReason,emergency:row.emergency,decision:row.decision,
+    approval:row.approval,approvalHistory:row.approvalHistory,
     creatorId:row.creatorId,departmentId:row.departmentId,creatorName:row.creatorName,departmentName:row.departmentName,
     targetAssetCode:row.targetAssetCode,version:row.version,
   };
@@ -313,7 +314,12 @@ export const api={
       expectedVersion:version,resources:mutationResources.request,reviewPath:detail},`${detail}/submit`,
       {method:'POST',body:JSON.stringify({version})});
   },
-  decide(id:string,body:unknown){const expectedStatus=typeof (body as {decision?:unknown})?.decision==='string'?(body as {decision:string}).decision:undefined;return mutate({kind:'request-decision',key:`request:${id}`,targetId:id,expectedStatus,resources:mutationResources.decision,reviewPath:`/requests/${id}`},`/requests/${id}/decision`,{method:'POST',body:JSON.stringify(body)})},
+  decide(id:string,body:{decision:'APPROVED'|'REJECTED';comment?:string;version?:string}, firstApproval=false){
+    const partial=firstApproval&&body.decision==='APPROVED';
+    return mutate({kind:'request-decision',key:`request:${id}`,targetId:id,expectedStatus:partial?'PENDING':body.decision,
+      ...(partial&&{expectedVersion:Number(body.version)}),resources:mutationResources.decision,reviewPath:`/requests/${id}`},
+    `/requests/${id}/decision`,{method:'POST',body:JSON.stringify(body)});
+  },
   cancel(id:string,body?:{version:number;reason?:string}){
     const detail=`/requests/${encodeURIComponent(id)}`;
     return mutate({kind:'request-cancel',key:`request:${id}`,targetId:id,expectedStatus:'CANCELLED',

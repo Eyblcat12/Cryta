@@ -151,6 +151,19 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     }
     if (job.type === 'PASSWORD_RESET_COMPLETED') return passwordResetCompletedEmail(job.recipient_name, config);
     if (job.type === 'MFA_SECURITY_CHANGED') return mfaSecurityChangedEmail(job.recipient_name, job.created_at ?? null, config);
+    if (job.type === 'REQUEST_SECOND_APPROVAL') {
+      const eligible = await this.pool.query(`SELECT 1 FROM notifications n
+        JOIN requests r ON r.id=n.request_id AND r.status='PENDING'
+        JOIN policy_versions pv ON pv.id=r.policy_version_id AND pv.configuration->'approval_levels'='2'::jsonb
+        JOIN request_decisions first ON first.request_id=r.id AND first.approval_level=1 AND first.decision='APPROVED'
+        JOIN users u ON u.id=n.recipient_id AND u.status='ACTIVE'
+        JOIN departments d ON d.id=u.department_id AND d.is_active
+        JOIN approver_scopes s ON s.user_id=u.id AND s.department_id=r.department_id
+        JOIN user_roles ur ON ur.user_id=u.id JOIN roles role ON role.id=ur.role_id AND role.code='APPROVER'
+        WHERE n.id=$1 AND n.channel='EMAIL' AND n.delivery_status='SENDING' AND u.id<>r.creator_id AND u.id<>first.approver_id
+          AND clock_timestamp()<r.submitted_at+make_interval(hours=>(pv.configuration->>'approval_deadline_hours')::int)`, [job.id]);
+      if (!eligible.rowCount) throw new Error('SECOND_APPROVAL_RECIPIENT_NO_LONGER_ELIGIBLE');
+    }
     if (job.type === 'INVITATION' || job.type === 'PASSWORD_RESET') {
       if (process.env.ACCOUNT_ACTIONS_ENABLED !== 'true') throw new Error('ACCOUNT_ACTIONS_DISABLED');
       const result = await this.pool.query<AccountDelivery>(`SELECT a.id,a.user_id,a.purpose,a.token_hash,a.created_at,a.expires_at

@@ -213,6 +213,86 @@ ALTER TABLE public.notifications ADD CONSTRAINT ck_notification_type CHECK (type
   'ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED','INVITATION','PASSWORD_RESET','PASSWORD_RESET_COMPLETED',
   'MFA_SECURITY_CHANGED'
 ));
+`},
+{version:'020_two_stage_approval',sql:`
+ALTER TABLE public.policy_versions ADD CONSTRAINT ck_policy_approval_configuration CHECK (
+  CASE WHEN configuration->'approval_levels'='2'::jsonb THEN
+    COALESCE(jsonb_typeof(configuration->'approval_deadline_hours')='number'
+      AND configuration->>'approval_deadline_hours' ~ '^[1-9][0-9]{0,2}$'
+      AND (configuration->>'approval_deadline_hours')::numeric BETWEEN 1 AND 168,FALSE)
+  ELSE (NOT configuration ? 'approval_levels' OR configuration->'approval_levels'='1'::jsonb)
+    AND NOT configuration ? 'approval_deadline_hours' END
+);
+
+ALTER TABLE public.request_decisions
+  ADD COLUMN approval_level SMALLINT NOT NULL DEFAULT 1 CHECK (approval_level IN (1,2)),
+  DROP CONSTRAINT uq_request_final_decision,
+  ADD CONSTRAINT uq_request_decision_level UNIQUE (request_id,approval_level),
+  ADD CONSTRAINT uq_request_decision_actor UNIQUE (request_id,approver_id);
+
+CREATE OR REPLACE FUNCTION public.enforce_request_decision_rules() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,public AS $function$
+DECLARE
+  v_request public.requests%ROWTYPE;
+  v_policy JSONB;
+BEGIN
+  SELECT * INTO v_request FROM public.requests WHERE id=NEW.request_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'REQUEST_NOT_FOUND'; END IF;
+  IF NEW.approver_id=v_request.creator_id THEN RAISE EXCEPTION 'SOD_VIOLATION'; END IF;
+  IF v_request.status<>'PENDING' OR v_request.submitted_at IS NULL THEN RAISE EXCEPTION 'INVALID_REQUEST_STATE'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.users WHERE id=NEW.approver_id AND status='ACTIVE') THEN
+    RAISE EXCEPTION 'APPROVER_INACTIVE';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.user_roles ur JOIN public.roles r ON r.id=ur.role_id
+      WHERE ur.user_id=NEW.approver_id AND r.code='APPROVER') THEN RAISE EXCEPTION 'APPROVER_ROLE_REQUIRED'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.approver_scopes WHERE user_id=NEW.approver_id AND department_id=v_request.department_id) THEN
+    RAISE EXCEPTION 'APPROVER_OUT_OF_SCOPE';
+  END IF;
+  SELECT configuration INTO v_policy FROM public.policy_versions WHERE id=v_request.policy_version_id;
+  IF v_policy->'approval_levels'='2'::jsonb THEN
+    IF clock_timestamp()>=v_request.submitted_at+make_interval(hours=>(v_policy->>'approval_deadline_hours')::int) THEN
+      RAISE EXCEPTION 'APPROVAL_DEADLINE_EXPIRED' USING ERRCODE='23514';
+    END IF;
+  ELSIF NEW.approval_level<>1 THEN
+    RAISE EXCEPTION 'APPROVAL_LEVEL_NOT_REQUIRED' USING ERRCODE='23514';
+  END IF;
+  IF NEW.approval_level=2 AND NOT EXISTS (SELECT 1 FROM public.request_decisions
+      WHERE request_id=NEW.request_id AND approval_level=1 AND decision='APPROVED') THEN
+    RAISE EXCEPTION 'FIRST_APPROVAL_REQUIRED' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+CREATE FUNCTION public.enforce_sensitive_request_approval() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,public AS $function$
+DECLARE
+  v_two_stage BOOLEAN;
+BEGIN
+  IF TG_OP='UPDATE' AND OLD.submitted_at IS NOT NULL AND (
+      NEW.policy_version_id IS DISTINCT FROM OLD.policy_version_id OR NEW.submitted_at IS DISTINCT FROM OLD.submitted_at OR
+      NEW.department_id IS DISTINCT FROM OLD.department_id) AND
+      EXISTS (SELECT 1 FROM public.policy_versions WHERE id IN (NEW.policy_version_id,OLD.policy_version_id)
+        AND configuration->'approval_levels'='2'::jsonb) THEN
+    RAISE EXCEPTION 'SUBMITTED_APPROVAL_POLICY_IMMUTABLE' USING ERRCODE='23514';
+  END IF;
+  SELECT configuration->'approval_levels'='2'::jsonb INTO v_two_stage FROM public.policy_versions WHERE id=NEW.policy_version_id;
+  IF v_two_stage AND NEW.status IN ('APPROVED','PROCESSING','COMPLETED','FAILED','RECONCILIATION_REQUIRED') AND
+      (SELECT count(*) FROM public.request_decisions WHERE request_id=NEW.id AND decision='APPROVED')<>2 THEN
+    RAISE EXCEPTION 'TWO_APPROVALS_REQUIRED' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+CREATE TRIGGER trg_sensitive_request_approval BEFORE INSERT OR UPDATE OF status,policy_version_id,submitted_at,department_id
+  ON public.requests FOR EACH ROW EXECUTE FUNCTION public.enforce_sensitive_request_approval();
+
+ALTER TABLE public.notifications DROP CONSTRAINT ck_notification_type;
+ALTER TABLE public.notifications ADD CONSTRAINT ck_notification_type CHECK (type IN (
+  'REQUEST_SUBMITTED','REQUEST_APPROVED','REQUEST_REJECTED','REQUEST_COMPLETED','REQUEST_RECONCILIATION_REQUIRED','REQUEST_FAILED',
+  'ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED','INVITATION','PASSWORD_RESET','PASSWORD_RESET_COMPLETED',
+  'MFA_SECURITY_CHANGED','REQUEST_SECOND_APPROVAL'
+));
 `}
 ];
 

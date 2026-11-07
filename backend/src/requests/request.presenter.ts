@@ -18,6 +18,10 @@ export type RequestRow = {
   department_name?: string;
   target_asset_code?: string | null;
   cancellation_reason?: string | null;
+  approval_levels?: 1 | 2;
+  approved_levels?: number;
+  approval_deadline_at?: Date | null;
+  first_approver_id?: string | null;
 };
 
 export function presentRequest(row: RequestRow) {
@@ -41,5 +45,9 @@ export function presentRequest(row: RequestRow) {
     departmentName: row.department_name,
     targetAssetCode: row.target_asset_code,
     cancellationReason: row.cancellation_reason ?? null,
+    ...(row.approval_levels === 2 && { approval: {
+      levels: 2, approved: row.approved_levels ?? 0, deadlineAt: row.approval_deadline_at ?? null,
+      firstApproverId: row.first_approver_id ?? null,
+    } }),
   };
 }

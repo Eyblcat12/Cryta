@@ -28,4 +28,6 @@ export interface PolicyConfigurationInput {
   minimumKeySize?: number;
   maximumValidityDays: number;
   warningDays: number[];
+  approvalLevels?: 1 | 2;
+  approvalDeadlineHours?: number;
 }

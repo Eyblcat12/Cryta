@@ -7,6 +7,7 @@ const labels: Readonly<Record<string, string>> = {
   ASSET_EXPIRED: 'Đã hết hạn',
   ASSET_EXPIRING: 'Sắp hết hạn',
   REQUEST_SUBMITTED: 'Đã gửi yêu cầu',
+  REQUEST_FIRST_APPROVED: 'Đã duyệt cấp 1',
   REQUEST_DRAFT_CREATED: 'Đã lưu bản nháp',
   REQUEST_DRAFT_UPDATED: 'Đã cập nhật bản nháp',
   REQUEST_APPROVED: 'Yêu cầu được duyệt',

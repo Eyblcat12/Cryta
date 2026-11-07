@@ -3,6 +3,8 @@ export interface RequestResponse {
   id:string; type:RequestItem['type']; reason:string; status:RequestItem['status'];
   submittedAt:string|null; emergency?:boolean; creatorName?:string;
   decision?:RequestItem['decision'];
+  approval?:RequestItem['approval'];
+  approvalHistory?:RequestItem['approvalHistory'];
   cancellationReason?:string|null;
   creatorId?:string; departmentId?:string; departmentName?:string; targetAssetCode?:string; version?:number;
   targetAssetId?:string|null; policyVersionId?:string|null;

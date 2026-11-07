@@ -4,7 +4,6 @@ import { useLocation,useNavigate,useOutletContext } from 'react-router';
 import { useOpenDetail } from './detailNavigation';
 import { DashboardPage } from './DashboardPage';
 import type { DashboardSummary } from './dashboardTypes';
-import { PoliciesPage } from './PoliciesPage';
 import { ProviderRecoveryPage } from './ProviderRecoveryPage';
 import { RequestPage } from './RequestPage';
 import type { WorkspaceView } from './routes';
@@ -18,6 +17,7 @@ import { PageHeader,RouteState } from './WorkspaceUi';
 import { canCreateRequests } from './workspacePermissions';
 
 const MfaSecurityPage = lazy(() => import('./MfaScreen').then(module => ({ default: module.MfaSecurityPage })));
+const PoliciesPage = lazy(() => import('./PoliciesPage').then(module => ({ default: module.PoliciesPage })));
 
 export interface WorkspacePageContext {
   view:WorkspaceView;
@@ -34,7 +34,7 @@ export interface WorkspacePageContext {
   onNotify:(message:string)=>void;
   onCreateUser:()=>void;
   onSessionAccepted:(user:AuthUser)=>void;
-  onDecision:(action:'APPROVE'|'REJECT',requestId:string,version:number)=>void;
+  onDecision:(action:'APPROVE'|'REJECT',requestId:string,version:number,level?:1|2)=>void;
 }
 
 export function WorkspacePage() {
@@ -48,7 +48,9 @@ export function WorkspacePage() {
   if(view==='account-security')return <Suspense fallback={<p role="status">Đang tải bảo mật tài khoản…</p>}>
     <MfaSecurityPage user={context.user} onAuthenticated={context.onSessionAccepted}/>
   </Suspense>;
-  if(view==='policies')return <PoliciesPage context={context}/>;
+  if(view==='policies')return <Suspense fallback={<p role="status">Đang tải chính sách…</p>}>
+    <PoliciesPage context={context}/>
+  </Suspense>;
   if(view==='provider-recovery')return <ProviderRecoveryPage scope={context.scope} revision={revisions.providerRecovery}/>;
   if(view==='request-new')return <RequestPage context={context}/>;
   if(view==='notifications')return <><PageHeader eyebrow="Theo dõi" title="Thông báo" description="Cập nhật liên quan đến công việc trong phạm vi của bạn."/><NotificationPanel refreshKey={revisions.notifications} unreadCount={context.unreadNotificationCount??null} onNotify={context.onNotify} onOpenAsset={asset=>openDetail(`/assets/${encodeURIComponent(asset.id)}`)} onOpenRequest={request=>openDetail(`/requests/${encodeURIComponent(request.id)}`)}/></>;

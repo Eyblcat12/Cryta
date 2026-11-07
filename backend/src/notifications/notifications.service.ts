@@ -27,6 +27,20 @@ export class NotificationsService {
       SELECT creator_id,id,$2::varchar,channel,LOWER($2::text)||':'||id::text||':'||LOWER(channel),CASE WHEN channel='IN_APP' THEN 'SENT' ELSE 'PENDING' END,CASE WHEN channel='IN_APP' THEN NOW() ELSE NULL END FROM requests CROSS JOIN (VALUES ('EMAIL'),('IN_APP')) AS channels(channel) WHERE id=$1::uuid
       ON CONFLICT (deduplication_key) DO NOTHING`, [requestId, type]);
   }
+  async enqueueSecondApproval(client: PoolClient, requestId: string, departmentId: string, firstApprover: string) {
+    await client.query(`INSERT INTO notifications (recipient_id,request_id,type,channel,deduplication_key,delivery_status,sent_at)
+      SELECT DISTINCT u.id,r.id,'REQUEST_SECOND_APPROVAL',channels.channel,
+        'request-second-approval:'||r.id::text||':'||u.id::text||':'||lower(channels.channel),
+        CASE WHEN channels.channel='IN_APP' THEN 'SENT' ELSE 'PENDING' END,
+        CASE WHEN channels.channel='IN_APP' THEN NOW() END
+      FROM requests r JOIN approver_scopes s ON s.department_id=r.department_id
+      JOIN users u ON u.id=s.user_id AND u.status='ACTIVE'
+      JOIN departments d ON d.id=u.department_id AND d.is_active
+      JOIN user_roles ur ON ur.user_id=u.id JOIN roles role ON role.id=ur.role_id AND role.code='APPROVER'
+      CROSS JOIN (VALUES ('EMAIL'),('IN_APP')) AS channels(channel)
+      WHERE r.id=$1 AND r.department_id=$2 AND u.id<>$3 AND u.id<>r.creator_id
+      ON CONFLICT (deduplication_key) DO NOTHING`, [requestId, departmentId, firstApprover]);
+  }
   async enqueueAsset(client:PoolClient,assetId:string,type:'ASSET_EXPIRING'|'ASSET_EXPIRED'|'ASSET_REVOKED',suffix:string){
     if(type==='ASSET_REVOKED'){
       await client.query(`INSERT INTO notifications(recipient_id,asset_id,type,channel,deduplication_key,delivery_status,sent_at) SELECT owner_id,id,$2::varchar,channel,LOWER($2::text)||':'||id::text||':'||$3||':'||LOWER(channel),CASE WHEN channel='IN_APP' THEN 'SENT' ELSE 'PENDING' END,CASE WHEN channel='IN_APP' THEN NOW() ELSE NULL END FROM crypto_assets CROSS JOIN (VALUES ('EMAIL'),('IN_APP')) AS channels(channel) WHERE id=$1::uuid ON CONFLICT(deduplication_key) DO NOTHING`,[assetId,type,suffix]);return;
@@ -60,7 +74,7 @@ export class NotificationsService {
     const values:unknown[]=[userId];const filters=[`n.recipient_id=$1`,`n.channel='IN_APP'`];
     if(query.read!==undefined){if(typeof query.read!=='string'||!['true','false'].includes(query.read))throw new BadRequestException({code:'INVALID_READ_FILTER',message:'Bộ lọc đã đọc không hợp lệ.'});filters.push(query.read==='true'?'n.read_at IS NOT NULL':'n.read_at IS NULL')}
     if (query.type !== undefined) {
-      if (typeof query.type !== 'string' || !['REQUEST_SUBMITTED','REQUEST_APPROVED','REQUEST_REJECTED','REQUEST_COMPLETED',
+      if (typeof query.type !== 'string' || !['REQUEST_SUBMITTED','REQUEST_SECOND_APPROVAL','REQUEST_APPROVED','REQUEST_REJECTED','REQUEST_COMPLETED',
         'REQUEST_RECONCILIATION_REQUIRED','REQUEST_FAILED','ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED'].includes(query.type)) {
         throw new BadRequestException({ code: 'INVALID_NOTIFICATION_TYPE', message: 'Loại thông báo không hợp lệ.' });
       }

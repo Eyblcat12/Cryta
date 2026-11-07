@@ -10,7 +10,8 @@ export async function readMutationState(item:WorkspaceMutation,signal:AbortSigna
     case 'request-draft-save':case 'request-draft-submit':case 'request-decision':case 'request-cancel':{
       try {
         const request=await api.requestDetail(item.targetId!,signal);
-        return `Dữ liệu hiện tại: ${requestStatus[request.status].label}, phiên bản ${request.version??'chưa xác định'}.`;
+        const approval=request.approval?`, đã duyệt ${request.approval.approved}/${request.approval.levels} cấp`:'';
+        return `Dữ liệu hiện tại: ${requestStatus[request.status].label}${approval}, phiên bản ${request.version??'chưa xác định'}.`;
       } catch (error) {
         if(item.kind==='request-draft-save'&&item.expectedVersion===undefined&&error instanceof ApiError&&error.status===404)
           return 'Chưa thấy bản nháp với mã đã dùng. Nếu lưu lại, hệ thống sẽ dùng cùng mã để tránh tạo hai bản.';

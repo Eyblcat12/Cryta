@@ -39,10 +39,12 @@ export function WorkspaceDetailRoute({context}:{context:WorkspacePageContext}) {
       {resource.error&&<div className="data-banner data-banner-error" role="alert"><span>Chi tiết: {resource.error}{resource.data&&' Đang hiển thị dữ liệu lần tải trước.'}</span><button onClick={resource.retry}>Thử lại</button></div>}
       <div className="resource-body">{data?(data.kind==='asset'
       ?<AssetDetailPage asset={data.asset} historyRevision={context.revisions.assets} canOpenRequests={canOpenView(context.role,'requests',context.user.roles)} canRequest={context.role==='USER'&&canChangeAsset(context.user,data.asset)&&!resource.loading&&!resource.error} onClose={context.onCloseDetail} onRenew={()=>context.openRequest('RENEW',data.asset.id)} onRevoke={()=>context.openRequest('REVOKE',data.asset.id)}/>
-      :<RequestDetailPage request={data.request} onClose={context.onCloseDetail}
+      :<RequestDetailPage request={data.request} currentUserId={context.user.id} onClose={context.onCloseDetail}
         onEdit={editable?()=>navigate(`/requests/new?draftId=${encodeURIComponent(data.request.id)}`):undefined}
         onCancel={cancellable?()=>setCancel({id:data.request.id,version:Number(data.request.version)}):undefined}
-        onDecision={context.role==='APPROVER'&&canDecideRequest(context.user,data.request)&&!resource.loading&&!resource.error&&!operation?action=>context.onDecision(action,data.request.id,Number(data.request.version)):undefined}/>)
+        onDecision={context.role==='APPROVER'&&canDecideRequest(context.user,data.request)&&!resource.loading&&!resource.error&&!operation
+          ?action=>context.onDecision(action,data.request.id,Number(data.request.version),data.request.approval ? data.request.approval.approved===0?1:2 : undefined)
+          :undefined}/>)
       :resource.loading?<section className="asset-detail-page" aria-labelledby="page-title">
         <div className="drawer-header"><div className="drawer-title"><span className="asset-type-icon" aria-hidden="true"/><div><p aria-hidden="true"> </p><h1 id="page-title" tabIndex={-1}>{title}</h1></div></div><button className="icon-button" onClick={context.onCloseDetail} aria-label="Về danh sách"><X size={20}/></button></div>
         <DetailLoadingOutline kind={kind==='assets'?'asset':'request'} visible={pending}/>

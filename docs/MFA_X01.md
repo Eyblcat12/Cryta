@@ -12,6 +12,8 @@ Migration `019_auth_mfa` lưu khóa đăng ký đã mã hóa, bước TOTP đã 
 
 Kiểm trên Windows đạt 55/55 ca credential, backend 478/478 và frontend 148/148. Chromium với API fixture đạt bốn tổ hợp desktop/mobile và sáng/tối, gồm tạo QR, sửa mã nhập sai, lưu mã và xác nhận lại trước khi cấp bộ mới. Bộ tích hợp `tools/test-real-mfa.cjs` kiểm trên stack PostgreSQL, Nginx và Chromium được bật MFA riêng. Workflow chạy bộ này sau stack hồi quy mặc định.
 
+GitHub Actions trên `b4d4dc7` đạt 4/4 nhóm MFA và 160/160 nhóm hồi quy. Ca Chromium chạy đăng ký mobile, tải mã khôi phục, xác nhận lại và đổi ứng dụng từ trang bảo mật desktop. Kiểm SMTP và UAT trên môi trường đích vẫn cần thực hiện. [Workflow](https://github.com/Eyblcat12/Cryta/actions/runs/42345358091)
+
 ## Cấu hình và vận hành
 
 1. Chạy migration 019 bằng credential migrator rồi áp lại `runtime-grants.sql`. Chạy kiểm thử ở môi trường thử trước khi bật MFA trên môi trường đích. Cấu hình hiện có tiếp tục dùng chính sách cũ cho tài khoản chưa đăng ký nếu chưa bật MFA bắt buộc. Tài khoản đã đăng ký tiếp tục cần TOTP.

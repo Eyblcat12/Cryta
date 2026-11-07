@@ -243,7 +243,7 @@ export function TestEmailDialog({onClose,onSuccess}:{onClose:()=>void;onSuccess:
   return <div className="modal-layer" role="presentation"><button className="modal-scrim" onClick={onClose} aria-label="Đóng gửi email kiểm tra"/><section ref={dialogRef} className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="test-email-title"><header><div><p className="eyebrow">Xác minh SMTP</p><h2 id="test-email-title">Gửi email kiểm tra</h2><span>Thư được gửi trực tiếp qua cấu hình SMTP hiện tại.</span></div><button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Đóng"><X size={20}/></button></header><form onSubmit={submit}><fieldset className="mutation-fields" disabled={busy||operation?.phase==='pending'}><label className="form-field"><span>Email nhận <em>*</em></span><input type="email" autoComplete="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="admin@congty.com" required autoFocus/><small>Chỉ dùng địa chỉ bạn có quyền kiểm tra hộp thư.</small></label><MutationGuardNotice operationKey="email:test"/>{error&&<div className="login-error" role="alert">{error}</div>}<footer><button type="button" className="quiet-button" onClick={onClose} disabled={busy}>Hủy</button><button className="primary-button" disabled={busy||!!operation}><Send size={16}/>{busy?'Đang gửi…':'Gửi email thử'}</button></footer></fieldset></form></section></div>
 }
 
-export function DecisionDialog({ action, requestId, onClose, onSuccess }: { action: 'APPROVE' | 'REJECT'; requestId: string; onClose: () => void; onSuccess: (action: 'APPROVE' | 'REJECT', requestId: string,note:string) => Promise<void> }) {
+export function DecisionDialog({ action, requestId, level, onClose, onSuccess }: { action: 'APPROVE' | 'REJECT'; requestId: string; level?:1|2; onClose: () => void; onSuccess: (action: 'APPROVE' | 'REJECT', requestId: string,note:string) => Promise<void> }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const [note, setNote] = useState('');
@@ -253,7 +253,28 @@ export function DecisionDialog({ action, requestId, onClose, onSuccess }: { acti
   useDialogBehavior(dialogRef, closeRef, onClose);
   const operation=useMutationGuard(`request:${requestId}`);
   const submit = async(event: React.FormEvent) => { event.preventDefault(); if(busy||operation)return;setSubmitted(true); if (action === 'REJECT' && note.trim().length < 10) return;setBusy(true);setSubmitError('');try{await onSuccess(action,requestId,note)}catch(error){setSubmitError(error instanceof ApiError?error.message:'Không thể gửi quyết định.');setBusy(false)} };
-  return <div className="modal-layer" role="presentation"><button className="modal-scrim" onClick={onClose} aria-label="Đóng xác nhận" /><section ref={dialogRef} className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title"><header><div><p className="eyebrow">Xác nhận quyết định</p><h2 id="decision-title">{action === 'APPROVE' ? `Phê duyệt ${requestId}` : `Từ chối ${requestId}`}</h2><span>Quyết định sẽ được ghi Audit Log và thông báo cho người gửi.</span></div><button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Đóng"><X size={20} /></button></header><form onSubmit={submit} noValidate><fieldset className="mutation-fields" disabled={busy||operation?.phase==='pending'}><div className={`inline-alert ${action === 'APPROVE' ? '' : 'inline-alert-danger'}`}><ShieldCheck size={19} /><div><strong>{action === 'APPROVE' ? 'Kiểm tra trước khi phê duyệt' : 'Người gửi cần biết cách khắc phục'}</strong><p>{action === 'APPROVE' ? 'Máy chủ sẽ kiểm tra phạm vi, phân tách nhiệm vụ và phiên bản khi gửi quyết định.' : 'Lý do từ chối phải cụ thể, không chứa dữ liệu bí mật.'}</p></div></div><label className={`form-field ${invalid ? 'field-error' : ''}`}><span>Ghi chú quyết định {action === 'REJECT' && <em>*</em>}</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder={action === 'APPROVE' ? 'Ghi chú tùy chọn cho người gửi…' : 'Nêu rõ lý do và cách sửa yêu cầu…'} aria-invalid={invalid} aria-describedby="decision-help" /><small id="decision-help">{invalid ? 'Vui lòng nhập ít nhất 10 ký tự.' : 'Không nhập private key, token hoặc dữ liệu bí mật.'}</small></label><MutationGuardNotice operationKey={`request:${requestId}`}/>{submitError&&<div className="login-error" role="alert">{submitError}</div>}<footer><button type="button" disabled={busy} className="quiet-button" onClick={onClose}>Hủy</button><button type="submit" disabled={busy||!!operation} className={action === 'APPROVE' ? 'primary-button' : 'danger-button'}>{busy?'Đang gửi…':action === 'APPROVE' ? 'Xác nhận phê duyệt' : 'Xác nhận từ chối'}</button></footer></fieldset></form></section></div>;
+  const verb = action === 'APPROVE' ? level ? `Duyệt cấp ${level}` : 'Phê duyệt' : 'Từ chối';
+  const effect = action === 'APPROVE' && level === 1 ? 'Yêu cầu sẽ chờ một Approver khác trong cùng phạm vi duyệt cấp 2.'
+    : action === 'APPROVE' && level === 2 ? 'Yêu cầu đã đủ cấp và sẽ chuyển sang hàng chờ xử lý sau khi xác nhận.'
+    : 'Quyết định sẽ được ghi Audit Log và thông báo cho người gửi.';
+  return <div className="modal-layer" role="presentation">
+    <button className="modal-scrim" onClick={onClose} aria-label="Đóng xác nhận"/>
+    <section ref={dialogRef} className="decision-dialog" role="dialog" aria-modal="true" aria-labelledby="decision-title">
+      <header><div><p className="eyebrow">Xác nhận quyết định</p><h2 id="decision-title">{verb} {requestId}</h2><span>{effect}</span></div>
+        <button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Đóng"><X size={20}/></button></header>
+      <form onSubmit={submit} noValidate><fieldset className="mutation-fields" disabled={busy||operation?.phase==='pending'}>
+        <div className={`inline-alert ${action === 'APPROVE' ? '' : 'inline-alert-danger'}`}><ShieldCheck size={19}/><div>
+          <strong>{action === 'APPROVE' ? 'Kiểm tra trước khi phê duyệt' : 'Người gửi cần biết cách khắc phục'}</strong>
+          <p>{action === 'APPROVE' ? 'Máy chủ sẽ kiểm tra phạm vi, phân tách nhiệm vụ và phiên bản khi gửi quyết định.' : 'Lý do từ chối phải cụ thể, không chứa dữ liệu bí mật.'}</p></div></div>
+        <label className={`form-field ${invalid ? 'field-error' : ''}`}><span>Ghi chú quyết định {action === 'REJECT' && <em>*</em>}</span>
+          <textarea value={note} onChange={event=>setNote(event.target.value)} placeholder={action === 'APPROVE' ? 'Ghi chú tùy chọn cho người gửi…' : 'Nêu rõ lý do và cách sửa yêu cầu…'} aria-invalid={invalid} aria-describedby="decision-help"/>
+          <small id="decision-help">{invalid ? 'Vui lòng nhập ít nhất 10 ký tự.' : 'Không nhập private key, token hoặc dữ liệu bí mật.'}</small></label>
+        <MutationGuardNotice operationKey={`request:${requestId}`}/>{submitError&&<div className="login-error" role="alert">{submitError}</div>}
+        <footer><button type="button" disabled={busy} className="quiet-button" onClick={onClose}>Hủy</button>
+          <button type="submit" disabled={busy||!!operation} className={action === 'APPROVE' ? 'primary-button' : 'danger-button'}>{busy?'Đang gửi…':`Xác nhận ${verb.toLowerCase()}`}</button></footer>
+      </fieldset></form>
+    </section>
+  </div>;
 }
 
 export function PasswordChangeDialog({onLogout,onSuccess}:{onLogout:()=>Promise<void>;onSuccess:(currentPassword:string,newPassword:string)=>Promise<void>}) {

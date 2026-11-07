@@ -25,6 +25,7 @@ export function emailConfiguration(environment: Record<string, string | undefine
 
 const events: Record<string, { title: string; description: string; target: 'request' | 'asset' }> = {
   REQUEST_SUBMITTED: { title: 'Yêu cầu mới cần phê duyệt', description: 'Có yêu cầu mới trong phạm vi bạn phụ trách. Đăng nhập để xem nội dung và quyết định phê duyệt.', target: 'request' },
+  REQUEST_SECOND_APPROVAL: { title: 'Yêu cầu cần phê duyệt cấp hai', description: 'Một yêu cầu trong phạm vi bạn phụ trách đã qua cấp một. Đăng nhập để kiểm tra và đưa ra quyết định trước thời hạn.', target: 'request' },
   REQUEST_APPROVED: { title: 'Yêu cầu đã được phê duyệt', description: 'Yêu cầu của bạn đã được duyệt và đang chờ xử lý. Bạn có thể theo dõi trạng thái trong Crypta.', target: 'request' },
   REQUEST_REJECTED: { title: 'Yêu cầu đã bị từ chối', description: 'Yêu cầu của bạn đã bị từ chối. Đăng nhập để xem quyết định và lý do.', target: 'request' },
   REQUEST_COMPLETED: { title: 'Yêu cầu đã hoàn tất', description: 'Crypta đã hoàn tất xử lý yêu cầu của bạn. Đăng nhập để xem kết quả và tài sản liên quan.', target: 'request' },

@@ -84,7 +84,13 @@ export function validAcknowledgment(item:MutationInput,value:unknown){
     case 'request-draft-submit':return data.id===item.targetId&&data.status==='PENDING'&&data.version===item.expectedVersion!+1;
     case 'request-cancel':return data.id===item.targetId&&data.status===item.expectedStatus&&
       (item.expectedVersion===undefined||data.version===item.expectedVersion+1);
-    case 'request-decision':case 'user-status':return data.id===item.targetId&&data.status===item.expectedStatus;
+    case 'request-decision':{
+      if(data.id!==item.targetId||data.status!==item.expectedStatus)return false;
+      if(item.expectedStatus!=='PENDING')return true;
+      const approval=data.approval as {levels?:unknown;approved?:unknown}|undefined;
+      return Number.isSafeInteger(item.expectedVersion)&&data.version===item.expectedVersion!+1&&approval?.levels===2&&approval.approved===1;
+    }
+    case 'user-status':return data.id===item.targetId&&data.status===item.expectedStatus;
     case 'provider-recovery':return data.id===item.targetId&&data.status===item.expectedStatus&&data.version===item.expectedVersion!+1;
     case 'user-create':return identified&&typeof item.email==='string'&&data.email===item.email;
     case 'user-invite':return identified&&typeof item.email==='string'&&data.email===item.email&&data.invitationPending===true&&data.status==='INACTIVE';

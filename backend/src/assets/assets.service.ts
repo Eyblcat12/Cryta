@@ -83,21 +83,25 @@ export class AssetsService {
     const number=(value:string|undefined,fallback:number,max:number)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!/^[1-9]\d*$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)>max)throw new BadRequestException({code:'INVALID_PAGINATION',message:'Tham số phân trang không hợp lệ.'});return Number(value)};
     const page=number(query.page,1,1_000_000),pageSize=number(query.pageSize,10,50);
     const history = `WITH visible_requests AS (
-      SELECT r.id FROM requests r WHERE r.submitted_at IS NOT NULL
+      SELECT r.id,r.policy_version_id FROM requests r WHERE r.submitted_at IS NOT NULL
         AND (r.target_asset_id=$1::uuid OR r.result_asset_id=$1::uuid)
         AND (r.creator_id=$2 OR $3::boolean OR r.department_id=ANY($4::uuid[]))
     ), events AS (
       SELECT a.id::text AS id,a.id AS event_order,a.action,a.occurred_at,a.outcome,a.request_id,u.display_name AS actor_name ${from}
       UNION ALL
       SELECT 'decision:'||d.id::text,0::bigint,
-        CASE WHEN d.decision='APPROVED' THEN 'REQUEST_APPROVED' ELSE 'REQUEST_REJECTED' END,
+        decision_event.action,
         d.decided_at,'SUCCESS',d.request_id,u.display_name
       FROM request_decisions d JOIN visible_requests r ON r.id=d.request_id
         JOIN users u ON u.id=d.approver_id
+        LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id
+        CROSS JOIN LATERAL (SELECT CASE WHEN d.decision='REJECTED' THEN 'REQUEST_REJECTED'
+          WHEN d.approval_level=1 AND pv.configuration->'approval_levels'='2'::jsonb THEN 'REQUEST_FIRST_APPROVED'
+          ELSE 'REQUEST_APPROVED' END AS action) decision_event
       WHERE NOT EXISTS (
         SELECT 1 FROM audit_logs existing WHERE existing.request_id=d.request_id AND existing.actor_id=d.approver_id
           AND existing.outcome='SUCCESS'
-          AND existing.action=CASE WHEN d.decision='APPROVED' THEN 'REQUEST_APPROVED' ELSE 'REQUEST_REJECTED' END
+          AND existing.action=decision_event.action
       )
       UNION ALL
       SELECT 'provider:'||op.request_id::text||':'||milestone.action,0::bigint,

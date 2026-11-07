@@ -4,6 +4,7 @@ import { AssetHistory } from './AssetHistory';
 import { StatusPill,assetStatus,requestStatus } from './WorkspaceUi';
 import type { Asset,RequestItem,RequestStatus } from './types';
 import { schedulePageTitleFocus } from './pageFocus';
+import { approvalExpired, approvalProgressLabel } from './requestApproval';
 export function AssetDetailPage({ asset, canRequest, canOpenRequests=false, onClose, onRenew, onRevoke, historyRevision=0 }: { asset: Asset; canRequest: boolean; canOpenRequests?:boolean; onClose: () => void; onRenew: () => void; onRevoke: () => void; historyRevision?:number }) {
   const canManage = canRequest && (asset.status === 'ACTIVE' || asset.status === 'EXPIRING_SOON');
   useEffect(()=>schedulePageTitleFocus(),[asset.id]);
@@ -49,8 +50,8 @@ const executionSteps: Partial<Record<RequestStatus, string>> = {
 };
 const decisionTime = new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
 
-export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCancel }: {
-  request: RequestItem; onClose: () => void; onDecision?: (action:'APPROVE'|'REJECT')=>void;
+export function RequestDetailPage({ request, currentUserId, onClose, onDecision, onEdit, onCancel }: {
+  request: RequestItem; currentUserId?:string; onClose: () => void; onDecision?: (action:'APPROVE'|'REJECT')=>void;
   onEdit?:()=>void;onCancel?:()=>void;
 }) {
   useEffect(()=>schedulePageTitleFocus(),[request.id]);
@@ -60,6 +61,9 @@ export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCanc
   const rejected = request.status === 'REJECTED';
   const approverName = request.decision?.approverName ?? request.approver;
   const execution = executionSteps[request.status];
+  const approval = !beforeSubmission ? request.approval : undefined;
+  const expired = pending && approvalExpired(approval);
+  const firstApprover = pending && !!currentUserId && approval?.firstApproverId===currentUserId;
 
   return <>
     <section className="asset-detail-page" aria-labelledby="page-title">
@@ -68,7 +72,7 @@ export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCanc
         <button className="icon-button" onClick={onClose} aria-label="Về danh sách"><X size={20} /></button>
       </div>
       <div className="drawer-body">
-        <div className="drawer-status"><StatusPill {...requestStatus[request.status]} /><span>{request.submittedAt}</span></div>
+        <div className="drawer-status"><StatusPill {...(pending&&approval ? {label:approvalProgressLabel(approval),tone:expired?'danger':'warning'} : requestStatus[request.status])} /><span>{request.submittedAt}</span></div>
         <dl className="detail-grid">
           <div><dt>Loại yêu cầu</dt><dd>{request.type === 'CREATE' ? 'Cấp phát mới' : request.type === 'RENEW' ? 'Gia hạn' : 'Thu hồi'}</dd></div>
           <div><dt>Người phê duyệt</dt><dd>{beforeSubmission ? 'Chưa gửi duyệt' : approverName ?? (cancelled ? 'Đã dừng phê duyệt' : pending ? 'Đang chờ phê duyệt' : 'Chưa ghi nhận')}</dd></div>
@@ -77,6 +81,19 @@ export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCanc
         {request.decision?.comment && <div className="detail-block request-decision-note"><span>{rejected ? 'Lý do từ chối' : 'Ghi chú quyết định'}</span><p>{request.decision.comment}</p></div>}
         {request.emergency && !beforeSubmission && <div className="inline-alert inline-alert-danger"><ShieldAlert size={19} /><div><strong>Yêu cầu khẩn cấp</strong><p>Yêu cầu được ưu tiên xử lý theo mức khẩn cấp đã gửi.</p></div></div>}
         {request.status === 'RECONCILIATION_REQUIRED' && <div className="inline-alert inline-alert-danger"><ShieldAlert size={19} /><div><strong>Cần đối soát với nhà cung cấp</strong><p>Hệ thống chưa xác nhận được kết quả xử lý. Quản trị viên cần kiểm tra trước khi thực hiện lại để tránh cấp phát hoặc thu hồi trùng.</p></div></div>}
+        {approval&&<div className="mini-timeline">
+          <h3>Lịch sử phê duyệt</h3>
+          {approval.deadlineAt&&<p>Hạn duyệt <time dateTime={approval.deadlineAt}>{decisionTime.format(new Date(approval.deadlineAt))}</time></p>}
+          {expired&&<p>Đã hết thời hạn phê duyệt. Người gửi có thể hủy và tạo yêu cầu mới.</p>}
+          {firstApprover&&!expired&&<p>Bạn đã duyệt cấp 1. Cấp 2 cần một Approver khác trong cùng phạm vi.</p>}
+          <ol>{([1,2] as const).map(level=>{
+            const decision=request.approvalHistory?.find(item=>item.level===level);
+            return <li key={level} className={decision?'done':''}><span/><div><strong>Cấp {level} · {decision ? decision.decision==='APPROVED'?'Đã duyệt':'Đã từ chối' : pending ? expired?'Quá hạn':'Chờ quyết định' : 'Đã dừng'}</strong>
+              {decision&&<small>{decision.approverName??'Người phê duyệt'} · <time dateTime={decision.decidedAt}>{decisionTime.format(new Date(decision.decidedAt))}</time></small>}
+              {decision?.comment&&decision.comment!==request.decision?.comment&&<small>{decision.comment}</small>}
+            </div></li>;
+          })}</ol>
+        </div>}
         <div className="mini-timeline">
           <h3>Tiến trình xử lý</h3>
           <ol>
@@ -92,7 +109,7 @@ export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCanc
       <div className="drawer-footer"><button className="quiet-button" onClick={onClose}>Về danh sách</button>
         {onCancel&&<button className="danger-quiet-button" onClick={onCancel}>Hủy yêu cầu</button>}
         {onEdit&&<button className="primary-button" onClick={onEdit}>Sửa bản nháp</button>}
-        {request.status==='PENDING'&&onDecision&&<><button className="danger-quiet-button" onClick={()=>onDecision('REJECT')}>Từ chối</button><button className="primary-button" onClick={()=>onDecision('APPROVE')}>Phê duyệt</button></>}
+        {pending&&onDecision&&!expired&&<><button className="danger-quiet-button" onClick={()=>onDecision('REJECT')}>Từ chối</button><button className="primary-button" onClick={()=>onDecision('APPROVE')}>{approval?`Duyệt cấp ${approval.approved+1}`:'Phê duyệt'}</button></>}
       </div>
     </section>
   </>;

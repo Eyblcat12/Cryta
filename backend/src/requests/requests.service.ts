@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
@@ -15,9 +15,18 @@ import { presentRequest, type RequestRow } from './request.presenter';
 const requestFrom = `FROM requests r
   JOIN users u ON u.id=r.creator_id JOIN departments d ON d.id=r.department_id
   LEFT JOIN crypto_assets a ON a.id=r.target_asset_id AND (r.submitted_at IS NOT NULL OR a.owner_id=r.creator_id)`;
-const requestSelect = `SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code ${requestFrom}`;
+const twoStage = `pv.configuration->'approval_levels'='2'::jsonb`;
+const deadline = `r.submitted_at+make_interval(hours=>(pv.configuration->>'approval_deadline_hours')::int)`;
+const approvalColumns = `CASE WHEN ${twoStage} THEN 2 ELSE 1 END AS approval_levels,
+  CASE WHEN ${twoStage} THEN ${deadline} END AS approval_deadline_at`;
+const requestSelect = `SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code,
+  ${approvalColumns},
+  CASE WHEN ${twoStage} THEN (SELECT count(*)::int FROM request_decisions WHERE request_id=r.id AND decision='APPROVED') END AS approved_levels,
+  CASE WHEN ${twoStage} THEN (SELECT approver_id FROM request_decisions WHERE request_id=r.id AND approval_level=1 AND decision='APPROVED') END AS first_approver_id
+  ${requestFrom} LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id`;
 const missingRequest = () => new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
 const versionConflict = () => new ConflictException({ code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi. Hãy tải lại để tiếp tục.' });
+const approvalExpired = () => new ConflictException({ code: 'APPROVAL_DEADLINE_EXPIRED', message: 'Yêu cầu đã quá thời hạn phê duyệt.' });
 
 @Injectable()
 export class RequestsService {
@@ -196,51 +205,58 @@ export class RequestsService {
     try {
       await client.query('BEGIN');
       user = await this.lockCurrentUser(client, user);
-      const found = await client.query<Pick<RequestRow, 'creator_id' | 'department_id' | 'status' | 'version' | 'submitted_at'>>(
-        'SELECT creator_id, department_id, status, version, submitted_at FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
+      const found = await client.query<RequestRow>(`SELECT r.*,${approvalColumns}
+        FROM requests r LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id WHERE r.id=$1 FOR UPDATE OF r`, [requestId]);
       const request = found.rows[0];
       if (!request || request.submitted_at === null) throw missingRequest();
       assertCanDecide(user, { creatorId: request.creator_id, departmentId: request.department_id, status: request.status });
-      if (dto.version && Number(dto.version) !== request.version) throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi. Hãy tải lại trước khi quyết định.' });
-      await client.query('INSERT INTO request_decisions (request_id, approver_id, decision, comment) VALUES ($1,$2,$3,$4)', [requestId, user.id, dto.decision, dto.comment?.trim() ?? null]);
-      const updated = await client.query('UPDATE requests SET status = $2, version = version + 1, updated_at = NOW() WHERE id = $1 RETURNING *', [requestId, dto.decision]);
-      await this.appendAudit(client, user.id, dto.decision === 'APPROVED' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED', requestId, 'SUCCESS', {});
-      await this.notifications.enqueueDecision(client, requestId, dto.decision === 'APPROVED' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED');
+      const needsTwo = request.approval_levels === 2;
+      if ((needsTwo || dto.version) && Number(dto.version) !== request.version) throw versionConflict();
+      let level = 1, firstApprover: string | null = null;
+      if (needsTwo) {
+        const first = (await client.query<{ approver_id: string }>(`SELECT approver_id FROM request_decisions
+          WHERE request_id=$1 AND approval_level=1 AND decision='APPROVED'`, [requestId])).rows[0];
+        if (first?.approver_id === user.id) throw new ForbiddenException({ code: 'SECOND_APPROVER_REQUIRED', message: 'Cấp hai cần một người duyệt khác trong cùng phạm vi.' });
+        if (first) { level = 2; firstApprover = first.approver_id; }
+      }
+      await client.query(`INSERT INTO request_decisions (request_id,approver_id,decision,comment,approval_level)
+        VALUES ($1,$2,$3,$4,$5)`, [requestId, user.id, dto.decision, dto.comment?.trim() ?? null, level]);
+      const partial = needsTwo && level === 1 && dto.decision === 'APPROVED';
+      const updated = await client.query<RequestRow>('UPDATE requests SET status = $2, version = version + 1, updated_at = NOW() WHERE id = $1 RETURNING *', [requestId, partial ? 'PENDING' : dto.decision]);
+      const audit = partial ? 'REQUEST_FIRST_APPROVED' : dto.decision === 'APPROVED' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED';
+      await this.appendAudit(client, user.id, audit, requestId, 'SUCCESS', needsTwo ? { approvalLevel: level, approvalLevels: 2 } : {});
+      if (partial) await this.notifications.enqueueSecondApproval(client, requestId, request.department_id, user.id);
+      else await this.notifications.enqueueDecision(client, requestId, dto.decision === 'APPROVED' ? 'REQUEST_APPROVED' : 'REQUEST_REJECTED');
       await client.query('COMMIT');
-      return presentRequest(updated.rows[0] as RequestRow);
+      return presentRequest({ ...updated.rows[0], approval_levels: request.approval_levels, approval_deadline_at: request.approval_deadline_at,
+        approved_levels: level - 1 + Number(dto.decision === 'APPROVED'), first_approver_id: partial ? user.id : firstApprover });
     } catch (error) {
       await client.query('ROLLBACK');
+      if (error instanceof Error && error.message === 'APPROVAL_DEADLINE_EXPIRED') throw approvalExpired();
       throw error;
     } finally { client.release(); }
   }
 
   async detail(user: AuthUser, requestId: string) {
     const found = await this.pool.query<RequestRow & {
-      decision: 'APPROVED' | 'REJECTED' | null;
-      comment: string | null;
-      approver_id: string | null;
-      approver_name: string | null;
-      decided_at: Date | null;
-    }>(`SELECT r.*, decision.decision, decision.comment, decision.approver_id,
-        approver.display_name AS approver_name, decision.decided_at
-      FROM (${requestSelect} WHERE r.id = $1) r
-      LEFT JOIN request_decisions decision ON decision.request_id = r.id AND r.submitted_at IS NOT NULL
-      LEFT JOIN users approver ON approver.id = decision.approver_id`, [requestId]);
+      decisions: Array<{ level: number; decision: 'APPROVED' | 'REJECTED'; comment: string | null;
+        approverId: string; approverName: string; decidedAt: string }> | null;
+    }>(`SELECT r.*, (SELECT jsonb_agg(jsonb_build_object('level',d.approval_level,'decision',d.decision,
+        'comment',d.comment,'approverId',d.approver_id,'approverName',u.display_name,'decidedAt',d.decided_at) ORDER BY d.approval_level)
+      FROM request_decisions d JOIN users u ON u.id=d.approver_id WHERE d.request_id=r.id AND r.submitted_at IS NOT NULL) AS decisions
+      FROM (${requestSelect} WHERE r.id = $1) r`, [requestId]);
     const request = found.rows[0];
     if (!request) throw missingRequest();
     const allowed = request.creator_id === user.id || (request.submitted_at !== null &&
       (user.roles.includes('ADMIN') || (user.roles.includes('APPROVER') && user.approverDepartmentIds.includes(request.department_id))));
     if (!allowed) throw missingRequest();
-    return {
-      ...presentRequest(request),
-      decision: request.decision ? {
-        decision: request.decision,
-        comment: request.comment,
-        approverId: request.approver_id,
-        approverName: request.approver_name,
-        decidedAt: request.decided_at,
-      } : null,
-    };
+    const decisions = request.decisions ?? [];
+    const latest = decisions.at(-1);
+    const final = latest && (request.approval_levels !== 2 || latest.level === 2 || latest.decision === 'REJECTED');
+    return { ...presentRequest(request), decision: final ? {
+      decision: latest.decision, comment: latest.comment, approverId: latest.approverId,
+      approverName: latest.approverName, decidedAt: latest.decidedAt,
+    } : null, ...(request.approval_levels === 2 && { approvalHistory: decisions }) };
   }
 
   async cancel(user: AuthUser, requestId: string, dto: CancelRequestDto = {}) {

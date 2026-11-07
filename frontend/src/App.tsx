@@ -34,7 +34,7 @@ function App() {
   const {sessionState,user,role,authNotice}=session;
   const [roleMenu, setRoleMenu] = useState(false);
   const [globalQuery, setGlobalQuery] = useState('');
-  const [decisionModal, setDecisionModal] = useState<{ action: 'APPROVE' | 'REJECT'; requestId: string; version:number } | null>(null);
+  const [decisionModal, setDecisionModal] = useState<{ action: 'APPROVE' | 'REJECT'; requestId: string; version:number; level?:1|2 } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [createUserModal,setCreateUserModal]=useState(false);
   const [helpOpen,setHelpOpen]=useState(false);
@@ -137,11 +137,11 @@ function App() {
   if(sessionState==='UNAVAILABLE')return <main className="session-loading"><div role="alert"><strong>Chưa thể xác minh phiên đăng nhập</strong><p>{session.restoreError}</p></div><button className="secondary-button" onClick={session.retryRestore}>Thử khôi phục phiên</button></main>;
   if(sessionState==='GUEST'||!user) return <LoginScreen key={session.revision} notice={authNotice} onLogin={session.acceptUser}/>;
   if(user.mustChangePassword)return <PasswordChangeDialog onLogout={session.logout} onSuccess={session.changePassword}/>;
-  const context:WorkspacePageContext={view,role,user,routeAllowed,scope:`${user.id}:${role}:${session.revision}`,revisions,onCloseDetail:closeDetail,openRequest,onReload:revalidateData,onNotify:setToast,onCreateUser:()=>setCreateUserModal(true),onSessionAccepted:session.acceptUser,onDecision:(action,requestId,version)=>setDecisionModal({action,requestId,version})};
+  const context:WorkspacePageContext={view,role,user,routeAllowed,scope:`${user.id}:${role}:${session.revision}`,revisions,onCloseDetail:closeDetail,openRequest,onReload:revalidateData,onNotify:setToast,onCreateUser:()=>setCreateUserModal(true),onSessionAccepted:session.acceptUser,onDecision:(action,requestId,version,level)=>setDecisionModal({action,requestId,version,level})};
   return <AppShell key={context.scope} context={context} theme={theme} setTheme={setTheme} mobileNav={mobileNav} setMobileNav={setMobileNav} roleMenu={roleMenu} setRoleMenu={setRoleMenu} globalQuery={globalQuery} setGlobalQuery={setGlobalQuery} globalSearchRef={globalSearchRef} mainMotionRef={mainMotionRef} submitGlobalSearch={submitGlobalSearch} changeRole={changeRole} setHelpOpen={setHelpOpen} onLogout={session.logout}>
-      {decisionModal && <DecisionDialog action={decisionModal.action} requestId={decisionModal.requestId} onClose={() => setDecisionModal(null)} onSuccess={async(action, requestId,note) => {
+      {decisionModal && <DecisionDialog action={decisionModal.action} requestId={decisionModal.requestId} level={decisionModal.level} onClose={() => setDecisionModal(null)} onSuccess={async(action, requestId,note) => {
         const submittedModal=decisionModal;
-        await api.decide(requestId,{decision:action==='APPROVE'?'APPROVED':'REJECTED',comment:note||undefined,version:String(submittedModal.version)});setDecisionModal(current=>current===submittedModal?null:current);
+        await api.decide(requestId,{decision:action==='APPROVE'?'APPROVED':'REJECTED',comment:note||undefined,version:String(submittedModal.version)},submittedModal.level===1);setDecisionModal(current=>current===submittedModal?null:current);
       }} />}
       {createUserModal&&<CreateUserDialog invitation={user.accountActionsEnabled===true} onClose={()=>setCreateUserModal(false)} onSuccess={async()=>{setCreateUserModal(false)}}/>}
       {helpOpen&&<HelpDialog onClose={()=>setHelpOpen(false)}/>}

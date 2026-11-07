@@ -24,6 +24,11 @@ export interface Asset {
   version?: number;
 }
 
+export type RequestDecision = {
+  decision: 'APPROVED' | 'REJECTED'; comment: string | null; approverId: string;
+  approverName?: string | null; decidedAt: string;
+};
+
 export interface RequestItem {
   id: string;
   type: 'CREATE' | 'RENEW' | 'REVOKE';
@@ -33,13 +38,9 @@ export interface RequestItem {
   submitted?: boolean;
   cancellationReason?: string | null;
   approver?: string;
-  decision?: {
-    decision: 'APPROVED' | 'REJECTED';
-    comment: string | null;
-    approverId: string;
-    approverName?: string | null;
-    decidedAt: string;
-  } | null;
+  decision?: RequestDecision | null;
+  approval?: { levels: 2; approved: number; deadlineAt: string | null; firstApproverId: string | null };
+  approvalHistory?: Array<RequestDecision & { level: 1 | 2 }>;
   emergency?: boolean;
   creatorName?: string;
   creatorId?: string;

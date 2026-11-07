@@ -91,6 +91,8 @@ function PolicyEditor({ policy, disabled, onClose }: { policy?: AdminPolicy; dis
   const curveBits = configuration.curve === 'P-384' ? 384 : configuration.curve === 'P-521' ? 521 : 256;
   const initialBits = String(configuration.minimum_key_size ?? (initialKind === 'RSA' ? 2048 : curveBits));
   const initialWarnings = Array.isArray(configuration.warning_days) ? configuration.warning_days.join(',') : '30,7,1';
+  const initialApprovalLevels = configuration.approval_levels === 2 ? '2' : '1';
+  const initialApprovalDeadline = String(configuration.approval_deadline_hours ?? 48);
   const [base, setBase] = useState(policy);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -98,6 +100,8 @@ function PolicyEditor({ policy, disabled, onClose }: { policy?: AdminPolicy; dis
   const [days, setDays] = useState(initialDays);
   const [bits, setBits] = useState(initialBits);
   const [warnings, setWarnings] = useState(initialWarnings);
+  const [approvalLevels, setApprovalLevels] = useState(initialApprovalLevels);
+  const [approvalDeadline, setApprovalDeadline] = useState(initialApprovalDeadline);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -106,7 +110,8 @@ function PolicyEditor({ policy, disabled, onClose }: { policy?: AdminPolicy; dis
   const pending = useRef(false);
   const operationKey = 'policy:' + (policy?.id ?? 'new');
   const operation = useMutationGuard(operationKey);
-  const dirty = !!(code || name || confirmed || kind !== initialKind || days !== initialDays || bits !== initialBits || warnings !== initialWarnings);
+  const dirty = !!(code || name || confirmed || kind !== initialKind || days !== initialDays || bits !== initialBits || warnings !== initialWarnings ||
+    approvalLevels !== initialApprovalLevels || (approvalLevels === '2' && approvalDeadline !== initialApprovalDeadline));
   const blocker = useUnsavedChanges(dirty && !busy);
   const requestClose = () => { if (dirty) setDiscard(true); else onClose(); };
 
@@ -121,6 +126,7 @@ function PolicyEditor({ policy, disabled, onClose }: { policy?: AdminPolicy; dis
     }
     const input: PolicyConfigurationInput = {
       maximumValidityDays: Number(days), warningDays: warningDays.map(Number),
+      ...(approvalLevels === '2' && { approvalLevels: 2, approvalDeadlineHours: Number(approvalDeadline) }),
       ...(kind === 'TLS' ? { certificateProfile: 'TLS_SERVER' } : {
         algorithm: kind, minimumKeySize: kind === 'ED25519' ? 256 : Number(bits),
       }),
@@ -186,6 +192,13 @@ function PolicyEditor({ policy, disabled, onClose }: { policy?: AdminPolicy; dis
           {kind === 'RSA' && <label className="form-field"><span>Độ dài khóa tối thiểu (bit)</span><input type="number" required min={2048} max={16384} value={bits} onChange={event => setBits(event.target.value)}/></label>}
           {(kind === 'ECDSA' || kind === 'AES') && <label className="form-field"><span>Độ dài khóa tối thiểu (bit)</span><select value={bits} onChange={event => setBits(event.target.value)}>{selectedSizes.map(size => <option key={size}>{size}</option>)}</select></label>}
           <label className="form-field"><span>Cảnh báo trước hạn (ngày, cách nhau bằng dấu phẩy)</span><input value={warnings} onChange={event => setWarnings(event.target.value)}/></label>
+          <label className="form-field"><span>Số cấp phê duyệt</span><select value={approvalLevels} onChange={event => setApprovalLevels(event.target.value)}>
+            <option value="1">Một cấp</option><option value="2">Hai cấp</option>
+          </select></label>
+          {approvalLevels === '2' && <label className="form-field"><span>Thời hạn duyệt (giờ)</span>
+            <input type="number" required min={1} max={168} value={approvalDeadline} onChange={event => setApprovalDeadline(event.target.value)}/>
+            <small>Tính từ lúc gửi yêu cầu. Cấp hai cần một Approver khác trong cùng phạm vi.</small>
+          </label>}
           <div className="inline-alert"><p>Áp dụng ngay khi phát hành. Yêu cầu đã gửi và tài sản đã cấp giữ phiên bản đã gắn.</p></div>
           <label className="policy-confirm"><input type="checkbox" required checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/> Tôi xác nhận phát hành phiên bản này.</label>
           <MutationGuardNotice operationKey={operationKey}/>
@@ -228,6 +241,7 @@ function PolicyComparison({ versions }: { versions: PolicyVersion[] }) {
     ['Độ dài khóa tối thiểu', version => String(version.configuration.minimum_key_size ?? '—')],
     ['Thời hạn tối đa', version => version.configuration.maximum_validity_days ? String(version.configuration.maximum_validity_days) + ' ngày' : '—'],
     ['Mốc cảnh báo', version => Array.isArray(version.configuration.warning_days) ? version.configuration.warning_days.join(', ') || 'Không đặt' : '—'],
+    ['Phê duyệt', version => version.configuration.approval_levels === 2 ? `Hai cấp trong ${version.configuration.approval_deadline_hours} giờ` : 'Một cấp'],
     ['Bắt đầu hiệu lực', version => dateLabel(version.effectiveFrom)],
   ];
   return <>

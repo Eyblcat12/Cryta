@@ -24,6 +24,10 @@ class PolicyConfigurationDto {
   @IsOptional() @IsIn(['TLS_SERVER']) certificateProfile?: string;
   @ApiProperty({ type: 'array', uniqueItems: true, items: { type: 'integer', minimum: 1, maximum: 3650 } })
   @IsArray() @ArrayUnique() @IsInt({ each: true }) @Min(1, { each: true }) @Max(3650, { each: true }) warningDays: number[];
+  @ApiPropertyOptional({ enum: [1, 2], default: 1 })
+  @IsOptional() @IsIn([1, 2]) approvalLevels?: 1 | 2;
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 168, default: 48 })
+  @IsOptional() @IsInt() @Min(1) @Max(168) approvalDeadlineHours?: number;
 }
 
 export class PolicyVersionDto extends PolicyConfigurationDto {
@@ -145,9 +149,11 @@ export class PoliciesController {
     if (!dto.algorithm && !dto.certificateProfile) throw invalid('Chọn thuật toán hoặc hồ sơ chứng thư.');
     if (dto.algorithm === 'RSA' && (!dto.minimumKeySize || dto.minimumKeySize < 2048)) throw invalid('Khóa RSA phải có độ dài tối thiểu 2048 bit.');
     if (dto.warningDays.some(day => day > dto.maximumValidityDays)) throw invalid('Mốc cảnh báo không được vượt thời hạn tài sản.');
+    if (dto.approvalLevels !== 2 && dto.approvalDeadlineHours !== undefined) throw invalid('Chỉ policy hai cấp có thời hạn phê duyệt.');
     const configuration = {
       algorithm: dto.algorithm ?? undefined, minimum_key_size: dto.minimumKeySize ?? undefined,
       maximum_validity_days: dto.maximumValidityDays, certificate_profile: dto.certificateProfile ?? undefined, warning_days: dto.warningDays,
+      ...(dto.approvalLevels === 2 && { approval_levels: 2, approval_deadline_hours: dto.approvalDeadlineHours ?? 48 }),
     };
     resolveProvisionParameters({ assetType: dto.certificateProfile ? 'CERTIFICATE' : 'KEY' }, configuration);
     return configuration;

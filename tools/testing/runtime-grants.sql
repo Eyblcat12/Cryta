@@ -49,6 +49,13 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'KEY_IDENTITY_GUARD_REQUIRED' USING ERRCODE='22023';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgrelid=to_regclass('public.requests')
+      AND tgname='trg_sensitive_request_approval' AND NOT tgisinternal AND tgenabled IN ('O','A')
+      AND tgfoid=to_regprocedure('public.enforce_sensitive_request_approval()')
+  ) THEN
+    RAISE EXCEPTION 'SENSITIVE_APPROVAL_GUARD_REQUIRED' USING ERRCODE='22023';
+  END IF;
 END;
 $guard$;
 -- Reset direct ACLs, including column ACLs left intact by table-level REVOKE.
