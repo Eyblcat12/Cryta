@@ -1,0 +1,18 @@
+# Test overlay for compose.t30.yml only. Generate a realm with keycloak-realm.cjs.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_HTTP_PORT: "${CRYPTA_TEST_OIDC_PORT:?Set an isolated Keycloak port}"
+      KC_HOSTNAME: "http://oidc.crypta.test:${CRYPTA_TEST_OIDC_PORT:?Set an isolated Keycloak port}"
+    ports:
+      - "127.0.0.1:${CRYPTA_TEST_OIDC_PORT}:${CRYPTA_TEST_OIDC_PORT}"
+    networks:
+      default:
+        aliases: ["oidc.crypta.test"]
+    volumes:
+      - type: bind
+        source: "${CRYPTA_TEST_OIDC_REALM:?Set the generated realm JSON path}"
+        target: /opt/keycloak/data/import/crypta-oidc-test-realm.json
+        read_only: true
