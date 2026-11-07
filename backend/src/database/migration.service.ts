@@ -366,6 +366,32 @@ CREATE INDEX idx_report_exports_owner ON report_exports(requester_id,created_at 
 CREATE INDEX idx_report_exports_queue ON report_exports(created_at,id) WHERE state IN ('QUEUED','RUNNING');
 CREATE INDEX idx_report_exports_file_expiry ON report_exports(expires_at) WHERE state='READY';
 CREATE INDEX idx_report_exports_retention ON report_exports(finished_at) WHERE finished_at IS NOT NULL;
+`},
+{version:'023_audit_anchor_source',sql:`
+CREATE VIEW public.audit_anchor_rows AS
+SELECT id, jsonb_build_array(
+  id::text, actor_id::text, actor_type, action, entity_type, entity_id, outcome, request_id::text,
+  ip_address::text, metadata, extract(epoch FROM occurred_at)::text
+)::text AS canonical
+FROM public.audit_logs;
+REVOKE ALL ON public.audit_anchor_rows FROM PUBLIC;
+
+CREATE FUNCTION public.capture_audit_anchor_rows(p_after bigint, p_limit integer)
+RETURNS TABLE(id bigint, canonical text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, public AS $anchor$
+BEGIN
+  IF p_after IS NULL OR p_after<0 OR p_limit IS NULL OR p_limit<1 OR p_limit>1000 THEN
+    RAISE EXCEPTION 'AUDIT_ANCHOR_RANGE_INVALID' USING ERRCODE='22023';
+  END IF;
+  LOCK TABLE public.audit_logs IN SHARE MODE;
+  IF EXISTS (SELECT 1 FROM public.audit_logs a WHERE a.id<=0) THEN
+    RAISE EXCEPTION 'AUDIT_ANCHOR_ID_INVALID' USING ERRCODE='22023';
+  END IF;
+  RETURN QUERY SELECT a.id,a.canonical FROM public.audit_anchor_rows a
+    WHERE a.id>p_after ORDER BY a.id LIMIT p_limit;
+END;
+$anchor$;
+REVOKE ALL ON FUNCTION public.capture_audit_anchor_rows(bigint,integer) FROM PUBLIC;
 `}
 ];
 

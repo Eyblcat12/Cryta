@@ -73,3 +73,5 @@ Migration `016_demo_certificate_provider_scope` sửa liên kết MOCK cho `CRT-
 Migration `021_auth_oidc` thêm bảng liên kết định danh, challenge, phiên và thu hồi SSO. Phiên và challenge MFA cũ giữ giá trị liên kết SSO rỗng. Chạy migration rồi áp lại `runtime-grants.sql` trước khi nâng backend, kể cả khi SSO đang tắt. Runtime chỉ đọc liên kết. Thao tác cấp hoặc thu hồi do role DB vận hành thực hiện và ghi audit. [Cấu hình và kiểm thử X03](docs/X03_OIDC.md)
 
 Migration `022_report_exports` thêm hàng đợi và vùng lưu tạm tệp xuất báo cáo. Chạy migration rồi áp lại quyền runtime trước khi nâng backend. Tệp tải được trong một giờ, sau đó worker xóa nội dung và giữ trạng thái tác vụ trong một ngày để người dùng tra cứu. [Xuất báo cáo X04](docs/X04_REPORT_EXPORTS.md)
+
+Migration `023_audit_anchor_source` thêm view chuẩn hóa Audit Log và hàm chụp đoạn cho checkpoint ngoài DB. Cấp riêng quyền đọc và thực thi cho tài khoản ký/xác minh bằng `deploy/audit-anchor-grants.sql`. Dữ liệu audit và quyền runtime hiện có được giữ nguyên. [Kiểm chứng Audit Log X05](docs/X05_AUDIT_ANCHOR.md)

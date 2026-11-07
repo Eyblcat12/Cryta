@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "migrate": "node --env-file-if-exists=.env dist/database/migrate.js",
+    "audit:anchor": "node dist/audit/audit-anchor.cli.js",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "start:dev": "node --watch --env-file-if-exists=.env --import tsx src/main.ts",
     "test": "vitest run",
