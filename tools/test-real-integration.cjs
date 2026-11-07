@@ -493,10 +493,13 @@ async function main() {
         await page.getByRole('button', { name: 'Áp dụng' }).click();
         await page.waitForURL(url => url.searchParams.get('correlationId') === disabled.requestId);
         await page.reload();
+        const audit = page.getByRole('region', { name: 'Audit Log', exact: true });
+        await audit.getByRole('status').filter({ hasText: 'Đã tìm thấy 1 sự kiện.' }).waitFor();
         const trigger = page.getByRole('button', { name: 'USER_STATUS_CHANGED', exact: true });
         await trigger.focus();
         await page.keyboard.press('Enter');
         const dialog = page.getByRole('dialog', { name: 'Chi tiết sự kiện' });
+        await dialog.getByRole('status').filter({ hasText: 'Đã tải chi tiết sự kiện.' }).waitFor();
         await dialog.getByText('Đã vô hiệu hóa', { exact: true }).waitFor();
         assert.ok(await dialog.getByText('Đang hoạt động', { exact: true }).isVisible());
         assert.ok(await dialog.getByText(disabled.requestId, { exact: true }).isVisible());
@@ -513,7 +516,7 @@ async function main() {
         assert.deepEqual(errors, []);
       } finally { await context.close(); }
     }
-    return { secondPage: true, noRawMetadata: true, adminOnly: true, reportMatches: true, browserWidths: [1440, 390] };
+    return { secondPage: true, noRawMetadata: true, adminOnly: true, reportMatches: true, accessibleStatus: true, browserWidths: [1440, 390] };
   });
   await test('X02: scoped Approvers advance separate levels and worker only runs after both', async () => {
     const second = await createUser(['APPROVER'], [it]);

@@ -142,8 +142,8 @@ export function AdminAuditTable({ refreshKey }: { refreshKey: number }) {
     </form>
     {description && <p className="audit-applied" role="status">{description}</p>}
     {error && <div className="login-error" role="alert">{error}{result && ' Dữ liệu đang hiển thị chưa được cập nhật.'} <button className="text-button" onClick={resource.retry}>Thử lại</button></div>}
-    <div className="table-shell" aria-busy={loading}>
-      <table className="audit-table">
+    <div className="table-shell">
+      <table className="audit-table" aria-busy={loading}>
         <thead><tr><th scope="col">Sự kiện</th><th scope="col" className="audit-actor">Người thực hiện</th><th scope="col">Kết quả</th><th scope="col">Thời điểm (UTC+07)</th></tr></thead>
         <tbody>{loading && !result ? <TableSkeletonRows rows={pageSize} columns={4} visible={pending}/> : result?.items.map(item => <tr key={item.id}>
           <td><button className="text-button audit-event-link" type="button" disabled={loading || !!error} onClick={event => {
@@ -156,7 +156,10 @@ export function AdminAuditTable({ refreshKey }: { refreshKey: number }) {
           <td>{time.format(new Date(item.occurredAt))}</td>
         </tr>)}</tbody>
       </table>
-      {pending && <div className="table-pending" role="status">{result ? 'Đang cập nhật…' : 'Đang tải nhật ký…'}</div>}
+      <div className={pending ? 'table-pending' : 'sr-only'} role="status">
+        {pending ? (result ? 'Đang cập nhật…' : 'Đang tải nhật ký…')
+          : !loading && !error && result ? (result.total ? `Đã tìm thấy ${result.total} sự kiện.` : 'Không có sự kiện phù hợp.') : ''}
+      </div>
       {!loading && !error && !result?.items.length && <div className="empty-state"><Search size={22}/><strong>Không tìm thấy nhật ký</strong><p>Thử rút ngắn từ khóa hoặc mở rộng khoảng thời gian.</p></div>}
     </div>
     <div className="admin-asset-pagination">
@@ -180,6 +183,7 @@ function AuditEventDialog({ id, close }: { id: string; close: () => void }) {
   useDialogBehavior(dialog, closeButton, close);
   const detail = useResource(`audit-event:${id}`, signal => api.auditDetail(id, signal));
   const { data: event, error, loading } = detail;
+  const pending = useDelayedPending(loading, id);
   const related = event?.related;
   const displayValue = (field: string, value?: string) => value === undefined ? 'Chưa ghi nhận' : field === 'status' ? statusLabels[value] ?? value : value;
 
@@ -188,9 +192,15 @@ function AuditEventDialog({ id, close }: { id: string; close: () => void }) {
     <section ref={dialog} className="decision-dialog audit-event-dialog" role="dialog" aria-modal="true" aria-labelledby="audit-event-title">
       <header><div><h2 id="audit-event-title">Chi tiết sự kiện</h2>{event && <span>{event.action} · {outcomeLabel(event.outcome)}</span>}</div>
         <button ref={closeButton} className="icon-button" onClick={close} aria-label="Đóng"><X size={20}/></button></header>
-      <div className="audit-event-body" aria-busy={loading}>
-        {loading && <p role="status">Đang tải chi tiết sự kiện…</p>}
-        {error && <div className="login-error" role="alert">{error} <button className="text-button" onClick={detail.retry}>Thử lại</button></div>}
+      <div className="audit-event-body">
+        {loading && <p aria-hidden="true">Đang tải chi tiết sự kiện…</p>}
+        <p className="sr-only" role="status">
+          {pending ? 'Đang tải chi tiết sự kiện…' : event && !loading && !error ? 'Đã tải chi tiết sự kiện.' : ''}
+        </p>
+        {error && <div className="login-error" role="alert">{error} <button className="text-button" onClick={() => {
+          closeButton.current?.focus({ preventScroll: true });
+          detail.retry();
+        }}>Thử lại</button></div>}
         {event && !loading && !error && <>
           <dl className="audit-event-facts">
             <div><dt>Mã sự kiện</dt><dd>{event.id}</dd></div><div><dt>Người thực hiện</dt><dd>{event.actorName}</dd></div>

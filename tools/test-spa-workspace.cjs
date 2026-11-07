@@ -279,6 +279,61 @@ if(require.main===module)(async()=>{
       }finally{state.tableReadGate=null;release()}
     },{...(item.data?{[item.data]:true}:{})}));
 
+    await test(browser,'T22 Audit Log exposes stable loading, results and retry status',()=>withFixture(browser,'ADMIN',async({page,state})=>{
+      const assertStatus=async(region,message)=>{
+        const status=region.getByRole('status').filter({hasText:message});
+        await status.waitFor();
+        assert.equal(await status.evaluate(element=>!!element.closest('[aria-busy="true"]')),false);
+        const snapshot=await status.ariaSnapshot();
+        assert(snapshot.includes('status:')&&snapshot.includes(message),snapshot);
+        return status;
+      };
+      let releaseList;
+      state.tableReadEndpoint='/audit-logs';
+      state.tableReadGate=new Promise(resolve=>{releaseList=resolve});
+      try {
+        await page.goto(origin+'/audit');
+        const audit=page.getByRole('region',{name:'Audit Log',exact:true});
+        const status=await assertStatus(audit,'Đang tải nhật ký…');
+        await status.evaluate(element=>element.dataset.testStatus='audit-list');
+        assert.equal(await audit.getByRole('table').getAttribute('aria-busy'),'true');
+        state.tableReadGate=null;releaseList();
+        assert.equal(await (await assertStatus(audit,'Đã tìm thấy 35 sự kiện.')).getAttribute('data-test-status'),'audit-list');
+        state.auditItems=false;
+        const refresh=audit.getByRole('button',{name:'Làm mới nhật ký'});
+        await refresh.press('Enter');
+        await assertStatus(audit,'Không có sự kiện phù hợp.');
+        state.auditItems=true;
+        await refresh.press('Enter');
+        await assertStatus(audit,'Đã tìm thấy 35 sự kiện.');
+
+        let releaseDetail;
+        const detailGate=new Promise(resolve=>{releaseDetail=resolve});
+        await page.route('**/api/v1/audit-logs/audit-1',async route=>{
+          await detailGate;
+          return route.fulfill({status:503,json:{error:{code:'UNAVAILABLE',message:'Không thể tải chi tiết.'}}});
+        },{times:1});
+        const event=audit.getByRole('button',{name:'AUTH_LOGIN',exact:true}).first();
+        try {
+          await event.press('Enter');
+          const dialog=page.getByRole('dialog',{name:'Chi tiết sự kiện'});
+          const loadingStatus=await assertStatus(dialog,'Đang tải chi tiết sự kiện…');
+          await loadingStatus.evaluate(element=>element.dataset.testStatus='audit-detail');
+          releaseDetail();
+          const retry=dialog.getByRole('alert').getByRole('button',{name:'Thử lại'});
+          await retry.waitFor();
+          await page.route('**/api/v1/audit-logs/audit-1',route=>route.fulfill({json:{data:{...auditItems[0],changes:[],related:null}}}),{times:1});
+          await retry.press('Enter');
+          assert.equal(await (await assertStatus(dialog,'Đã tải chi tiết sự kiện.')).getAttribute('data-test-status'),'audit-detail');
+          await dialog.getByRole('heading',{name:'Thay đổi đã ghi nhận'}).waitFor();
+          const close=dialog.getByRole('button',{name:'Đóng',exact:true});
+          assert.equal(await close.evaluate(element=>element===document.activeElement),true);
+          await page.keyboard.press('Escape');
+          await dialog.waitFor({state:'hidden'});
+          await event.evaluate(element=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve(element===document.activeElement))))).then(focused=>assert.equal(focused,true));
+        } finally {releaseDetail()}
+      } finally {state.tableReadGate=null;releaseList()}
+    },{auditItems:true}));
     await test(browser,'N1 motion tokens match navigation, page and overlays in both themes',()=>withFixture(browser,'ADMIN',async({page})=>{
       await page.goto(origin+'/users');await visible(page,'Người dùng và vai trò');const read=()=>page.evaluate(()=>{const style=getComputedStyle(document.documentElement);return ['--motion-fast','--motion-page','--motion-overlay','--motion-ease-entrance','--motion-ease-exit'].map(name=>style.getPropertyValue(name).trim())});
       const tokens=await read();assert.deepEqual(tokens.slice(0,3),['120ms','160ms','180ms']);const hoverLink=page.locator('.nav-item').first();assert.equal(await hoverLink.evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0s');await hoverLink.hover();assert.equal(await hoverLink.evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0.12s');await page.mouse.move(0,0);assert.equal(await page.locator('.nav-item-active').evaluate(element=>getComputedStyle(element).transitionDuration.split(',')[0].trim()),'0s');

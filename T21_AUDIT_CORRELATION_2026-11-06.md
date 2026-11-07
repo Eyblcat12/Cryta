@@ -45,3 +45,9 @@ Chi tiết dùng mã audit `BIGINT` dưới dạng chuỗi và chỉ trả trư�
 Kiểm cục bộ đạt backend 498/498, frontend 148/148, build, lint và OpenAPI. Chromium trên bản build với API fixture đạt hai viewport sáng/tối, gồm nhập sai mã, giữ URL sau tải lại, trả focus, chuyển đến tài khoản và giữ bộ lọc trong yêu cầu xuất báo cáo. Năm nhóm hồi quy tải, lỗi và phân trang Audit Log đều đạt. Bộ kiểm PostgreSQL/Chromium trong CI có ca T22 riêng.
 
 Audit Log tiếp tục chỉ đọc trên giao diện. Kho lưu dài hạn, thời hạn giữ và quyền truy cập bản lưu cần xác nhận ở môi trường đích. Các checkpoint đã ký của X05 phải được lưu độc lập theo chính sách của môi trường. [X05](docs/X05_AUDIT_ANCHOR.md)
+
+## Thông báo trạng thái và bàn phím ngày 08/11/2026
+
+Audit Log đặt vùng thông báo bên ngoài bảng đang `aria-busy` để công nghệ hỗ trợ có thể nhận cập nhật trong lúc tải. Cùng một vùng báo khi tải chậm, báo số kết quả hoặc xác nhận danh sách rỗng. Hộp chi tiết báo tải và hoàn tất qua một vùng riêng. Khi thử lại lỗi, focus về nút Đóng. Escape trả focus về sự kiện vừa mở. [Quy tắc aria-busy](https://www.w3.org/TR/wai-aria-1.2/#aria-busy)
+
+Ca hồi quy phát hiện vùng bị lồng trên bản trước. Chromium và Firefox đạt trên bản sửa, gồm kiểm cây trợ năng, dữ liệu rỗng, lỗi và thử lại. Chromium qua Nginx/PostgreSQL kiểm trạng thái và chi tiết ở 1440 px sáng và 390 px tối. Lượt này kiểm ngữ nghĩa và focus của trình duyệt. Phần đọc thành tiếng bằng trình đọc màn hình vẫn cần nghiệm thu riêng. [Ca trước sửa](tools/test-artifacts/n6-focus-layout-scoped/chromium-audit-status-baseline/results-filtered.json) · [Chromium](tools/test-artifacts/audit-live-status/chromium-audit-status-fixed/results-filtered.json) · [Firefox](tools/test-artifacts/audit-live-status/firefox-audit-status-fixed/results-filtered.json) · [Stack thật](tools/test-artifacts/integration/crypta-t30-test-fbd7f05ec598/real-chromium-1794074548955/results.json)
