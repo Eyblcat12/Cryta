@@ -271,6 +271,41 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('NAV-22 Nginx: static assets, API and SPA deep links use separate fallbacks', async () => {
+    const read = route => fetch(new URL(route, origin), { signal: AbortSignal.timeout(15000) });
+    const shell = '<div id="root"></div>';
+    for (const route of buildAssets) {
+      const response = await read(route);
+      assert.equal(response.status, 200, route);
+      assert.match(response.headers.get('content-type') ?? '', route.endsWith('.css') ? /^text\/css\b/ : /^(?:application|text)\/javascript\b/);
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      assert.ok(!(await response.text()).includes(shell), route);
+    }
+    const deepLinks = ['/assets', '/assets/', '/assets/a2222223-2222-2222-2222-222222222223',
+      `/requests/${ownerRequest.id}`, '/account/reset-password'];
+    for (const route of deepLinks) {
+      const response = await read(route);
+      assert.equal(response.status, 200, route);
+      assert.match(response.headers.get('content-type') ?? '', /^text\/html\b/);
+      assert.ok((await response.text()).includes(shell), route);
+      if (route.startsWith('/account/')) assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+    }
+    const apiRoutes = [['/api/v1/health/live', 200], [`/api/v1/missing-${stamp}.js`, 404]];
+    for (const [route, status] of apiRoutes) {
+      const response = await read(route);
+      assert.equal(response.status, status, route);
+      assert.match(response.headers.get('content-type') ?? '', /^application\/json\b/);
+      assert.ok(await response.json(), route);
+    }
+    const missingAssets = [`/assets/missing-${stamp}.js`, `/assets/chunks/missing-${stamp}.css`, `/missing-${stamp}.ico`];
+    for (const route of missingAssets) {
+      const response = await read(route);
+      assert.equal(response.status, 404, route);
+      assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+      assert.ok(!(await response.text()).includes(shell), route);
+    }
+    return { buildAssets: buildAssets.length, deepLinks: deepLinks.length, apiRoutes: apiRoutes.length, missingAssets: missingAssets.length };
+  });
   await test('T30 N6: default frontend image navigates without route animation', async () => {
     const { context, page, errors } = await newPage();
     try {

@@ -4,6 +4,10 @@
 
 ### Hồi quy điều hướng T30
 
+Bộ 180/180 ca Chromium với API fixture đạt trên build tắt fade của `39e4a3c`. Firefox đạt 24/24 tổ hợp vai trò, theme và viewport. Hai trình duyệt cũng qua ca giữ phản hồi mã trang Chính sách đến sau khung hình điều hướng. [Chromium](tools/test-artifacts/n6-focus-layout-scoped/chromium-off-39e4a3c/results-chromium.json) · [Ma trận Firefox](tools/test-artifacts/n6-focus-layout-scoped/off-firefox-L-matrix/results-filtered.json)
+
+NAV-22 tái hiện chunk JavaScript đã mất trả HTTP 200 với SPA trên cấu hình cũ. Sau sửa, Nginx trả 404 cho ba URL tệp đã mất, giữ đúng MIME của JS/CSS hiện hành, JSON cho cả API có thật và API 404, và HTML cho năm URL điều hướng. Hai ca Chromium mở trực tiếp rồi F5 ở trang tài sản và yêu cầu cùng đạt. Đã dọn cả hai stack Docker thử. [Trước sửa](tools/test-artifacts/integration/crypta-t30-test-4bd6e7a1c5c4/real-chromium-1794060199245/results.json) · [Sau sửa](tools/test-artifacts/integration/crypta-t30-test-5c6618c73085/real-chromium-1794060251412/results.json)
+
 Bảng Tài khoản căn chiều cao tối thiểu của hàng dữ liệu theo hàng tải ở 1440 và 390 px. Khi mở trang từ menu mobile, focus đi đến tiêu đề. Đóng menu tại cùng trang trả focus về nút mở. Khi mã trang Chính sách tải chậm, bộ kiểm giữ phản hồi đến sau khung hình điều hướng rồi xác nhận tiêu đề nhận focus sau khi xuất hiện. Frontend đạt 148/148 kiểm thử đơn vị. Chromium trên stack Docker cách ly đạt ca mở Chính sách bằng bàn phím ở 390 px, giữ cùng tài liệu và không gọi fade. Bộ hồi quy trình duyệt chạy được với cả hai cấu hình fade. [Báo cáo stack](tools/test-artifacts/integration/crypta-t30-test-c61fa8c1cf04/real-chromium-1794059484065/results.json) · [Hướng dẫn chạy](tools/testing/README.md)
 
 ### T30/N6 trên cây mã `4d50242`
