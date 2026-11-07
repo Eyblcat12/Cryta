@@ -270,6 +270,73 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('M keyboard: deferred page focus preserves row and decision activation', async () => {
+    const request = await createRequest(account, 'deferred keyboard focus');
+    const reviewer = await newPage();
+    try {
+      await reviewer.page.addInitScript(() => {
+        const requestFrame = window.requestAnimationFrame.bind(window);
+        const cancelFrame = window.cancelAnimationFrame.bind(window);
+        const pending = new Map();
+        let released = 0;
+        const release = () => {
+          const frames = [...pending.values()]; pending.clear();
+          released += frames.length;
+          for (const { callback, timestamp } of frames) callback(timestamp);
+        };
+        window.requestAnimationFrame = callback => {
+          if (!callback.toString().includes('page-title')) return requestFrame(callback);
+          const id = requestFrame(timestamp => pending.set(id, { callback, timestamp }));
+          return id;
+        };
+        window.cancelAnimationFrame = id => { pending.delete(id); cancelFrame(id); };
+        const releaseOnControlFocus = event => {
+          if (event.target instanceof HTMLButtonElement && event.target.closest('#main-content')) {
+            queueMicrotask(release);
+          }
+        };
+        document.addEventListener('focusin', releaseOnControlFocus);
+        window.__routeFocusRace = {
+          get pending() { return pending.size; },
+          get released() { return released; },
+          restore() {
+            document.removeEventListener('focusin', releaseOnControlFocus);
+            release();
+            window.requestAnimationFrame = requestFrame;
+            window.cancelAnimationFrame = cancelFrame;
+          },
+        };
+      });
+      await reviewer.page.goto(new URL(`/approvals?q=${request.id}`, origin).href);
+      await uiLogin(reviewer.page, approver.user.email);
+      const row = reviewer.page.getByRole('button', { name: request.id, exact: true });
+      await row.waitFor();
+      await reviewer.page.waitForFunction(() => window.__routeFocusRace.pending > 0);
+      await row.press('Enter');
+      await reviewer.page.waitForURL(new URL(`/requests/${request.id}`, origin).href);
+      const reject = reviewer.page.getByRole('button', { name: 'Từ chối', exact: true });
+      await reject.waitFor();
+      await reviewer.page.waitForFunction(() => window.__routeFocusRace.pending > 0);
+      await reject.press('Enter');
+      const dialog = reviewer.page.getByRole('dialog');
+      await dialog.waitFor();
+      const releasedFrames = await reviewer.page.evaluate(() => {
+        const released = window.__routeFocusRace.released;
+        window.__routeFocusRace.restore();
+        return released;
+      });
+      assert(releasedFrames >= 2, 'Both page focus callbacks must race the keyboard activation.');
+      await reviewer.page.keyboard.press('Escape');
+      await dialog.waitFor({ state: 'hidden' });
+      assert(await reject.evaluate(element => element === document.activeElement));
+      assert.equal(sql(`SELECT count(*) FROM request_decisions WHERE request_id='${request.id}'`), '0');
+      assert.deepEqual(reviewer.errors, []);
+      return { releasedFrames, rowOpened: true, decisionOpened: true, escapeRestoredFocus: true };
+    } finally {
+      await reviewer.context.close();
+      expectStatus(await call('POST', `/requests/${request.id}/cancel`, { version: Number(request.version) }, account.accessToken), 201);
+    }
+  });
   for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
     await test(`T49 real UI: rejected request shows decision to its owner at ${width}px`, async () => {
       const owner = await newPage({ width, height: 900 });
@@ -291,6 +358,7 @@ async function main() {
       await reviewer.page.goto(new URL(`/approvals?q=${encodeURIComponent(subject)}`, origin).href);
       await uiLogin(reviewer.page, approver.user.email);
       await reviewer.page.getByRole('button', { name: id, exact: true }).press('Enter');
+      await reviewer.page.waitForURL(new URL(requestPath, origin).href);
       await reviewer.page.getByRole('button', { name: 'Từ chối', exact: true }).press('Enter');
       const dialog = reviewer.page.getByRole('dialog');
       await dialog.getByRole('textbox', { name: /Ghi chú quyết định/ }).fill(reason);

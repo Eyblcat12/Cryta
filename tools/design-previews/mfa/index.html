@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypta · Xem trước xác thực TOTP</title>
+  <style>
+    :root { font:15px/1.55 Inter,"Segoe UI",sans-serif; color-scheme:light; --bg:#f7f8f9; --card:#fff; --text:#172b4d; --soft:#44546f; --line:#b7bdc8; --brand:#0055cc; --on-brand:#fff; --error:#9f211a; --error-bg:#ffeceb; --ok:#145c40; --ok-bg:#dcfff1; }
+    :root[data-theme="dark"] { color-scheme:dark; --bg:#090a0a; --card:#191a1a; --text:#f3f4f4; --soft:#c7cccf; --line:#626970; --brand:#9ab5ff; --on-brand:#101b34; --error:#ffb3ad; --error-bg:#422322; --ok:#adf2cf; --ok-bg:#163829; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    button,input,select { font:inherit; color:inherit; }
+    button,input,select,summary { min-height:44px; }
+    button,input,select { border:1px solid var(--line); border-radius:7px; padding:9px 12px; background:var(--card); }
+    button { cursor:pointer; font-weight:650; }
+    button:disabled { cursor:default; opacity:.65; }
+    input { min-width:0; width:100%; }
+    :focus-visible { outline:3px solid var(--brand); outline-offset:3px; }
+    [hidden] { display:none!important; }
+    .preview { padding:12px clamp(14px,4vw,40px); border-bottom:1px solid var(--line); background:var(--card); display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap; }
+    .preview-controls { display:flex; flex-wrap:wrap; gap:8px; max-width:100%; }
+    .preview-controls select { max-width:100%; min-width:0; }
+    .preview small,.hint,p { color:var(--soft); }
+    .preview small { display:block; }
+    main { padding:clamp(24px,5vh,64px) 14px; display:grid; justify-items:center; }
+    article { width:min(100%,740px); padding:clamp(20px,4vw,36px); background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 35px #121b2a16; }
+    .brand { display:flex; gap:12px; align-items:center; font-weight:750; margin-bottom:24px; }
+    .brand svg { width:38px; height:38px; padding:8px; border-radius:10px; background:var(--brand); color:var(--on-brand); flex:none; }
+    .brand small { display:block; color:var(--soft); font-weight:400; }
+    h1 { font-size:clamp(23px,5vw,29px); line-height:1.2; margin:0 0 12px; }
+    h2 { margin:0 0 8px; font-size:17px; }
+    p { margin:0 0 18px; }
+    .steps { color:var(--soft); font-size:13px; margin-bottom:10px; }
+    .setup { display:grid; grid-template-columns:200px minmax(0,1fr); gap:28px; align-items:start; }
+    .qr { width:200px; height:200px; display:block; background:#fff; border-radius:6px; }
+    .qr-caption { margin-top:8px; font-size:13px; text-align:center; }
+    label { display:grid; gap:6px; margin:16px 0; font-weight:650; }
+    .hint { font-size:13px; font-weight:400; }
+    .otp { font:600 24px/1.3 ui-monospace,monospace; letter-spacing:.2em; max-width:240px; }
+    .primary { background:var(--brand); border-color:var(--brand); color:var(--on-brand); }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+    .actions .primary { flex:1; }
+    .link { color:var(--brand); text-decoration:underline; border-color:transparent; padding-inline:0; }
+    details { margin-top:12px; }
+    summary { display:flex; align-items:center; cursor:pointer; color:var(--brand); text-decoration:underline; }
+    .manual { overflow-wrap:anywhere; font:14px/1.7 ui-monospace,monospace; user-select:all; display:block; margin:8px 0; }
+    .error { color:var(--error); background:var(--error-bg); padding:12px; border-radius:7px; margin:12px 0; }
+    .notice { color:var(--ok); background:var(--ok-bg); padding:12px; border-radius:7px; margin:16px 0; }
+    .codes { display:grid; grid-template-columns:1fr 1fr; gap:10px 20px; padding:0; list-style:none; }
+    .codes li { padding:10px; border:1px solid var(--line); border-radius:6px; font:14px/1.5 ui-monospace,monospace; text-align:center; user-select:all; }
+    .ack { display:flex; align-items:center; gap:10px; min-height:44px; cursor:pointer; }
+    .ack input { width:20px; min-height:20px; height:20px; flex:none; }
+    .method { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding:16px 0; border-top:1px solid var(--line); }
+    .method strong,.method span { display:block; }
+    .method span { color:var(--soft); }
+    .status { color:var(--ok); font-weight:650; }
+    fieldset { border:0; padding:0; margin:0; min-width:0; }
+    .live { margin:12px 0 0; min-height:24px; color:var(--soft); }
+    @media (max-width:600px) {
+      .setup { grid-template-columns:1fr; gap:14px; }
+      .qr { margin:auto; }
+      .codes { grid-template-columns:1fr; }
+      .preview-controls { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; }
+      .preview-controls #scenario { grid-column:1/-1; width:100%; }
+      .preview-controls #role { width:100%; }
+    }
+    @media print { .preview,.brand,.actions,.ack,.live { display:none; } body { background:#fff; color:#000; } article { border:0; box-shadow:none; } .codes li { border-color:#666; } }
+  </style>
+</head>
+<body>
+  <header class="preview">
+    <div><strong>Bản xem trước X01</strong><small>Dữ liệu minh họa · Mã thử 123456 · Mã khôi phục <span id="preview-code">DEMO-RECO-VERY-CODE-0001</span></small></div>
+    <div class="preview-controls">
+      <select id="scenario" aria-label="Tình huống xem trước">
+        <option value="setup">Đăng ký TOTP</option>
+        <option value="verify">Xác thực khi đăng nhập</option>
+        <option value="codes">Lưu mã khôi phục</option>
+        <option value="recovery">Mất thiết bị</option>
+        <option value="security">Quản lý MFA</option>
+        <option value="invalid">Mã không đúng</option>
+        <option value="used">Mã đã được dùng</option>
+        <option value="offline">Lỗi kết nối và thử lại</option>
+        <option value="expired">Phiên hết hạn</option>
+        <option value="locked">Tạm dừng do thử nhiều lần</option>
+      </select>
+      <select id="role" aria-label="Vai trò xem trước"><option>Security Admin</option><option>Người phê duyệt</option></select>
+      <button id="theme" type="button">Đổi sáng/tối</button>
+    </div>
+  </header>
+  <main>
+    <article aria-label="Xác thực hai bước">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 2 3 6v6c0 5 9 10 9 10s9-5 9-10V6Z"/><path d="m8 12 3 3 5-6"/></svg>
+        <div>Crypta<small>admin@example.test · <span class="role-label">Security Admin</span></small></div>
+      </div>
+
+      <section data-screen="setup">
+        <div class="steps">Thiết lập MFA · Bước 1 / 2</div>
+        <h1 tabindex="-1" id="setup-title">Kết nối ứng dụng xác thực</h1>
+        <p id="setup-intro">Thiết lập xác thực hai bước để tiếp tục với vai trò của bạn.</p>
+        <div class="setup">
+          <div><img class="qr" src="enroll-qr.svg" alt="QR mẫu để thêm tài khoản Crypta Preview vào ứng dụng xác thực" width="200" height="200"><p class="qr-caption">Quét bằng ứng dụng xác thực</p></div>
+          <div>
+            <h2>Thêm tài khoản Crypta</h2>
+            <p>Mở ứng dụng xác thực, thêm tài khoản bằng QR, rồi nhập mã 6 số vừa xuất hiện.</p>
+            <details><summary>Không quét được QR?</summary><p class="hint">Thêm tài khoản theo thời gian bằng khóa thiết lập này.</p><code class="manual" id="setup-key"></code><button type="button" id="copy-key">Sao chép khóa</button></details>
+            <form data-form="setup" novalidate><fieldset>
+              <label for="setup-code">Mã xác thực 6 số<input class="otp" id="setup-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required aria-describedby="setup-help setup-error"></label>
+              <p id="setup-help" class="hint">Dùng mã mới nhất trong ứng dụng.</p>
+              <div id="setup-error" class="error" role="alert" hidden></div>
+              <div class="actions"><button class="primary" type="submit">Xác nhận và tạo mã khôi phục</button><button type="button" data-go="signedout">Đăng xuất</button></div>
+            </fieldset></form>
+          </div>
+        </div>
+      </section>
+
+      <section data-screen="verify" hidden>
+        <div class="steps">Đăng nhập · Xác thực hai bước</div>
+        <h1 tabindex="-1">Nhập mã từ ứng dụng xác thực</h1>
+        <p>Mở ứng dụng xác thực và nhập mã của tài khoản Crypta.</p>
+        <form data-form="verify" novalidate><fieldset>
+          <label for="verify-code">Mã xác thực 6 số<input class="otp" id="verify-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required aria-describedby="verify-error"></label>
+          <div id="verify-error" class="error" role="alert" hidden></div>
+          <div class="actions"><button class="primary" type="submit">Xác thực và tiếp tục</button><button type="button" data-go="signedout">Đăng xuất</button></div>
+        </fieldset></form>
+        <button class="link" type="button" data-go="recovery">Dùng mã khôi phục</button>
+      </section>
+
+      <section data-screen="codes" hidden>
+        <div class="steps">Thiết lập MFA · Bước 2 / 2</div>
+        <h1 tabindex="-1">Lưu mã khôi phục</h1>
+        <p>Mỗi mã dùng một lần khi bạn không thể dùng ứng dụng xác thực. Bộ mã này chỉ hiển thị trong lần tạo này.</p>
+        <ol class="codes" id="recovery-list" aria-label="Mười mã khôi phục"></ol>
+        <div class="actions"><button id="download-codes" type="button">Tải mã khôi phục</button><button id="copy-codes" type="button">Sao chép mã</button></div>
+        <label class="ack"><input type="checkbox" id="saved-codes"><span>Tôi đã lưu các mã ở nơi an toàn, có thể truy cập khi mất điện thoại.</span></label>
+        <div class="actions"><button class="primary" id="finish-setup" type="button" disabled>Hoàn tất thiết lập</button></div>
+      </section>
+
+      <section data-screen="recovery" hidden>
+        <div class="steps">Khôi phục quyền truy cập</div>
+        <h1 tabindex="-1">Sử dụng mã khôi phục</h1>
+        <p>Nhập một mã chưa sử dụng. Sau khi xác nhận, bạn sẽ kết nối ứng dụng xác thực mới.</p>
+        <form data-form="recovery" novalidate><fieldset>
+          <label for="recovery-code">Mã khôi phục<input id="recovery-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" required aria-describedby="recovery-error"></label>
+          <div id="recovery-error" class="error" role="alert" hidden></div>
+          <div class="actions"><button class="primary" type="submit">Xác nhận và thiết lập lại</button><button type="button" data-go="verify">Quay lại mã ứng dụng</button></div>
+        </fieldset></form>
+        <details><summary>Không còn mã khôi phục?</summary><p>Liên hệ quản trị viên để xác minh danh tính và khôi phục quyền truy cập.</p></details>
+      </section>
+
+      <section data-screen="security" hidden>
+        <h1 tabindex="-1">Xác thực hai bước</h1>
+        <p>Quản lý ứng dụng xác thực và phương án khôi phục tài khoản.</p>
+        <div class="method"><div><strong>Ứng dụng xác thực TOTP</strong><span>Mã 6 số theo thời gian</span></div><strong class="status">Đang bật</strong></div>
+        <div class="method"><div><strong>Mã khôi phục</strong><span id="remaining-codes">Còn 10 mã chưa dùng</span></div><button type="button" data-stepup="codes">Tạo bộ mã mới</button></div>
+        <div class="method"><div><strong>Thay ứng dụng xác thực</strong><span>Xác nhận bằng mật khẩu và mã hiện tại</span></div><button type="button" data-stepup="device">Thay ứng dụng</button></div>
+        <div class="notice">MFA đã được thiết lập cho tài khoản của bạn.</div>
+        <div class="actions"><button class="primary" type="button" data-go="complete">Tiếp tục vào Crypta</button></div>
+      </section>
+
+      <section data-screen="stepup" hidden>
+        <h1 tabindex="-1" id="stepup-title">Xác nhận tạo bộ mã khôi phục mới</h1>
+        <p id="stepup-description">Sau khi tạo bộ mới, các mã khôi phục cũ sẽ hết hiệu lực.</p>
+        <form data-form="stepup" novalidate><fieldset>
+          <label for="stepup-password">Mật khẩu hiện tại<input id="stepup-password" type="password" autocomplete="current-password" required></label>
+          <label for="stepup-code">Mã xác thực 6 số<input class="otp" id="stepup-code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required aria-describedby="stepup-error"></label>
+          <div id="stepup-error" class="error" role="alert" hidden></div>
+          <div class="actions"><button class="primary" type="submit" id="stepup-submit">Xác nhận và tạo mã mới</button><button type="button" data-go="security">Hủy</button></div>
+        </fieldset></form>
+      </section>
+
+      <section data-screen="expired" hidden><h1 tabindex="-1">Phiên xác thực đã hết hạn</h1><p>Đăng nhập lại để nhận một phiên xác thực mới.</p><div class="actions"><button class="primary" type="button" data-go="signedout">Về trang đăng nhập</button></div></section>
+      <section data-screen="locked" hidden><h1 tabindex="-1">Tạm dừng xác thực</h1><p>Bạn đã thử nhiều lần. Hãy chờ 5 phút rồi đăng nhập lại.</p><div class="actions"><button type="button" data-go="signedout">Về trang đăng nhập</button></div></section>
+      <section data-screen="signedout" hidden>
+        <h1 tabindex="-1">Đăng nhập vào Crypta</h1><p>Nhập thông tin tài khoản để tiếp tục.</p>
+        <form data-form="login" novalidate><fieldset>
+          <label for="login-email">Email<input id="login-email" type="email" autocomplete="username" value="admin@example.test" required></label>
+          <label for="login-password">Mật khẩu<input id="login-password" type="password" autocomplete="current-password" required></label>
+          <div id="login-error" class="error" role="alert" hidden></div>
+          <div class="actions"><button class="primary" type="submit">Đăng nhập</button></div>
+        </fieldset></form>
+      </section>
+      <section data-screen="complete" hidden><h1 tabindex="-1">Xác thực thành công</h1><p>Bạn có thể tiếp tục công việc với tài khoản đã được xác thực hai bước.</p><div class="actions"><button class="primary" type="button" data-go="security">Xem bảo mật tài khoản</button></div></section>
+      <p id="status" class="live" role="status" aria-live="polite"></p>
+    </article>
+  </main>
+  <script>
+    const screens = [...document.querySelectorAll('[data-screen]')];
+    const scenario = document.getElementById('scenario');
+    const status = document.getElementById('status');
+    let codes = Array.from({ length:10 }, (_, index) => 'DEMO-RECO-VERY-CODE-' + String(index + 1).padStart(4, '0'));
+    let generation = 0;
+    let screen = 'setup';
+    let stepupPurpose = 'codes';
+    let viewVersion = 0;
+    const usedCodes = new Set();
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = '';
+    for (const value of new TextEncoder().encode('12345678901234567890')) bits += value.toString(2).padStart(8, '0');
+    document.getElementById('setup-key').textContent = bits.match(/.{1,5}/g).map(group => alphabet[parseInt(group.padEnd(5, '0'), 2)]).join('');
+    document.getElementById('recovery-list').innerHTML = codes.map(value => '<li><code>' + value + '</code></li>').join('');
+
+    function show(next) {
+      viewVersion++;
+      screen = next;
+      for (const section of screens) section.hidden = section.dataset.screen !== next;
+      status.textContent = '';
+      const section = screens.find(item => item.dataset.screen === next);
+      section.querySelector('h1').focus({ preventScroll:true });
+    }
+    function error(form, message) {
+      const box = form.querySelector('.error');
+      box.textContent = message;
+      box.hidden = !message;
+      const code = form.querySelector('[name="code"]');
+      if (code) code.setAttribute('aria-invalid', String(Boolean(message)));
+    }
+    function prepareCodes() {
+      generation++;
+      codes = Array.from({ length:10 }, (_, index) => 'DEMO-RECO-' + String(generation).padStart(4, '0') + '-CODE-' + String(index + 1).padStart(4, '0'));
+      usedCodes.clear();
+      document.getElementById('recovery-list').innerHTML = codes.map(value => '<li><code>' + value + '</code></li>').join('');
+      document.getElementById('preview-code').textContent = codes[0];
+      document.getElementById('saved-codes').checked = false;
+      document.getElementById('finish-setup').disabled = true;
+      show('codes');
+    }
+    async function copy(value) {
+      try {
+        await navigator.clipboard.writeText(value);
+        status.textContent = 'Đã sao chép.';
+      } catch {
+        status.textContent = 'Chọn nội dung để sao chép thủ công.';
+      }
+    }
+    for (const button of document.querySelectorAll('[data-go]')) {
+      button.addEventListener('click', () => show(button.dataset.go));
+    }
+    document.getElementById('theme').addEventListener('click', () => {
+      document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    });
+    document.getElementById('role').addEventListener('change', event => {
+      for (const label of document.querySelectorAll('.role-label')) label.textContent = event.target.value;
+    });
+    document.getElementById('copy-key').addEventListener('click', () => copy(document.getElementById('setup-key').textContent));
+    document.getElementById('copy-codes').addEventListener('click', () => copy(codes.join('\n')));
+    document.getElementById('download-codes').addEventListener('click', () => {
+      const url = URL.createObjectURL(new Blob(['Crypta Preview\n' + codes.join('\n')], { type:'text/plain;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = 'crypta-preview-recovery-codes.txt'; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      status.textContent = 'Đã tải tệp mã khôi phục.';
+    });
+    document.getElementById('saved-codes').addEventListener('change', event => {
+      document.getElementById('finish-setup').disabled = !event.target.checked;
+    });
+    document.getElementById('finish-setup').addEventListener('click', () => show('security'));
+    for (const button of document.querySelectorAll('[data-stepup]')) {
+      button.addEventListener('click', () => {
+        stepupPurpose = button.dataset.stepup;
+        document.getElementById('stepup-title').textContent = stepupPurpose === 'codes' ? 'Xác nhận tạo bộ mã khôi phục mới' : 'Xác nhận thay ứng dụng xác thực';
+        document.getElementById('stepup-description').textContent = stepupPurpose === 'codes' ? 'Sau khi tạo bộ mới, các mã khôi phục cũ sẽ hết hiệu lực.' : 'Sau khi thiết lập ứng dụng mới, các phiên đăng nhập hiện tại sẽ được thu hồi.';
+        document.getElementById('stepup-submit').textContent = stepupPurpose === 'codes' ? 'Xác nhận và tạo mã mới' : 'Xác nhận và thay ứng dụng';
+        show('stepup');
+      });
+    }
+    for (const form of document.querySelectorAll('form')) {
+      form.addEventListener('input', () => error(form, ''));
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        error(form, '');
+        const kind = form.dataset.form;
+        const code = form.querySelector('[name="code"]');
+        if (kind === 'login') {
+          if (!document.getElementById('login-email').validity.valid || !document.getElementById('login-password').value) {
+            error(form, 'Nhập email và mật khẩu để tiếp tục.'); return;
+          }
+        } else if (kind === 'recovery') {
+          const value = code.value.trim().toUpperCase();
+          if (!codes.includes(value) || usedCodes.has(value)) {
+            error(form, 'Mã khôi phục không hợp lệ hoặc đã được dùng.'); code.focus(); return;
+          }
+        } else if (!/^[0-9]{6}$/.test(code.value) || code.value === '000000') {
+          error(form, 'Nhập mã 6 số mới nhất trong ứng dụng xác thực.'); code.focus(); return;
+        }
+        if (kind === 'stepup' && !document.getElementById('stepup-password').value) {
+          error(form, 'Nhập mật khẩu hiện tại để xác nhận thay đổi.'); document.getElementById('stepup-password').focus(); return;
+        }
+        const startedAt = viewVersion;
+        const fieldset = form.querySelector('fieldset');
+        fieldset.disabled = true;
+        status.textContent = 'Đang xác thực…';
+        await new Promise(resolve => setTimeout(resolve, 650));
+        fieldset.disabled = false;
+        if (startedAt !== viewVersion) return;
+        if (kind === 'stepup') document.getElementById('stepup-password').value = '';
+        if (kind === 'login') document.getElementById('login-password').value = '';
+        if (kind === 'setup' || (kind === 'stepup' && stepupPurpose === 'codes')) prepareCodes();
+        else if (kind === 'recovery' || kind === 'stepup') {
+          if (kind === 'recovery') usedCodes.add(code.value.trim().toUpperCase());
+          document.getElementById('setup-title').textContent = 'Kết nối ứng dụng xác thực mới';
+          document.getElementById('setup-intro').textContent = 'Xác nhận mã từ ứng dụng mới để hoàn tất khôi phục tài khoản.';
+          show('setup');
+        } else if (kind === 'login') show('verify');
+        else show('complete');
+      });
+    }
+    scenario.addEventListener('change', () => {
+      const value = scenario.value;
+      if (['invalid','used','offline'].includes(value)) {
+        show('verify');
+        document.getElementById('verify-code').value = value === 'invalid' ? '000000' : '123456';
+        const messages = {
+          invalid:'Mã chưa đúng. Hãy kiểm tra mã mới nhất trong ứng dụng.',
+          used:'Mã này đã được dùng. Hãy chờ mã tiếp theo trong ứng dụng.',
+          offline:'Chưa kết nối được máy chủ. Mã đã nhập được giữ lại để bạn thử lại.',
+        };
+        error(document.querySelector('[data-form="verify"]'), messages[value]);
+      } else if (value === 'codes') prepareCodes();
+      else show(value);
+    });
+    show('setup');
+  </script>
+</body>
+</html>

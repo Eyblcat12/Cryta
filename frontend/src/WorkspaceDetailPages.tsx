@@ -3,9 +3,10 @@ import { useEffect } from 'react';
 import { AssetHistory } from './AssetHistory';
 import { StatusPill,assetStatus,requestStatus } from './WorkspaceUi';
 import type { Asset,RequestItem,RequestStatus } from './types';
+import { schedulePageTitleFocus } from './pageFocus';
 export function AssetDetailPage({ asset, canRequest, canOpenRequests=false, onClose, onRenew, onRevoke, historyRevision=0 }: { asset: Asset; canRequest: boolean; canOpenRequests?:boolean; onClose: () => void; onRenew: () => void; onRevoke: () => void; historyRevision?:number }) {
   const canManage = canRequest && (asset.status === 'ACTIVE' || asset.status === 'EXPIRING_SOON');
-  useEffect(()=>{const frame=window.requestAnimationFrame(()=>document.getElementById('page-title')?.focus({preventScroll:true}));return()=>window.cancelAnimationFrame(frame)},[asset.id]);
+  useEffect(()=>schedulePageTitleFocus(),[asset.id]);
 
   return <>
     <section className="asset-detail-page" aria-labelledby="page-title">
@@ -52,7 +53,7 @@ export function RequestDetailPage({ request, onClose, onDecision, onEdit, onCanc
   request: RequestItem; onClose: () => void; onDecision?: (action:'APPROVE'|'REJECT')=>void;
   onEdit?:()=>void;onCancel?:()=>void;
 }) {
-  useEffect(()=>{const frame=window.requestAnimationFrame(()=>document.getElementById('page-title')?.focus({preventScroll:true}));return()=>window.cancelAnimationFrame(frame)},[request.id]);
+  useEffect(()=>schedulePageTitleFocus(),[request.id]);
   const beforeSubmission = request.status === 'DRAFT' || request.submitted === false;
   const cancelled = request.status === 'CANCELLED';
   const pending = request.status === 'PENDING';

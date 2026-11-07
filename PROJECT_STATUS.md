@@ -1,5 +1,7 @@
 # Trạng thái triển khai Crypta
 
+T30 đã sửa callback tiêu đề lấy mất focus trước Enter. Đối chứng fixture từ không điều hướng sang mở đúng chi tiết. Bộ UI/API thật đạt 39/39, frontend 147/147, build và lint đạt. X01 đã chốt TOTP 6 số cùng mã khôi phục. Mẫu X01 có 44 kiểm tra prototype và đang chờ duyệt bố cục trước tích hợp. [Focus](T30_FOCUS_INTENT_2026-11-07.md) · [Mẫu TOTP](tools/design-previews/mfa/index.html)
+
 T43 đã thu hồi UPDATE không còn dùng trên `policy_versions.id`. Migration 018 chặn đổi liên kết metadata khóa sang tài sản khác và giữ khóa dòng cho worker. Runtime/provisioning kiểm thêm ownership function. Local đạt 421 backend, 159 nhóm tích hợp, 6 ca nâng cấp/restore và 23 ca production TLS. Template được kiểm riêng khi trigger thiếu hoặc bị tắt. [Hồi quy](tools/test-artifacts/integration/crypta-t30-test-e6df8e509d52/ci-verification.json) · [Nâng cấp](tools/test-artifacts/integration/crypta-t30-test-580d3bc461ed/release-upgrade-95a3fa380c71/results.json) · [Production](tools/test-artifacts/production-24ab8c7d0e61/verification.json) · [Quy trình](DATABASE_MIGRATIONS.md)
 
 Đã đẩy nhánh ứng viên và hợp nhất lịch sử origin/main. GitHub Actions trên commit `a599aae` đạt đủ năm job, gồm 419 backend, 147 frontend, 6 SMTP loopback và 158 nhóm tích hợp trên Ubuntu. Audit ba package đều 0 advisory. Nhánh thử lỗi đạt điều kiện kiểm thất bại có chủ đích và dọn stack. Cấu hình required checks bị GitHub từ chối HTTP 403 do gói của repo private. [Bằng chứng CI remote](docs/CI_REMOTE_2026-11-07.md)

@@ -20,6 +20,7 @@ import type { WorkspacePageContext } from './WorkspacePage';
 import type { RequestType,Theme } from './WorkspaceUi';
 import { useAuthSession } from './useAuthSession';
 import { workspaceSearch,workspaceSearchUrl } from './workspaceSearch';
+import { schedulePageTitleFocus } from './pageFocus';
 function App() {
   const location=useLocation();
   const navigate=useNavigate();
@@ -83,11 +84,7 @@ function App() {
   useEffect(()=>{
     document.title=user?.mustChangePassword?'Đổi mật khẩu · Crypta':`${pageTitles[view]} · Crypta`;
     if(sessionState!=='READY'||!user||user.mustChangePassword||isDetailRoute)return;
-    const frame=window.requestAnimationFrame(()=>{
-      if(document.querySelector('[role="dialog"], [role="alertdialog"]'))return;
-      document.getElementById('page-title')?.focus({preventScroll:true});
-    });
-    return()=>window.cancelAnimationFrame(frame);
+    return schedulePageTitleFocus();
   },[sessionState,user?.id,user?.mustChangePassword,role,session.revision,view,isDetailRoute]);
 
   const closeDetail=()=>{
