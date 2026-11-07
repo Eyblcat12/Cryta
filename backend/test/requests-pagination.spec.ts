@@ -13,8 +13,10 @@ describe('request pagination', () => {
     const result = await service.list(approver, { page: '3', pageSize: '25', status: 'PENDING', emergency: 'true' });
     expect(result).toEqual({ items: [], total: 125, page: 3, pageSize: 25 });
     expect(query.mock.calls[0][0]).toContain('r.department_id = ANY($1::uuid[]) AND r.status = $2 AND r.emergency = $3');
+    expect(query.mock.calls[0][0]).not.toContain('JOIN');
     expect(query.mock.calls[0][1]).toEqual([['dept-1'], 'PENDING', true]);
     expect(query.mock.calls[1][0]).toContain('ORDER BY r.emergency DESC, r.submitted_at ASC, r.id ASC LIMIT $4 OFFSET $5');
+    expect(query.mock.calls[1][0]).toContain('page_ids JOIN requests r ON r.id=page_ids.id');
     expect(query.mock.calls[1][1]).toEqual([['dept-1'], 'PENDING', true, 25, 50]);
   });
 

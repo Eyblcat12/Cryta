@@ -392,6 +392,15 @@ BEGIN
 END;
 $anchor$;
 REVOKE ALL ON FUNCTION public.capture_audit_anchor_rows(bigint,integer) FROM PUBLIC;
+`},
+{version:'024_asset_expiry_page_index',sql:`
+DO $$
+DECLARE previous_lock_timeout text := current_setting('lock_timeout');
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  CREATE INDEX idx_assets_expiry_page ON public.crypto_assets (expires_at, id);
+  PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END $$;
 `}
 ];
 

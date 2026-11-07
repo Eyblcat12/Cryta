@@ -125,6 +125,12 @@ async function main() {
     dashboards[route.name] = data.trend;
   }
   const checks = [
+    ['approver-queue-order', 'approver', '/requests?page=1&pageSize=25&status=PENDING',
+      `SELECT id FROM requests WHERE department_id='${approverDepartment}' AND status='PENDING' AND submitted_at IS NOT NULL
+       ORDER BY emergency DESC,submitted_at ASC,id ASC LIMIT 25`],
+    ['approver-queue-search-page', 'approver', '/requests?page=2&pageSize=25&status=PENDING&search=T50%20capacity%20request&sortBy=updatedAt&sortOrder=desc',
+      `SELECT id FROM requests WHERE department_id='${approverDepartment}' AND status='PENDING' AND submitted_at IS NOT NULL
+       AND reason ILIKE '%T50 capacity request%' ORDER BY updated_at DESC,id DESC LIMIT 25 OFFSET 25`],
     ['assets-deep-order', 'admin', '/assets?page=1000&pageSize=25',
       'SELECT id FROM crypto_assets ORDER BY expires_at ASC,id ASC LIMIT 25 OFFSET 24975'],
     ['assets-owner-name', 'admin', '/assets?page=2&pageSize=25&search=Capacity%20User%201&sortBy=code&sortOrder=desc',
@@ -186,6 +192,7 @@ async function main() {
 
   const querySource = `const { DashboardService } = require('./dist/dashboard/dashboard.service');
     const { AssetsService } = require('./dist/assets/assets.service');
+    const { RequestsService } = require('./dist/requests/requests.service');
     const { AuditController } = require('./dist/audit/audit.controller');
     const queries = {};
     function capture(names, match = () => true) {
@@ -197,6 +204,8 @@ async function main() {
       await dashboard.get(admin,'ADMIN');
       await dashboard.get({roles:['USER'],id:${JSON.stringify(ownerId)}},'USER');
       await new AssetsService(capture(['assetCount','assetDeepPage'])).list(admin, {page:'1000',pageSize:'25'});
+      await new AssetsService(capture(['assetFirstPage'], text => !text.includes('COUNT(*)'))).list(admin, {page:'1',pageSize:'25'});
+      await new RequestsService(capture(['queueCount','queuePage'])).list({roles:['APPROVER'],approverDepartmentIds:[${JSON.stringify(approverDepartment)}]}, {page:'1',pageSize:'25',status:'PENDING'});
       await new AuditController(capture(['auditSearchCount','auditSearchPage'])).list(admin, {page:'1',pageSize:'25',search:'T50_ASSET_ROTATED'});
       console.log(JSON.stringify(queries));
     })().catch(error => { console.error(error.message); process.exitCode = 1; });`;
@@ -205,6 +214,10 @@ async function main() {
   for (const [name, { text, values }] of Object.entries(queries)) {
     const query = text.replace(/\$(\d+)/g, (_, index) => {
       const value = values[Number(index) - 1];
+      if (Array.isArray(value)) {
+        assert.ok(value.length && value.every(item => typeof item === 'string' && /^[a-f0-9-]{36}$/.test(item)));
+        return 'ARRAY[' + value.map(sqlString).join(',') + ']';
+      }
       assert.ok(typeof value === 'string' || Number.isSafeInteger(value));
       return typeof value === 'string' ? sqlString(value) : String(value);
     });

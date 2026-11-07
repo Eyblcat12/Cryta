@@ -12,18 +12,19 @@ import type { CancelRequestDto, CreateRequestDto, DecideRequestDto, SaveDraftDto
 import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy, normalizeRequestParameters } from './request-policy';
 import { presentRequest, type RequestRow } from './request.presenter';
 
-const requestFrom = `FROM requests r
-  JOIN users u ON u.id=r.creator_id JOIN departments d ON d.id=r.department_id
+const creatorAndTarget = `JOIN users u ON u.id=r.creator_id
   LEFT JOIN crypto_assets a ON a.id=r.target_asset_id AND (r.submitted_at IS NOT NULL OR a.owner_id=r.creator_id)`;
 const twoStage = `pv.configuration->'approval_levels'='2'::jsonb`;
 const deadline = `r.submitted_at+make_interval(hours=>(pv.configuration->>'approval_deadline_hours')::int)`;
 const approvalColumns = `CASE WHEN ${twoStage} THEN 2 ELSE 1 END AS approval_levels,
   CASE WHEN ${twoStage} THEN ${deadline} END AS approval_deadline_at`;
-const requestSelect = `SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code,
+const selectRequests = (source = 'requests r') => `SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code,
   ${approvalColumns},
   CASE WHEN ${twoStage} THEN (SELECT count(*)::int FROM request_decisions WHERE request_id=r.id AND decision='APPROVED') END AS approved_levels,
   CASE WHEN ${twoStage} THEN (SELECT approver_id FROM request_decisions WHERE request_id=r.id AND approval_level=1 AND decision='APPROVED') END AS first_approver_id
-  ${requestFrom} LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id`;
+  FROM ${source} ${creatorAndTarget} JOIN departments d ON d.id=r.department_id
+  LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id`;
+const requestSelect = selectRequests();
 const missingRequest = () => new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
 const versionConflict = () => new ConflictException({ code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi. Hãy tải lại để tiếp tục.' });
 const approvalExpired = () => new ConflictException({ code: 'APPROVAL_DEADLINE_EXPIRED', message: 'Yêu cầu đã quá thời hạn phê duyệt.' });
@@ -97,9 +98,11 @@ export class RequestsService {
     }
     if (submittedOnly) conditions.push('r.submitted_at IS NOT NULL');
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const count = await reader.query(`SELECT COUNT(*)::int AS total ${requestFrom} ${where}`, values);
+    const filterFrom = `FROM requests r${search ? ` ${creatorAndTarget}` : ''}`;
+    const count = await reader.query(`SELECT COUNT(*)::int AS total ${filterFrom} ${where}`, values);
     const args = [...values, pageSize, (page - 1) * pageSize];
-    const rows = await reader.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
+    const pageIds = `SELECT r.id ${filterFrom} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`;
+    const rows = await reader.query<RequestRow>(`${selectRequests(`(${pageIds}) page_ids JOIN requests r ON r.id=page_ids.id`)} ORDER BY ${order}`, args);
     return { items: rows.rows.map(presentRequest), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
   }
 

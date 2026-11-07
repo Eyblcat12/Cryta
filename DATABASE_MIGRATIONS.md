@@ -75,3 +75,5 @@ Migration `021_auth_oidc` thêm bảng liên kết định danh, challenge, phi�
 Migration `022_report_exports` thêm hàng đợi và vùng lưu tạm tệp xuất báo cáo. Chạy migration rồi áp lại quyền runtime trước khi nâng backend. Tệp tải được trong một giờ, sau đó worker xóa nội dung và giữ trạng thái tác vụ trong một ngày để người dùng tra cứu. [Xuất báo cáo X04](docs/X04_REPORT_EXPORTS.md)
 
 Migration `023_audit_anchor_source` thêm view chuẩn hóa Audit Log và hàm chụp đoạn cho checkpoint ngoài DB. Cấp riêng quyền đọc và thực thi cho tài khoản ký/xác minh bằng `deploy/audit-anchor-grants.sql`. Dữ liệu audit và quyền runtime hiện có được giữ nguyên. [Kiểm chứng Audit Log X05](docs/X05_AUDIT_ANCHOR.md)
+
+Migration `024_asset_expiry_page_index` tạo B-tree trên `crypto_assets(expires_at, id)` cho thứ tự phân trang mặc định. Migration chạy trong transaction và giới hạn chờ khóa ở 5 giây. Lên lịch nâng cấp trong cửa sổ bảo trì vì lúc tạo chỉ mục, PostgreSQL có thể chặn ghi trên bảng. Nếu migration thất bại, kiểm tra phiên đang giữ khóa trước khi chạy lại. [Đo tải và kế hoạch truy vấn T50](T50_CAPACITY_2026-11-06.md)
