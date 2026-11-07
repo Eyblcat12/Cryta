@@ -1,0 +1,26 @@
+# T08 — Quản lý đơn vị và phạm vi phê duyệt
+
+Trong **Người dùng và vai trò**, mục **Đơn vị** cho phép Security Admin tìm kiếm, tạo, sửa, ngừng hoạt động hoặc kích hoạt lại đơn vị. Mục **Tài khoản** có thao tác chuyển đơn vị kèm xác nhận thu hồi phiên. Giao diện dùng các thành phần của Crypta theo bố cục đã duyệt. [Mẫu tương tác](tools/design-previews/departments/index.html).
+
+Đơn vị phải hết liên kết với tài khoản, phạm vi duyệt, yêu cầu đang mở và tài sản đang hoạt động trước khi ngừng hoạt động. Giao diện hiển thị từng số lượng để quản trị viên biết cần xử lý gì. Trạng thái ngừng hoạt động giữ lại đơn vị và lịch sử để tra cứu. Danh sách chọn đơn vị hoặc phạm vi chỉ lấy đơn vị đang hoạt động. Biểu mẫu quyền yêu cầu xác nhận lại khi đổi người dùng, vai trò hoặc phạm vi.
+
+Chuyển tài khoản cập nhật đơn vị, tăng phiên bản phiên đăng nhập, thu hồi phiên và ghi audit trong cùng giao dịch. Yêu cầu đã gửi và tài sản giữ đơn vị lúc ghi nhận. Người tạo vẫn xem được dữ liệu của mình. Yêu cầu gửi sau khi chuyển dùng đơn vị mới. Phạm vi phê duyệt do Admin quản lý riêng. Các thao tác ghi yêu cầu kiểm phiên bản phiên sau khi lấy khóa để phiên cũ không thể ghi sau khi chuyển đã commit. Lịch sử tài sản chỉ hiện sự kiện gắn với yêu cầu mà người xem có quyền đọc, kể cả khi tài sản và yêu cầu gia hạn thuộc hai đơn vị khác nhau.
+
+API dùng phiên bản để phát hiện sửa đồng thời. Tạo đơn vị dùng ID do client sinh để gửi lại cùng nội dung sau khi mất phản hồi. Trước khi gửi lại, giao diện cho đối chiếu trạng thái hiện tại. Đổi tài khoản sang chính đơn vị hiện tại trả kết quả không đổi, kể cả khi UUID viết hoa. [API đơn vị](backend/src/departments/departments.controller.ts), [API tài khoản](backend/src/users/users.controller.ts).
+
+Migration `011_department_administration` thêm phiên bản cho đơn vị với mặc định 1. Chạy migration trước khi dùng API mới, rồi áp bộ quyền runtime của release. Runtime có quyền ghi các cột đơn vị phục vụ tính năng và cột `users.department_id` để chuyển người dùng. [Hướng dẫn migration](DATABASE_MIGRATIONS.md), [Quyền runtime](tools/testing/runtime-grants.sql).
+
+| Kiểm tra | Kết quả | Bằng chứng |
+| --- | --- | --- |
+| Unit và build | Backend 262/262, frontend 136/136, build backend và frontend bật/tắt motion đạt. | [Backend](tools/test-artifacts/department-admin-20261106/backend-verified.json), [Frontend](tools/test-artifacts/department-admin-20261106/frontend-verified.json) |
+| API, DB và UI | Edge 19/19, Chrome 12/12 UI ở 1440 sáng và 390 tối. Có race chuyển đơn vị với ghi yêu cầu, race ngừng hoạt động với tạo user, rollback audit, xung đột hai tab, mất phản hồi sau commit và xác nhận lại phạm vi. | [Edge](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/departments-msedge-1793946685693/results.json), [Chrome](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/departments-chrome-1793946758120/results.json) |
+| Giao diện | Đối chiếu mục Đơn vị và dialog chuyển đơn vị với bố cục đã duyệt. | [Desktop sáng](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/departments-msedge-1793946685693/departments-1440-light.png), [Mobile tối](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/departments-chrome-1793946758120/transfer-390-dark.png) |
+| Runtime PostgreSQL | 24/24 qua role LOGIN có quyền giới hạn. Bao gồm CRUD đơn vị, chuyển sang đơn vị khác, chuyển lại và UUID viết hoa của cùng đơn vị. | [Runtime](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/runtime-privileges-7a6d965d836a/results.json) |
+| Migration | 10/10 qua CLI và validator với 11 migration. Kết quả dùng image trước bản chuẩn hóa UUID, có cùng mã migration với bản cuối. | [Ledger](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/runtime-ledger-2b6fd9fa7f7a/results.json) |
+| Hồi quy | Edge/API/Nginx 26/26 trên image cuối. | [Hồi quy](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/real-msedge-1793946796878/results.json) |
+
+Lượt runtime bổ sung đầu tiên đạt 23/24. Mã đơn vị thử chứa chữ thường nên API trả 400 đúng validation. Lượt Edge đầu đạt 7/11 do helper đọc kết quả trống khi dọn holder PostgreSQL và test chọn sai nhãn nút xác nhận. Hai lỗi trong bộ kiểm đã được sửa và chạy lại. [Runtime đầu](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/runtime-privileges-6599c11d279e/results.json), [Edge đầu](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/departments-msedge-1793945685830/results.json).
+
+Bản chụp T08 có 234 tệp, hai build frontend và mã băm của image test. Cổng nghiệm thu R1 vẫn cần rollout quyền, dữ liệu tổ chức gần thực tế và các luồng UAT liên quan. [Bản chụp](tools/test-artifacts/frontend-artifacts/department-admin-20261106-final/source-manifest.json), [Provenance](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/department-admin-provenance.json).
+
+Diễn tập backup/restore đạt 11/11. Dữ liệu 17 bảng và sequence khớp với nguồn. Stack thử còn 0 container, volume và network, đồng thời giữ danh tính tám container bên ngoài. [Restore](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/backup-restore-fcf5653d299f/results.json), [Cleanup](tools/test-artifacts/integration/crypta-t30-test-de8977ae4b24/cleanup-report.json).

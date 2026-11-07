@@ -1,0 +1,115 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Scan the checked-out revision for secrets
+        run: |
+          scan_dir="$(mktemp -d)"
+          git archive HEAD | tar -xf - -C "$scan_dir"
+          docker run --rm --network none \
+            --mount "type=bind,src=$scan_dir,dst=/scan,readonly" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            dir --redact=100 --no-banner --ignore-gitleaks-allow /scan
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        directory: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+      - run: npm ci
+      - run: mkdir -p ci-results
+      - name: Audit dependencies
+        run: npm audit --json --audit-level=high --registry=https://registry.npmjs.org > ci-results/audit.json
+      - run: npm run build
+      - name: Verify OpenAPI contract
+        if: matrix.directory == 'backend'
+        run: npm run test:openapi
+      - name: Run unit tests
+        run: npm test -- --reporter=default --reporter=json --outputFile=ci-results/unit.json
+      - name: Verify test-email SMTP protocol on loopback
+        if: matrix.directory == 'backend'
+        run: npm run test:smtp -- --reporter=default --reporter=json --outputFile=ci-results/smtp.json
+      - name: Preserve verification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-${{ matrix.directory }}
+          path: ${{ matrix.directory }}/ci-results/
+          if-no-files-found: ignore
+          retention-days: 14
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/ci/package-lock.json
+      - run: npm ci --prefix tools/ci
+      - name: Audit CI tooling
+        run: |
+          mkdir -p ci-results
+          npm audit --prefix tools/ci --json --audit-level=high --registry=https://registry.npmjs.org > ci-results/tooling-audit.json
+      - run: npm --prefix tools/ci run lint
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ci-tooling-audit
+          path: ci-results/tooling-audit.json
+          if-no-files-found: ignore
+          retention-days: 14
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [verify, lint, secret-scan]
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/ci/package-lock.json
+      - name: Install pinned browser tooling
+        run: npm ci --prefix tools/ci
+      - name: Install Chromium and system dependencies
+        run: node tools/ci/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify PostgreSQL, runtime grants, worker and real browser
+        shell: pwsh
+        run: ./tools/ci/run-integration.ps1
+      - name: Preserve isolated integration reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-results
+          path: |
+            tools/test-artifacts/integration/**/report.json
+            tools/test-artifacts/integration/**/results.json
+            tools/test-artifacts/integration/**/ci-verification.json
+            tools/test-artifacts/integration/**/*.png
+          if-no-files-found: warn
+          retention-days: 14

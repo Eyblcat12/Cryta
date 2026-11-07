@@ -1,0 +1,70 @@
+name: crypta-production
+
+x-log-rotation: &log-rotation
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  backend:
+    image: "${CRYPTA_BACKEND_IMAGE:?Set the approved backend image}"
+    logging: *log-rotation
+    stop_grace_period: 150s
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      CRYPTA_DEPLOYMENT_MODE: production
+      DATABASE_MIGRATION_MODE: validate
+      DATABASE_URL_FILE: /run/secrets/crypta_database_url
+      JWT_ACCESS_SECRET_FILE: /run/secrets/crypta_jwt_access
+      CORS_ORIGIN: "${APP_ORIGIN:?Set the HTTPS browser origin}"
+      APP_URL: "${APP_ORIGIN:?Set the HTTPS browser origin}"
+      COOKIE_SECURE: "true"
+      APP_TIME_ZONE: "${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}"
+      CRYPTO_PROVIDER_MODE: HTTP
+      CRYPTO_PROVIDER_URL: "${CRYPTO_PROVIDER_URL:?Set the approved HTTPS provider URL}"
+      CRYPTO_PROVIDER_SCOPE: "${CRYPTO_PROVIDER_SCOPE:?Set a stable provider scope}"
+      CRYPTO_PROVIDER_TIMEOUT_MS: "${CRYPTO_PROVIDER_TIMEOUT_MS:-15000}"
+      CRYPTO_PROVIDER_TOKEN_FILE: /run/secrets/crypta_provider_token
+      SMTP_ENABLED: "true"
+      SMTP_HOST: "${SMTP_HOST:?Set the approved SMTP host}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_SECURE: "${SMTP_SECURE:-false}"
+      SMTP_USER: "${SMTP_USER:?Set the SMTP account}"
+      SMTP_FROM: "${SMTP_FROM:?Set the verified sender}"
+      SMTP_PASSWORD_FILE: /run/secrets/crypta_smtp_password
+      ACCOUNT_ACTIONS_ENABLED: "true"
+      ACCOUNT_ACTION_KEY_FILE: /run/secrets/crypta_account_actions
+      OPERATIONS_MONITOR_TOKEN_SHA256: "${OPERATIONS_MONITOR_TOKEN_SHA256:-}"
+    secrets:
+      - crypta_database_url
+      - crypta_jwt_access
+      - crypta_provider_token
+      - crypta_smtp_password
+      - crypta_account_actions
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/v1/health/ready"]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+
+  frontend:
+    image: "${CRYPTA_FRONTEND_IMAGE:?Set the approved frontend image}"
+    logging: *log-rotation
+    restart: unless-stopped
+    ports: ["127.0.0.1:${CRYPTA_PROXY_PORT:-18080}:80"]
+    depends_on:
+      backend: { condition: service_healthy }
+
+secrets:
+  crypta_database_url:
+    file: "${CRYPTA_DATABASE_URL_SECRET:?Set the runtime PostgreSQL URL file}"
+  crypta_jwt_access:
+    file: "${CRYPTA_JWT_ACCESS_SECRET:?Set the JWT access secret file}"
+  crypta_provider_token:
+    file: "${CRYPTA_PROVIDER_TOKEN_SECRET:?Set the provider token file}"
+  crypta_smtp_password:
+    file: "${CRYPTA_SMTP_PASSWORD_SECRET:?Set the SMTP password file}"
+  crypta_account_actions:
+    file: "${CRYPTA_ACCOUNT_ACTIONS_SECRET:?Set the account actions key file}"

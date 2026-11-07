@@ -1,46 +1,190 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import type { Pool, PoolClient } from 'pg';
 import type { AuthUser } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
+import { auditMetadata } from '../audit/audit-context';
 import { NotificationsService } from '../notifications/notifications.service';
-import type { CreateRequestDto, DecideRequestDto } from './request.dto';
-import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy } from './request-policy';
+import { cryptoProviderConfig } from '../jobs/crypto-provider-config';
+import { listOrder } from '../common/list-order';
+import type { CancelRequestDto, CreateRequestDto, DecideRequestDto, SaveDraftDto } from './request.dto';
+import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy, normalizeRequestParameters } from './request-policy';
 import { presentRequest, type RequestRow } from './request.presenter';
+
+const requestFrom = `FROM requests r
+  JOIN users u ON u.id=r.creator_id JOIN departments d ON d.id=r.department_id
+  LEFT JOIN crypto_assets a ON a.id=r.target_asset_id AND (r.submitted_at IS NOT NULL OR a.owner_id=r.creator_id)`;
+const requestSelect = `SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code ${requestFrom}`;
+const missingRequest = () => new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
+const versionConflict = () => new ConflictException({ code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi. Hãy tải lại để tiếp tục.' });
 
 @Injectable()
 export class RequestsService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool, private readonly notifications: NotificationsService) {}
 
-  async list(user: AuthUser) {
-    const select=`SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code FROM requests r JOIN users u ON u.id=r.creator_id JOIN departments d ON d.id=r.department_id LEFT JOIN crypto_assets a ON a.id=r.target_asset_id`;
-    if (user.roles.includes('ADMIN')) return (await this.pool.query<RequestRow>(`${select} ORDER BY r.submitted_at DESC LIMIT 100`)).rows.map(presentRequest);
-    if (user.roles.includes('APPROVER')) return (await this.pool.query<RequestRow>(`${select} WHERE r.department_id = ANY($1::uuid[]) ORDER BY r.emergency DESC, r.submitted_at ASC LIMIT 100`, [user.approverDepartmentIds])).rows.map(presentRequest);
-    return (await this.pool.query<RequestRow>(`${select} WHERE r.creator_id = $1 ORDER BY r.submitted_at DESC LIMIT 100`, [user.id])).rows.map(presentRequest);
+  async list(user: AuthUser, query: Record<string, string> = {}) {
+    if(query.createdByMe!==undefined&&(typeof query.createdByMe!=='string'||!['true','false'].includes(query.createdByMe)))
+      throw new BadRequestException({code:'INVALID_REQUEST_FILTER',message:'Bộ lọc yêu cầu cá nhân không hợp lệ.'});
+    const approver = query.createdByMe!=='true'&&!user.roles.includes('ADMIN') && user.roles.includes('APPROVER');
+    const submittedOnly = query.createdByMe !== 'true' && (approver || user.roles.includes('ADMIN'));
+    const scope = query.createdByMe==='true' ? {sql:'WHERE r.creator_id = $1',values:[user.id]}
+      : user.roles.includes('ADMIN') ? { sql: '', values: [] as unknown[] }
+      : approver ? { sql: 'WHERE r.department_id = ANY($1::uuid[])', values: [user.approverDepartmentIds] }
+      : { sql: 'WHERE r.creator_id = $1', values: [user.id] };
+    const defaultOrder = approver ? 'r.emergency DESC, r.submitted_at ASC, r.id ASC'
+      : query.status && query.status !== 'DRAFT' && query.status !== 'CANCELLED'
+        ? 'r.submitted_at DESC, r.id DESC' : 'COALESCE(r.submitted_at, r.updated_at) DESC, r.id DESC';
+    const order = listOrder(query, {
+      submittedAt: 'r.submitted_at', updatedAt: 'r.updated_at', status: 'r.status', type: 'r.request_type', emergency: 'r.emergency',
+    }, 'r.id', defaultOrder);
+    const conditions = scope.sql ? [scope.sql.replace(/^WHERE /, '')] : [];
+    if (!Object.keys(query).length) {
+      if (submittedOnly) conditions.push('r.submitted_at IS NOT NULL');
+      const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      return (await this.pool.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT 100`, scope.values)).rows.map(presentRequest);
+    }
+    const parseNumber = (value: string | undefined, fallback: number, max: number) => {
+      if (value === undefined) return fallback;
+      if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > max)
+        throw new BadRequestException({ code: 'INVALID_PAGINATION', message: 'Tham số phân trang không hợp lệ.' });
+      return Number(value);
+    };
+    const page = parseNumber(query.page, 1, 1_000_000);
+    const pageSize = parseNumber(query.pageSize, 25, 100);
+    for (const field of ['status', 'type', 'emergency', 'search', 'excludePending'])
+      if (query[field] !== undefined && typeof query[field] !== 'string')
+        throw new BadRequestException({ code: 'INVALID_FILTER', message: 'Bộ lọc yêu cầu không hợp lệ.' });
+    if (query.excludePending !== undefined) {
+      if (!['true', 'false'].includes(query.excludePending))
+        throw new BadRequestException({ code: 'INVALID_HISTORY_FILTER', message: 'Bộ lọc lịch sử không hợp lệ.' });
+      if (query.excludePending === 'true') conditions.push("r.status <> 'PENDING'");
+    }
+    const values = [...scope.values];
+    if (query.status) {
+      if (!['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'RECONCILIATION_REQUIRED'].includes(query.status))
+        throw new BadRequestException({ code: 'INVALID_STATUS', message: 'Trạng thái yêu cầu không hợp lệ.' });
+      values.push(query.status); conditions.push(`r.status = $${values.length}`);
+    }
+    if (query.type) {
+      if (!['CREATE', 'RENEW', 'REVOKE'].includes(query.type)) throw new BadRequestException({ code: 'INVALID_TYPE', message: 'Loại yêu cầu không hợp lệ.' });
+      values.push(query.type); conditions.push(`r.request_type = $${values.length}`);
+    }
+    if (query.emergency) {
+      if (!['true', 'false'].includes(query.emergency)) throw new BadRequestException({ code: 'INVALID_EMERGENCY', message: 'Bộ lọc khẩn cấp không hợp lệ.' });
+      values.push(query.emergency === 'true'); conditions.push(`r.emergency = $${values.length}`);
+    }
+    const search = query.search?.trim();
+    if (search) {
+      if (search.length > 100) throw new BadRequestException({ code: 'INVALID_SEARCH', message: 'Từ khóa tối đa 100 ký tự.' });
+      values.push(`%${search}%`); conditions.push(`(r.id::text ILIKE $${values.length} OR r.reason ILIKE $${values.length} OR u.display_name ILIKE $${values.length} OR a.asset_code ILIKE $${values.length})`);
+    }
+    if (submittedOnly) conditions.push('r.submitted_at IS NOT NULL');
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const count = await this.pool.query(`SELECT COUNT(*)::int AS total ${requestFrom} ${where}`, values);
+    const args = [...values, pageSize, (page - 1) * pageSize];
+    const rows = await this.pool.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
+    return { items: rows.rows.map(presentRequest), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
   }
 
   async create(user: AuthUser, dto: CreateRequestDto) {
-    assertCanCreateRequest(user, dto.type, dto.targetAssetId);
-
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const policy=await client.query<{configuration:Record<string,unknown>}>(`SELECT pv.configuration FROM policy_versions pv JOIN policies p ON p.id=pv.policy_id WHERE pv.id=$1 AND p.is_active=TRUE FOR SHARE`,[dto.policyVersionId]);
-      if(!policy.rows[0])throw new NotFoundException({code:'POLICY_NOT_FOUND',message:'Chính sách không tồn tại hoặc đã ngừng áp dụng.'});
-      if(dto.type==='CREATE')assertParametersMatchPolicy(dto.parameters??{},policy.rows[0].configuration);
-      if (dto.targetAssetId) {
-        const asset = await client.query<{ owner_id: string; status: string }>('SELECT owner_id, status FROM crypto_assets WHERE id = $1 FOR SHARE', [dto.targetAssetId]);
-        if (!asset.rows[0]) throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản.' });
-        assertAssetCanChange({ ownerId: asset.rows[0].owner_id, status: asset.rows[0].status }, user.id);
-        const duplicate = await client.query('SELECT 1 FROM requests WHERE target_asset_id = $1 AND request_type = $2 AND status IN (\'PENDING\', \'APPROVED\', \'PROCESSING\')', [dto.targetAssetId, dto.type]);
-        if (duplicate.rowCount) throw new ConflictException({ code: 'DUPLICATE_OPEN_REQUEST', message: 'Tài sản đã có yêu cầu cùng loại đang xử lý.' });
-      }
+      user = await this.lockCurrentUser(client, user);
+      const parameters = await this.validateSubmission(client, user, dto);
       const id = randomUUID();
-      const result = await client.query(`INSERT INTO requests (id, request_type, creator_id, department_id, policy_version_id, target_asset_id, status, reason, emergency, requested_parameters) VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$7,$8,$9::jsonb) RETURNING *`, [id, dto.type, user.id, user.departmentId, dto.policyVersionId, dto.targetAssetId ?? null, dto.reason.trim(), dto.emergency ?? false, JSON.stringify(dto.parameters ?? {})]);
-      await this.appendAudit(client, user.id, 'REQUEST_SUBMITTED', id, 'SUCCESS', { requestType: dto.type, emergency: dto.emergency ?? false });
-      await this.notifications.enqueueRequestSubmitted(client, id, user.departmentId);
+      const result = await client.query(`INSERT INTO requests (id, request_type, creator_id, department_id, policy_version_id, target_asset_id, status, reason, emergency, requested_parameters) VALUES ($1,$2,$3,$4,$5,$6,'PENDING',$7,$8,$9::jsonb) RETURNING *`, [id, dto.type, user.id, user.departmentId, dto.policyVersionId, dto.targetAssetId ?? null, dto.reason.trim(), dto.emergency ?? false, JSON.stringify(parameters)]);
+      await this.recordSubmission(client, user, id, dto);
       await client.query('COMMIT');
       return presentRequest(result.rows[0] as RequestRow);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async saveDraft(user: AuthUser, requestId: string, dto: SaveDraftDto) {
+    assertCanCreateRequest(user, dto.type, dto.targetAssetId, { allowMissingTarget: true });
+    const parameters = normalizeRequestParameters(dto.parameters ?? {});
+    this.assertRevokeParameters(dto.type, parameters);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      user = await this.lockCurrentUser(client, user);
+      const found = await client.query<RequestRow>('SELECT * FROM requests WHERE id=$1 FOR UPDATE', [requestId]);
+      const current = found.rows[0];
+      if (current && current.creator_id !== user.id) throw missingRequest();
+      if (!current && dto.version !== undefined) throw missingRequest();
+      if (current && current.status !== 'DRAFT') {
+        throw new ConflictException({ code: 'INVALID_REQUEST_STATE', message: 'Chỉ có thể sửa yêu cầu nháp.' });
+      }
+      if (current && dto.version !== undefined && current.version !== dto.version) throw versionConflict();
+
+      const values = [requestId, dto.type, dto.policyVersionId ?? null, dto.targetAssetId ?? null,
+        dto.reason?.trim() ?? '', dto.emergency ?? false, JSON.stringify(parameters)];
+      if (current && dto.version === undefined) {
+        // The first PUT can be retried after a lost response, without changing the row.
+        this.assertSameDraft(current, dto, parameters);
+        await client.query('COMMIT');
+        return presentRequest(current);
+      }
+      if (dto.policyVersionId && !(await client.query('SELECT 1 FROM policy_versions WHERE id=$1', [dto.policyVersionId])).rowCount) {
+        throw new NotFoundException({ code: 'POLICY_NOT_FOUND', message: 'Không tìm thấy phiên bản chính sách.' });
+      }
+      if (dto.targetAssetId && !(await client.query('SELECT 1 FROM crypto_assets WHERE id=$1 AND owner_id=$2', [dto.targetAssetId, user.id])).rowCount) {
+        throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản của bạn.' });
+      }
+      const saved = current
+        ? await client.query<RequestRow>(`UPDATE requests SET request_type=$2,policy_version_id=$3,target_asset_id=$4,
+            reason=$5,emergency=$6,requested_parameters=$7::jsonb,version=version+1 WHERE id=$1 RETURNING *`, values)
+        : await client.query<RequestRow>(`INSERT INTO requests(id,request_type,policy_version_id,target_asset_id,reason,emergency,
+            requested_parameters,creator_id,department_id,status,submitted_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,'DRAFT',NULL) ON CONFLICT(id) DO NOTHING RETURNING *`,
+          [...values, user.id, user.departmentId]);
+      // A competing first PUT can win between the lookup and insert.
+      const row = saved.rows[0] ?? await this.lockOwned(client, user.id, requestId);
+      if (row.status !== 'DRAFT') throw versionConflict();
+      if (!saved.rows[0]) this.assertSameDraft(row, dto, parameters);
+      if (saved.rows[0]) await this.appendAudit(client, user.id, current ? 'REQUEST_DRAFT_UPDATED' : 'REQUEST_DRAFT_CREATED', requestId, 'SUCCESS', {
+        requestType: dto.type, version: row.version,
+      });
+      await client.query('COMMIT');
+      return presentRequest(row);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
+  async submitDraft(user: AuthUser, requestId: string, version: number) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      user = await this.lockCurrentUser(client, user);
+      const request = await this.lockOwned(client, user.id, requestId);
+      if (request.status === 'PENDING' && request.version === version + 1) {
+        await client.query('COMMIT');
+        return presentRequest(request);
+      }
+      if (request.status !== 'DRAFT') {
+        throw new ConflictException({ code: 'INVALID_REQUEST_STATE', message: 'Chỉ có thể gửi yêu cầu nháp.' });
+      }
+      if (request.version !== version) throw versionConflict();
+      if (!request.policy_version_id) {
+        throw new BadRequestException({ code: 'POLICY_REQUIRED', message: 'Hãy chọn chính sách trước khi gửi yêu cầu.' });
+      }
+      const dto: CreateRequestDto = {
+        type: request.request_type, policyVersionId: request.policy_version_id, targetAssetId: request.target_asset_id ?? undefined,
+        reason: request.reason, emergency: request.emergency, parameters: request.requested_parameters,
+      };
+      const parameters = await this.validateSubmission(client, user, dto);
+      const updated = await client.query<RequestRow>(`UPDATE requests SET status='PENDING',version=version+1,
+        submitted_at=NOW(),department_id=$2,requested_parameters=$3::jsonb WHERE id=$1 RETURNING *`,
+      [requestId, user.departmentId, JSON.stringify(parameters)]);
+      await this.recordSubmission(client, user, requestId, dto);
+      await client.query('COMMIT');
+      return presentRequest(updated.rows[0]);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -51,9 +195,11 @@ export class RequestsService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const found = await client.query<{ creator_id: string; department_id: string; status: string; version: number }>('SELECT creator_id, department_id, status, version FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
+      user = await this.lockCurrentUser(client, user);
+      const found = await client.query<Pick<RequestRow, 'creator_id' | 'department_id' | 'status' | 'version' | 'submitted_at'>>(
+        'SELECT creator_id, department_id, status, version, submitted_at FROM requests WHERE id = $1 FOR UPDATE', [requestId]);
       const request = found.rows[0];
-      if (!request) throw new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
+      if (!request || request.submitted_at === null) throw missingRequest();
       assertCanDecide(user, { creatorId: request.creator_id, departmentId: request.department_id, status: request.status });
       if (dto.version && Number(dto.version) !== request.version) throw new ConflictException({ code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi. Hãy tải lại trước khi quyết định.' });
       await client.query('INSERT INTO request_decisions (request_id, approver_id, decision, comment) VALUES ($1,$2,$3,$4)', [requestId, user.id, dto.decision, dto.comment?.trim() ?? null]);
@@ -69,32 +215,141 @@ export class RequestsService {
   }
 
   async detail(user: AuthUser, requestId: string) {
-    const found = await this.pool.query<RequestRow>('SELECT r.*,u.display_name creator_name,d.name department_name,a.asset_code target_asset_code FROM requests r JOIN users u ON u.id=r.creator_id JOIN departments d ON d.id=r.department_id LEFT JOIN crypto_assets a ON a.id=r.target_asset_id WHERE r.id = $1', [requestId]);
+    const found = await this.pool.query<RequestRow & {
+      decision: 'APPROVED' | 'REJECTED' | null;
+      comment: string | null;
+      approver_id: string | null;
+      approver_name: string | null;
+      decided_at: Date | null;
+    }>(`SELECT r.*, decision.decision, decision.comment, decision.approver_id,
+        approver.display_name AS approver_name, decision.decided_at
+      FROM (${requestSelect} WHERE r.id = $1) r
+      LEFT JOIN request_decisions decision ON decision.request_id = r.id AND r.submitted_at IS NOT NULL
+      LEFT JOIN users approver ON approver.id = decision.approver_id`, [requestId]);
     const request = found.rows[0];
-    if (!request) throw new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
-    const allowed = user.roles.includes('ADMIN') || request.creator_id === user.id || (user.roles.includes('APPROVER') && user.approverDepartmentIds.includes(request.department_id));
-    if (!allowed) throw new NotFoundException({ code: 'REQUEST_NOT_FOUND', message: 'Không tìm thấy yêu cầu.' });
-    const decision = await this.pool.query('SELECT decision,comment,approver_id,decided_at FROM request_decisions WHERE request_id=$1', [requestId]);
-    return { ...presentRequest(request), decision: decision.rows[0] ? { decision:decision.rows[0].decision,comment:decision.rows[0].comment,approverId:decision.rows[0].approver_id,decidedAt:decision.rows[0].decided_at } : null };
+    if (!request) throw missingRequest();
+    const allowed = request.creator_id === user.id || (request.submitted_at !== null &&
+      (user.roles.includes('ADMIN') || (user.roles.includes('APPROVER') && user.approverDepartmentIds.includes(request.department_id))));
+    if (!allowed) throw missingRequest();
+    return {
+      ...presentRequest(request),
+      decision: request.decision ? {
+        decision: request.decision,
+        comment: request.comment,
+        approverId: request.approver_id,
+        approverName: request.approver_name,
+        decidedAt: request.decided_at,
+      } : null,
+    };
   }
 
-  async cancel(user: AuthUser, requestId: string) {
+  async cancel(user: AuthUser, requestId: string, dto: CancelRequestDto = {}) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const found = await client.query<RequestRow>('SELECT * FROM requests WHERE id=$1 FOR UPDATE', [requestId]);
-      const request = found.rows[0];
-      if (!request || request.creator_id !== user.id) throw new NotFoundException({ code:'REQUEST_NOT_FOUND',message:'Không tìm thấy yêu cầu của bạn.' });
-      if (request.status !== 'PENDING') throw new ConflictException({ code:'INVALID_REQUEST_STATE',message:'Chỉ có thể hủy yêu cầu đang chờ duyệt.' });
-      const updated = await client.query<RequestRow>(`UPDATE requests SET status='CANCELLED',version=version+1 WHERE id=$1 RETURNING *`,[requestId]);
-      await this.appendAudit(client,user.id,'REQUEST_CANCELLED',requestId,'SUCCESS',{});
+      user = await this.lockCurrentUser(client, user);
+      const request = await this.lockOwned(client, user.id, requestId);
+      if (request.status !== 'PENDING' && request.status !== 'DRAFT') {
+        throw new ConflictException({ code: 'INVALID_REQUEST_STATE', message: 'Chỉ có thể hủy nháp hoặc yêu cầu đang chờ duyệt.' });
+      }
+      if (dto.version !== undefined && request.version !== dto.version) throw versionConflict();
+      const reason = dto.reason?.trim() || null;
+      const updated = await client.query<RequestRow>(`UPDATE requests SET status='CANCELLED',version=version+1,
+        cancellation_reason=$2 WHERE id=$1 RETURNING *`, [requestId, reason]);
+      await this.appendAudit(client, user.id, 'REQUEST_CANCELLED', requestId, 'SUCCESS', {
+        previousStatus: request.status, reasonProvided: reason !== null,
+      });
       await client.query('COMMIT');
       return presentRequest(updated.rows[0]);
     } catch(error) { await client.query('ROLLBACK'); throw error; }
     finally { client.release(); }
   }
 
+  private async lockOwned(client: PoolClient, userId: string, requestId: string) {
+    const found = await client.query<RequestRow>('SELECT * FROM requests WHERE id=$1 FOR UPDATE', [requestId]);
+    const row = found.rows[0];
+    if (!row || row.creator_id !== userId) throw missingRequest();
+    return row;
+  }
+
+  private async lockCurrentUser(client: PoolClient, user: AuthUser): Promise<AuthUser> {
+    // Serialize the mutation with account revocation/transfer after the HTTP guard.
+    const current = (await client.query<{ status: string; token_version: number; department_id: string; is_active: boolean }>(
+      `SELECT u.status,u.token_version,u.department_id,d.is_active FROM users u JOIN departments d ON d.id=u.department_id
+       WHERE u.id=$1 FOR SHARE OF u,d`, [user.id])).rows[0];
+    if (!current || current.status !== 'ACTIVE' || current.token_version !== user.tokenVersion || !current.is_active) {
+      throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Phiên đăng nhập đã bị thu hồi.' });
+    }
+    return { ...user, departmentId: current.department_id };
+  }
+
+  private assertSameDraft(row: RequestRow, dto: SaveDraftDto, parameters: Record<string, unknown>) {
+    if (row.version !== 1 || row.request_type !== dto.type ||
+        row.policy_version_id !== (dto.policyVersionId?.toLowerCase() ?? null) ||
+        row.target_asset_id !== (dto.targetAssetId?.toLowerCase() ?? null) ||
+        row.reason !== (dto.reason?.trim() ?? '') || row.emergency !== (dto.emergency ?? false) ||
+        !isDeepStrictEqual(row.requested_parameters, parameters)) throw versionConflict();
+  }
+
+  private assertRevokeParameters(type: CreateRequestDto['type'], parameters: Record<string, unknown>) {
+    if (type === 'REVOKE' && Object.keys(parameters).length) {
+      throw new ConflictException({ code: 'REVOKE_PARAMETERS_NOT_ALLOWED', message: 'Thu hồi không sử dụng tham số cấp phát.' });
+    }
+  }
+
+  private async validateSubmission(client: PoolClient, user: AuthUser, dto: CreateRequestDto) {
+    assertCanCreateRequest(user, dto.type, dto.targetAssetId);
+    if (dto.reason.trim().length < 10) {
+      throw new BadRequestException({ code: 'REQUEST_REASON_TOO_SHORT', message: 'Lý do nghiệp vụ phải có ít nhất 10 ký tự.' });
+    }
+    const parameters = normalizeRequestParameters(dto.parameters ?? {});
+    this.assertRevokeParameters(dto.type, parameters);
+    // Lock the parent before selecting the latest version so a concurrent publication
+    // or deactivation is visible to this transaction's next statement.
+    if (dto.type !== 'REVOKE') {
+      await client.query(`SELECT p.id FROM policies p JOIN policy_versions pv ON pv.policy_id=p.id
+        WHERE pv.id=$1 FOR SHARE OF p`, [dto.policyVersionId]);
+    }
+    const policy = await client.query<{ configuration: Record<string, unknown> }>(`SELECT pv.configuration
+      FROM policy_versions pv JOIN policies p ON p.id=pv.policy_id
+      WHERE pv.id=$1 AND ($2='REVOKE' OR p.is_active) AND pv.effective_from<=statement_timestamp()
+        AND ($2<>'CREATE' OR NOT EXISTS(SELECT 1 FROM policy_versions newer WHERE newer.policy_id=pv.policy_id
+          AND newer.version>pv.version AND newer.effective_from<=statement_timestamp()))`, [dto.policyVersionId, dto.type]);
+    if (!policy.rows[0]) throw new NotFoundException({ code: 'POLICY_NOT_FOUND', message: 'Chính sách không tồn tại hoặc đã ngừng áp dụng.' });
+    if (dto.type === 'CREATE') assertParametersMatchPolicy(parameters, policy.rows[0].configuration);
+    if (!dto.targetAssetId) return parameters;
+
+    const result = await client.query<{ owner_id: string; status: string; policy_version_id: string; asset_type: 'KEY'|'CERTIFICATE'; provider_scope: string | null }>(
+      'SELECT owner_id, status, policy_version_id, asset_type, provider_scope FROM crypto_assets WHERE id = $1 FOR UPDATE', [dto.targetAssetId]);
+    const asset = result.rows[0];
+    if (!asset) throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản.' });
+    assertAssetCanChange({ ownerId: asset.owner_id, status: asset.status }, user.id);
+    if (asset.provider_scope !== cryptoProviderConfig().scope) {
+      throw new ConflictException({ code: 'CRYPTO_PROVIDER_SCOPE_MISMATCH', message: 'Tài sản chưa được xác minh với nhà cung cấp đang cấu hình.' });
+    }
+    if (asset.policy_version_id !== dto.policyVersionId) {
+      throw new ConflictException({ code: 'ASSET_POLICY_MISMATCH', message: 'Yêu cầu phải dùng chính sách gắn với tài sản.' });
+    }
+    if (dto.type === 'RENEW') {
+      if (parameters.assetType && parameters.assetType !== asset.asset_type) {
+        throw new ConflictException({ code: 'ASSET_TYPE_MISMATCH', message: 'Loại tài sản gia hạn phải giống tài sản hiện tại.' });
+      }
+      assertParametersMatchPolicy({ ...parameters, assetType: asset.asset_type }, policy.rows[0].configuration);
+    }
+    const duplicate = await client.query(`SELECT 1 FROM requests WHERE target_asset_id=$1
+      AND status IN ('PENDING','APPROVED','PROCESSING','RECONCILIATION_REQUIRED')`, [dto.targetAssetId]);
+    if (duplicate.rowCount) {
+      throw new ConflictException({ code: 'DUPLICATE_OPEN_REQUEST', message: 'Tài sản đã có yêu cầu cùng loại đang xử lý.' });
+    }
+    return parameters;
+  }
+
+  private async recordSubmission(client: PoolClient, user: AuthUser, id: string, dto: CreateRequestDto) {
+    await this.appendAudit(client, user.id, 'REQUEST_SUBMITTED', id, 'SUCCESS', { requestType: dto.type, emergency: dto.emergency ?? false });
+    await this.notifications.enqueueRequestSubmitted(client, id, user.departmentId);
+  }
+
   private appendAudit(client: PoolClient, actorId: string, action: string, entityId: string, outcome: string, metadata: Record<string, unknown>) {
-    return client.query(`INSERT INTO audit_logs (actor_id, actor_type, action, entity_type, entity_id, outcome, request_id, metadata) VALUES ($1,'USER',$2,'REQUEST',$3::text,$4,$3::uuid,$5::jsonb)`, [actorId, action, entityId, outcome, JSON.stringify(metadata)]);
+    return client.query(`INSERT INTO audit_logs (actor_id, actor_type, action, entity_type, entity_id, outcome, request_id, metadata) VALUES ($1,'USER',$2,'REQUEST',$3::text,$4,$3::uuid,$5::jsonb)`, [actorId, action, entityId, outcome, JSON.stringify(auditMetadata(metadata))]);
   }
 }

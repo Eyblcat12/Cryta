@@ -3,7 +3,7 @@
 
 BEGIN;
 
-TRUNCATE TABLE notifications, auth_sessions, audit_logs, request_decisions, requests,
+TRUNCATE TABLE notifications, auth_sessions, audit_logs, provider_operations, request_decisions, requests,
   certificates, cryptographic_keys, crypto_assets, policy_versions,
   approver_scopes, user_roles, users, policies, roles, departments
 RESTART IDENTITY CASCADE;

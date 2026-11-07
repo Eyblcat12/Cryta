@@ -4,6 +4,8 @@
 
 > Tài liệu mô tả kiến trúc tổng quát, các thành phần, luồng dữ liệu và cách triển khai của hệ thống.
 
+Đối chiếu ngày 06/11/2026 với schema 017 và mã hiện hành. [ERD đủ cột và constraint](docs/ERD_HIEN_HANH.md) · [ERD draw.io](erd_QuanLyKhoa_HTTT.drawio) · [Hướng dẫn sử dụng](docs/HUONG_DAN_CRYPTA.md)
+
 ---
 
 ## 1. Bối cảnh hệ thống
@@ -23,10 +25,10 @@ flowchart LR
     AD["Security Admin"] -->|"Policy, RBAC, cấu hình"| S
     S -->|"Dashboard, tài sản, Audit Log"| AD
 
-    S -->|"Lệnh provision/renew/revoke"| CP["Crypto Provider / Vault / KMS"]
+    S -->|"Lệnh cấp, gia hạn, thu hồi"| CP["Provider MOCK hoặc adapter HTTP đã cấu hình"]
     CP -->|"Metadata và kết quả"| S
 
-    S -->|"Thông báo"| ES["Email Service / MailHog"]
+    S -->|"Email khi SMTP bật"| ES["SMTP relay hoặc hộp thư thử"]
 ```
 
 ---
@@ -35,14 +37,14 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    B["Trình duyệt người dùng"] -->|"HTTPS"| FE["React Frontend"]
-    FE -->|"REST/JSON + Access Token"| API["Node.js Backend API"]
+    B["Trình duyệt · React SPA"] -->|"HTTP local hoặc HTTPS triển khai"| FE["Nginx · static assets và proxy /api"]
+    FE -->|"REST/JSON + access token"| API["NestJS Backend API"]
 
     subgraph APP["Application Layer"]
         AUTH["Authentication & Session"]
         IAM["RBAC, Scope & SoD"]
         REQ["Request Workflow"]
-        APR["Approval Service"]
+        APR["Quyết định trong Requests"]
         ASSET["Asset Lifecycle"]
         POLICY["Policy Engine"]
         AUDIT["Audit Service"]
@@ -69,12 +71,10 @@ flowchart TB
     AUDIT --> DB
     NOTI --> DB
 
-    API --> QUEUE[("Redis / Job Queue")]
-    JOB --> QUEUE
-    JOB --> DB
+    JOB -->|"Claim request, provider ledger, email queue"| DB
     JOB --> ADAPTER
-    ADAPTER --> PROVIDER["Mock Provider / Vault / KMS / CA"]
-    NOTI --> MAIL["SMTP / MailHog"]
+    ADAPTER --> PROVIDER["MOCK hoặc adapter HTTP"]
+    JOB -->|"EmailWorker khi bật"| MAIL["SMTP"]
 ```
 
 ---
@@ -107,22 +107,23 @@ flowchart TB
 - Lưu request, quyết định và lịch sử trạng thái.
 - Lưu phiên bản policy.
 - Lưu notification và Audit Log.
-- Không lưu private key dưới dạng rõ.
+- Lưu tham chiếu provider và fingerprint công khai. Private key thuộc provider.
 
 ### 3.4. Processing Layer — Scheduler, Queue và Worker
 
 - Xử lý cấp phát sau khi request được duyệt.
-- Retry các tác vụ provider/email bị lỗi.
-- Quét tài sản sắp hết hạn.
+- Claim công việc trong PostgreSQL và lưu trạng thái gửi, biên nhận và đối soát.
+- Chỉ thử lại các trường hợp có bằng chứng phù hợp. Kết quả không chắc chắn đi vào đối soát.
+- Quét tài sản khi backend khởi động và mỗi giờ.
 - Chuyển trạng thái tài sản sang `EXPIRED`.
 - Gửi cảnh báo theo policy.
 - Tách xử lý dài khỏi request/response của API.
 
 ### 3.5. Integration Layer — Crypto Provider Adapter
 
-- Cung cấp giao diện thống nhất cho `provision`, `renew`, `revoke` và `getStatus`.
-- MVP dùng Mock Provider để demo offline.
-- Có thể thay adapter bằng Vault, KMS hoặc CA thật trong tương lai.
+- Cấp và gia hạn qua `POST /assets`, thu hồi qua `POST /assets/revoke` của adapter HTTP.
+- Demo dùng provider MOCK để mô phỏng tác động bên ngoài.
+- Adapter HTTP là ranh giới tích hợp. Sandbox KMS/CA/HSM và khả năng đối chiếu theo `operationId` cần xác minh với provider được chọn.
 - Backend chỉ lưu `provider_reference` và metadata an toàn.
 
 ---
@@ -134,7 +135,7 @@ flowchart LR
     API["API Controllers"] --> AUTH["Auth"]
     API --> USERS["Users"]
     API --> REQUESTS["Requests"]
-    API --> APPROVALS["Approvals"]
+    API --> DEPARTMENTS["Departments"]
     API --> ASSETS["Assets"]
     API --> POLICIES["Policies"]
     API --> AUDIT["Audit"]
@@ -143,21 +144,20 @@ flowchart LR
     AUTH --> IAM["IAM Guards"]
     USERS --> IAM
     REQUESTS --> IAM
-    APPROVALS --> IAM
+    DEPARTMENTS --> IAM
     ASSETS --> IAM
     POLICIES --> IAM
 
     REQUESTS --> POLICIES
-    APPROVALS --> REQUESTS
-    APPROVALS --> OUTBOX["Outbox / Queue"]
-    OUTBOX --> WORKER["Provisioning Worker"]
+    REQUESTS --> OUTBOX["PostgreSQL · quyết định và hàng đợi"]
+    OUTBOX --> WORKER["AssetProcessingService"]
     WORKER --> PROVIDER["Crypto Provider Adapter"]
     WORKER --> ASSETS
 
     AUTH --> AUDIT
     USERS --> AUDIT
     REQUESTS --> AUDIT
-    APPROVALS --> AUDIT
+    DEPARTMENTS --> AUDIT
     ASSETS --> AUDIT
     POLICIES --> AUDIT
 ```
@@ -170,13 +170,14 @@ flowchart LR
 | IAM | RBAC, object scope và SoD guard |
 | Users | Hồ sơ, trạng thái tài khoản, vai trò, phòng ban |
 | Requests | Tạo, submit, cancel và truy vấn request |
-| Approvals | Approve/reject nguyên tử và chống duyệt đồng thời |
+| Departments | Quản lý đơn vị và kiểm liên kết trước khi ngừng hoạt động |
+| Quyết định trong Requests | Approve/reject nguyên tử và chống duyệt đồng thời |
 | Assets | Quản lý metadata và vòng đời tài sản |
 | Policies | Versioning và kiểm tra thuật toán/thời hạn |
 | Audit | Ghi sự kiện append-only và che dữ liệu nhạy cảm |
 | Notifications | Thông báo trong ứng dụng và email |
 | Jobs | Expiry scan, reminder, provisioning và retry |
-| Crypto Provider | Kết nối mock/Vault/KMS/CA |
+| Crypto Provider | Chế độ MOCK và adapter HTTP |
 
 ---
 
@@ -189,6 +190,8 @@ erDiagram
     ROLES ||--o{ USER_ROLES : includes
     USERS ||--o{ APPROVER_SCOPES : has
     DEPARTMENTS ||--o{ APPROVER_SCOPES : scopes
+    USERS ||--o{ AUTH_SESSIONS : authenticates
+    USERS ||--o{ ACCOUNT_ACTIONS : receives
 
     USERS ||--o{ CRYPTO_ASSETS : owns
     DEPARTMENTS ||--o{ CRYPTO_ASSETS : groups
@@ -197,14 +200,21 @@ erDiagram
     CRYPTO_ASSETS o|--o{ CRYPTO_ASSETS : replaces
 
     USERS ||--o{ REQUESTS : creates
+    DEPARTMENTS ||--o{ REQUESTS : scopes
     CRYPTO_ASSETS o|--o{ REQUESTS : targets
-    REQUESTS ||--o{ REQUEST_DECISIONS : receives
+    CRYPTO_ASSETS o|--o{ REQUESTS : results
+    REQUESTS ||--o| REQUEST_DECISIONS : receives
+    REQUESTS ||--o| PROVIDER_OPERATIONS : tracks
     USERS ||--o{ REQUEST_DECISIONS : decides
 
     POLICIES ||--o{ POLICY_VERSIONS : versions
+    POLICY_VERSIONS o|--o{ REQUESTS : applies
+    POLICY_VERSIONS ||--o{ CRYPTO_ASSETS : binds
     USERS o|--o{ AUDIT_LOGS : acts
+    REQUESTS o|--o{ AUDIT_LOGS : correlates
     USERS ||--o{ NOTIFICATIONS : receives
     CRYPTO_ASSETS o|--o{ NOTIFICATIONS : concerns
+    REQUESTS o|--o{ NOTIFICATIONS : concerns
 ```
 
 ### Nhóm bảng chính
@@ -213,9 +223,11 @@ erDiagram
 |---|---|---|
 | Danh tính | `users`, `roles`, `user_roles`, `departments` | Tài khoản và phân quyền |
 | Tài sản | `crypto_assets`, `cryptographic_keys`, `certificates` | Metadata khóa/chứng thư |
-| Workflow | `requests`, `request_decisions` | Yêu cầu và quyết định |
+| Workflow | `requests`, `request_decisions`, `provider_operations` | Yêu cầu, quyết định duy nhất và biên nhận provider |
 | Chính sách | `policies`, `policy_versions` | Quy tắc có phiên bản |
-| Hệ thống | `audit_logs`, `notifications`, `sessions` | Kiểm toán, thông báo và phiên |
+| Hệ thống | `audit_logs`, `notifications`, `auth_sessions`, `account_actions`, `account_action_limits`, `schema_migrations` | Kiểm toán, hàng đợi, phiên, token một lần và ledger |
+
+ERD mô tả quan hệ chính sau migration 017. Yêu cầu nháp có thể thiếu policy, còn tài sản đã cấp luôn có `policy_version_id`. Nhật ký actor hoặc request có thể rỗng. [Bootstrap schema](database_schema.sql) · [Migration](backend/src/database/migration.service.ts)
 
 ---
 
@@ -254,79 +266,69 @@ flowchart LR
 
     subgraph Z3["Vùng dữ liệu"]
         DB[("PostgreSQL")]
-        R[("Redis")]
     end
 
     subgraph Z4["Vùng bí mật/mật mã"]
-        KMS["Vault / KMS / HSM"]
+        KMS["Adapter HTTP của provider đã chọn"]
     end
 
     B -->|"Validate input"| FE
-    FE -->|"TLS + access token"| API
-    API -->|"Least-privilege account"| DB
-    API --> R
+    FE -->|"Proxy + access token"| API
+    API -->|"Runtime LOGIN trên môi trường triển khai"| DB
     W --> DB
-    W --> R
     W -->|"Service identity"| KMS
 ```
 
 Các kiểm soát chính:
 
-- HTTPS giữa client và server.
+- HTTPS và secure cookie ở cấu hình triển khai. Stack local dùng HTTP.
 - Mật khẩu được hash mạnh.
 - Access token ngắn hạn và refresh token rotation.
 - Backend kiểm tra RBAC, scope và SoD.
-- Database account theo nguyên tắc quyền tối thiểu.
+- Tách migration owner và runtime LOGIN ở cấu hình triển khai. Compose local dùng bootstrap role.
 - Private key nằm trong provider, không nằm rõ trong PostgreSQL.
 - Audit Log append-only.
 - Secret không được commit vào Git.
 
 ---
 
-## 8. Sơ đồ triển khai đề xuất
+## 8. Docker Compose local và điểm tích hợp
 
 ```mermaid
 flowchart LR
-    USER["Trình duyệt"] --> RP["Reverse Proxy"]
-    RP --> WEB["React Static App"]
-    RP --> API["Node.js API Container"]
-
-    API --> PG[("PostgreSQL Container")]
-    API --> REDIS[("Redis Container")]
-
-    WORKER["Node.js Worker Container"] --> PG
-    WORKER --> REDIS
-    WORKER --> MAIL["MailHog Container"]
-    WORKER --> MOCK["Mock Crypto Provider"]
+    USER["Trình duyệt"] --> RP["frontend · Nginx và React build"]
+    RP -->|"/api"| API["backend · NestJS, asset worker, expiry, email worker"]
+    API --> PG[("postgres · dữ liệu và hàng đợi")]
+    API -.->|"SMTP khi cấu hình"| MAIL["mailhog · profile local-mail"]
+    API --> MOCK["MOCK · module trong backend"]
+    REDIS[("redis · container dự phòng")]
 ```
 
 ### Các container trong môi trường demo
 
 | Container | Chức năng |
 |---|---|
-| Reverse Proxy | Phân phối frontend và chuyển `/api` về backend |
-| Web | Chứa React production build |
-| API | Phục vụ REST API và authentication |
-| Worker | Chạy provisioning, notification và expiry job |
-| PostgreSQL | Database chính |
-| Redis | Queue, lock và job state |
-| MailHog | Hộp thư local để trình diễn email |
-| Mock Provider | Mô phỏng cấp phát/gia hạn/thu hồi |
+| `frontend` | Nginx phục vụ React build và proxy `/api/` |
+| `backend` | API, adapter MOCK và các worker |
+| `postgres` | Database, ledger và hàng đợi PostgreSQL |
+| `redis` | Service dự phòng trong Compose mặc định |
+| `mailhog` | Profile thử thư riêng, cần cấu hình SMTP tương ứng |
+
+Stack ghi demo chỉ chạy ba container `frontend`, `backend`, `postgres`, với provider MOCK và SMTP tắt. [Compose local](docker-compose.yml) · [Compose kiểm thử](tools/testing/compose.t30.yml)
 
 ---
 
-## 9. Công nghệ đề xuất
+## 9. Công nghệ đang sử dụng
 
 | Thành phần | Công nghệ |
 |---|---|
-| Frontend | React, TypeScript, Vite, React Router, TanStack Query |
-| Backend | Node.js, TypeScript, NestJS hoặc Express có module rõ ràng |
-| Database | PostgreSQL |
-| ORM | Prisma hoặc TypeORM |
+| Frontend | React, TypeScript, Vite, React Router |
+| Backend | Node.js, TypeScript, NestJS |
+| Database | PostgreSQL 17 và driver `pg` |
 | Authentication | JWT access token + refresh session |
-| Background Job | BullMQ + Redis; MVP đơn giản có thể dùng node-cron |
+| Background Job | Worker trong backend, transaction và hàng đợi PostgreSQL |
 | API Documentation | OpenAPI/Swagger |
-| Email demo | MailHog |
+| Email | Nodemailer và SMTP theo cấu hình |
 | Key/Certificate demo | Mock Crypto Provider |
 | Đóng gói | Docker Compose |
 
@@ -358,7 +360,7 @@ Node.js Backend
     ↓
 Nghiệp vụ + RBAC + Policy + Audit
     ↓
-PostgreSQL / Redis / Worker
+PostgreSQL / Worker trong backend
     ↓
 Crypto Provider và Email Service
 ```

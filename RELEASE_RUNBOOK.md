@@ -1,0 +1,97 @@
+# Đóng gói, nâng cấp và phục hồi Crypta
+
+## Chọn bản phát hành
+
+Đối chiếu điều kiện R1 và quyết định pilot trước khi chọn bản phát hành. [Cổng nghiệm thu T54](docs/CONG_NGHIEM_THU_RELEASE.md)
+
+Chọn commit đã qua CI và nghiệm thu, cùng một phiên bản duy nhất cho backend và frontend. Mốc nâng cấp đang kiểm là `105d104c41b0804410b12782434b89d522c341d6`, có migration 001–003. Phiên bản làm việc tiếp theo được đề xuất là `0.2.0-rc.1`. Ghi phiên bản chính thức và commit đã duyệt trong changelog khi phát hành.
+
+Từ thư mục dự án, build hai image từ đúng cây Git của commit đã chọn. Script dùng `git archive --mtime` với thời điểm commit để context có cùng SHA-256 qua các lượt chạy. Cần phiên bản Git hỗ trợ tham số này. Script ghi nhãn OCI version/revision, image ID, platform và SHA-256 của context cùng mẫu cấu hình vào manifest. Nó từ chối tag local đã tồn tại.
+
+```powershell
+node tools/build-release-images.cjs <full-commit-sha> <release-version>
+```
+
+Giữ manifest, `.env.example` và changelog cùng bản phát hành. Khi chuyển image sang máy khác, lưu archive bằng `docker image save` và đối chiếu SHA-256 của archive trước `docker image load`. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Base image trong Dockerfile hiện theo tag. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
+
+## Cấu hình Docker production
+
+1. Điền [mẫu cấu hình](deploy/production.env.example) vào tệp riêng của máy đích. Dùng hai image theo digest đã duyệt. Chọn một `APP_ORIGIN` HTTPS chính xác, dạng scheme và tên máy kèm cổng nếu có, bỏ dấu gạch chéo cuối. Proxy TLS trên máy đích chuyển cả SPA và `/api/` đến `127.0.0.1:18080` hoặc cổng `CRYPTA_PROXY_PORT` đã chọn. Backend nằm trong mạng nội bộ Compose. Kiểm login và cookie qua HTTPS trước khi mở lưu lượng.
+2. Cấp PostgreSQL riêng và tài khoản runtime theo [quy trình migration](DATABASE_MIGRATIONS.md). Xác nhận đích là database mới và rỗng trước khi nạp `database_schema.sql`. Schema cài mới tạo đối tượng trong một transaction và từ chối đối tượng đã tồn tại. Tiếp đó, operator chạy CLI migration từ image mới bằng credential migration, cấp quyền runtime và khởi tạo Admin theo phần dưới. Với database hiện hữu, bắt đầu từ phần nâng cấp. Compose production khởi động hai dịch vụ ứng dụng.
+3. Cấp năm tệp bí mật theo đường dẫn tuyệt đối trong mẫu. Mỗi tệp chứa một giá trị trên một dòng. Materialize tệp từ kho bí mật, dùng ACL của máy đích và kiểm người dùng `node` trong container đọc được chúng. Tạo JWT từ ít nhất 32 byte ngẫu nhiên mã hóa base64url và khóa account actions riêng từ 32 byte ngẫu nhiên mã hóa hex. Bản production yêu cầu provider HTTPS, SMTP có xác thực qua TLS và bật luồng mời/reset. Nếu dùng CA riêng, cấp tệp CA công khai chỉ đọc và đặt `NODE_EXTRA_CA_CERTS` trong container trước khi khởi động. [Cấu hình dịch vụ](CAU_HINH_DICH_VU_THAT.md)
+4. Chạy lệnh sau với đường dẫn đến tệp cấu hình của máy đích. Kiểm `ps` và readiness, rồi tiếp tục smoke qua proxy. Khi xoay bí mật, cập nhật tệp trong kho bí mật và tạo lại backend để tiến trình nạp giá trị mới.
+
+```powershell
+$taskConfigPath = 'deploy/.env.production'
+docker compose --env-file $taskConfigPath -f docker-compose.production.yml config --quiet
+docker compose --env-file $taskConfigPath -f docker-compose.production.yml up -d --wait
+docker compose --env-file $taskConfigPath -f docker-compose.production.yml ps
+```
+
+## Khởi tạo Admin đầu tiên
+
+Giữ API chưa chạy trong bước cấp tài khoản đầu tiên. Điền [mẫu operator](deploy/bootstrap-admin.env.example) vào tệp được bảo vệ và ghi nhận người duyệt. `BOOTSTRAP_DATABASE_NAME` phải trùng tên database đích. `DATABASE_URL_FILE` chứa URL của migrator/owner với tham số duy nhất `sslmode=verify-full`. Nếu dùng migrator LOGIN tách biệt, đặt `DATABASE_MIGRATION_OWNER_ROLE` thành owner NOLOGIN đã cấp quyền chuyển role.
+
+Cấp mật khẩu tạm qua `BOOTSTRAP_ADMIN_PASSWORD_FILE`. CLI áp cùng quy tắc mật khẩu mới của ứng dụng, từ 12 đến 64 ký tự, có chữ hoa, chữ thường, số và ký tự đặc biệt, tối đa 72 byte UTF-8 cho bcrypt. Các tệp bí mật chứa một dòng và nằm trong kho bí mật của môi trường. Chạy CLI compiled bằng đúng Node/image ứng viên. Ví dụ khi backend compiled có trên máy operator, chạy từ thư mục `backend`.
+
+```powershell
+node --env-file=../deploy/.env.bootstrap-admin dist/database/bootstrap-admin.js
+```
+
+Nếu dùng image, mount một thư mục operator bảo vệ dưới dạng chỉ đọc tại `/run/operator`, đặt các đường dẫn trong tệp cấu hình theo đường dẫn trong container và chạy cùng CLI.
+
+```powershell
+$taskOperatorDirectory = (Resolve-Path (Read-Host 'Thư mục operator bảo vệ ngoài repo')).Path
+$taskBackendImage = Read-Host 'Digest backend đã duyệt'
+docker run --rm --mount "type=bind,source=$taskOperatorDirectory,target=/run/operator,readonly" --entrypoint node $taskBackendImage --env-file=/run/operator/.env.bootstrap-admin dist/database/bootstrap-admin.js
+```
+
+Thư mục operator ở ví dụ nằm ngoài repo, do người vận hành tạo với ACL phù hợp và chứa tệp cấu hình cùng hai tệp bí mật. Nếu dùng CA riêng, mount CA công khai và thêm `-e NODE_EXTRA_CA_CERTS=/run/operator/ca.crt` vào lệnh Docker. CLI kiểm TLS thực, tên database và ledger, dùng khóa chung với migration, rồi tạo đơn vị, ba mã vai trò, một Admin và một audit SYSTEM trong cùng transaction. Đơn vị đã có cần trùng tên và đang hoạt động. CLI từ chối nếu database đã có tài khoản, audit, yêu cầu hoặc tài sản.
+
+Thành công trả mã 0 với `BOOTSTRAP_ADMIN_CREATED`. Lệnh chạy lại trả mã 1 với `BOOTSTRAP_DATABASE_ALREADY_INITIALIZED`. Nếu client mất kết nối khi commit, operator kiểm audit và tài khoản đã tạo trước khi thử lại. Giao mật khẩu tạm qua kênh riêng, yêu cầu Admin đổi mật khẩu tại lần đăng nhập đầu, rồi thu hồi quyền truy cập tệp mật khẩu tạm theo quy trình của môi trường.
+
+## Trước khi nâng cấp
+
+1. Ghi lại Git SHA, image ID/digest, PostgreSQL major version, DB đích, ledger, role runtime/migrator và chế độ provider/SMTP. Đối chiếu phạm vi provider, `APP_URL`, cookie HTTPS và đường kết nối DB của bản mới với cấu hình vận hành. Giữ sẵn image cũ và cấu hình tương thích trong kho bí mật.
+2. Thông báo cửa sổ bảo trì. Ngắt lưu lượng ghi tại proxy rồi gửi SIGTERM cho API/worker. Chờ tiến trình thoát trước khi chạy migration. Compose cho backend 150 giây để các giao dịch đang chạy ghi kết quả. Nếu tiến trình bị buộc dừng, rà các operation đã gửi hoặc cần đối soát và thư `SENDING`. Kiểm bằng chứng bên ngoài theo operation ID và Message-ID trước khi lên lịch xử lý lại.
+3. Tạo backup PostgreSQL trước migration và xác minh checksum. Giữ bản sao theo chính sách của môi trường. Dùng DB riêng để kiểm một lượt restore, số liệu, phiên bản ledger, login, lineage, audit và ánh xạ provider. Cấu hình quyền và tài khoản của môi trường restore sau khi nạp dump. Khóa vật lý trong KMS/CA có quy trình backup riêng. [Hướng dẫn backup và restore](README.md)
+4. Diễn tập trên một bản dữ liệu đại diện. Với ledger cũ chỉ có version và thời điểm áp dụng, đối chiếu mã và schema gốc trước khi cho CLI bổ sung checksum. Kiểm migration mới thay đổi ràng buộc nào, dữ liệu nào được backfill và phiên bản cũ đọc/ghi được gì. [Hợp đồng migration](DATABASE_MIGRATIONS.md)
+
+## Nâng cấp và xác nhận dịch vụ
+
+1. Chạy CLI migration của đúng image mới với credential migrator. Chờ exit 0. Kiểm 17 dòng ledger, checksum và `indisvalid` của `public.idx_audit_text_trgm`, rồi áp lại bộ quyền cho runtime LOGIN. Trên database demo, đối chiếu ba khóa mẫu và chứng thư `CRT-FIN-ACTIVE` với phạm vi MOCK. Trên database thật, xác minh mapping từng tài sản theo bằng chứng từ provider. Tài sản nhập cũ thiếu bằng chứng tiếp tục ở trạng thái phạm vi provider chưa xác minh. [Điều kiện extension và khóa migration](DATABASE_MIGRATIONS.md)
+2. Khởi động API với credential runtime và `DATABASE_MIGRATION_MODE=validate`. Kiểm `/api/v1/health/live` và `/api/v1/health/ready` qua điểm vào sẽ dùng. Kiểm lỗi startup, job và queue trước khi mở ghi. Migration lỗi hoặc API chưa ready thì giữ cửa sổ bảo trì.
+3. Qua proxy, kiểm tài sản JS/CSS thuộc đúng bản build, login theo vai trò, tra asset/lineage, tra audit và luồng được chọn trong smoke. Dùng người nhận/provider được cấp phép cho kiểm thử có tác động. Đối chiếu số liệu trước/sau và dấu hiệu monitor.
+4. Mở lại lưu lượng theo kế hoạch triển khai. Ghi thời gian migrate, restart, smoke và kết quả. Giữ backup trước nâng cấp tới khi hết cửa sổ rollback đã thống nhất.
+
+## Chọn phương án phục hồi
+
+| Tình huống | Hành động |
+| --- | --- |
+| Migration thất bại trong transaction | Kiểm ledger và schema đã rollback. Giữ bản cũ nếu dữ liệu và điều kiện vận hành còn tương thích. Sửa nguyên nhân trên bản sao rồi chạy lại theo lịch. |
+| Migration đã commit và lỗi chỉ ở ứng dụng | Ưu tiên sửa tiến với image mới tương thích. Chỉ đổi về image cũ trên DB đã migrate nếu đã kiểm cả đọc và ghi của bản cũ trên schema đó. |
+| Schema/dữ liệu không phù hợp bản cũ | Dừng ghi. Phục hồi dump trước nâng cấp vào DB mới, chạy lại image cũ với DB đã restore và kiểm smoke trước khi chuyển lưu lượng. Giữ DB lỗi để phân tích và đối soát thay đổi phát sinh sau backup. |
+
+Mốc 001–003 đến 016 có thay đổi constraint, trạng thái và metadata. Cách quay lại đã chọn cho diễn tập là phục hồi snapshot trước nâng cấp vào DB riêng. Kết quả phát sinh bên ngoài PostgreSQL cần đối soát trước khi worker chạy lại. Không xóa dòng ledger, sửa checksum hoặc bootstrap schema lên volume đang giữ dữ liệu.
+
+## Chạy lại diễn tập cách ly
+
+```powershell
+./tools/test-isolated-stack.ps1 -Port 18080 -KeepStack
+node tools/test-release-upgrade.cjs <report.json-cua-stack-moi>
+./tools/cleanup-isolated-stack.ps1 -ReportPath <report.json-cua-stack-moi>
+```
+
+Runner build backend cũ từ Git, dùng schema và seed của cùng commit, rồi tạo phiên qua API. Một database được nâng cấp và một database riêng được phục hồi từ dump cũ. Cả hai được cấp mới trong stack test. Provider chạy MOCK và SMTP tắt. Nginx/SPA của bản hiện tại được kiểm bởi smoke lúc dựng stack. Các bước nâng cấp và phục hồi API chạy nội bộ trong mạng test. Đây là thời gian diễn tập local với fixture nhỏ. Môi trường thật cần đo lại trước khi chốt RPO/RTO.
+
+## Kết quả diễn tập ngày 06/11/2026
+
+- **6/6 nhóm PostgreSQL/API.** Dựng commit `105d104`, tạo hai phiên qua login thật và backup DB cũ. Bản mới ở chế độ `validate` từ chối ledger cũ trước khi migrate. Lỗi DDL cố ý ở 009 rollback cả 005 và cột checksum mới. Sau khi bỏ lỗi, CLI nâng lên 016, giữ ngày áp dụng 001–003, nội dung nghiệp vụ trong 15 bảng cũ và sequence audit. Chạy CLI lần hai giữ nguyên ledger và dữ liệu. [Báo cáo diễn tập](tools/test-artifacts/integration/crypta-t30-test-b1dcabcb598c/release-upgrade-0d54f02b9cc5/results.json)
+- **2,064 giây** cho lần migrate gồm chạy container. Backfill làm thay đổi timestamp của các tài sản mẫu qua trigger `updated_at`. Bản ghi import chưa xác minh giữ nguyên phạm vi NULL và timestamp. Migration 016 sửa đúng chứng thư `CRT-FIN-ACTIVE` bị sót trong 014 và giữ checksum 001–015.
+- **17,332 giây** từ cấp DB phục hồi, nạp dump và đối chiếu dữ liệu đến khi API cũ phục vụ smoke thành công. DB phục hồi giữ ledger 001–003, khớp nội dung 15 bảng và sequence audit. Bản mới chạy bằng LOGIN hạn chế đã qua readiness, login, lineage và audit. [Báo cáo diễn tập](tools/test-artifacts/integration/crypta-t30-test-b1dcabcb598c/release-upgrade-0d54f02b9cc5/results.json)
+- **Hai image đóng gói local** từ commit baseline, tag `0.1.0-rehearsal.20261106.2`. Đã tạo lại archive Git, khớp SHA-256 và nhãn OCI cho cả hai image. Lệnh lặp từ chối ghi đè manifest. [Manifest](tools/test-artifacts/releases/0.1.0-rehearsal.20261106.2-105d104c41b0/manifest.json) · [Kiểm nhãn và hash](tools/test-artifacts/release-upgrade-20261106/image-verification.json)
+- **Hồi quy trên image 016.** Backend unit đạt 383/383. Runtime LOGIN đạt 48/48 và ledger đạt 10/10. Smoke API/SPA qua Nginx đạt. Hai DB diễn tập, role và container thử được dọn. Cleanup stack còn 0 container, volume và network, giữ danh tính chín container ngoài test. [Chỉ mục kiểm chứng](tools/test-artifacts/release-upgrade-20261106/integration-index.json)
+
+- **Hồi quy trên image 017.** Nâng cấp từ `105d104` đạt 6/6, chỉ mục mới hợp lệ, 15 bảng lịch sử và sequence audit được đối chiếu. Bản cũ chạy lại từ database phục hồi sau 17,7 giây. Runtime LOGIN đạt 48/48 với `pg_trgm` ở schema riêng, ledger đạt 10/10 và backend unit đạt 383/383. [Nâng cấp và phục hồi](tools/test-artifacts/integration/crypta-t30-test-c9b39a1d64cc/release-upgrade-f765f40e4319/results.json) · [Runtime LOGIN](tools/test-artifacts/integration/crypta-t30-test-c9b39a1d64cc/runtime-privileges-d2e7ffbe6927/results.json) · [Ledger](tools/test-artifacts/integration/crypta-t30-test-c9b39a1d64cc/runtime-ledger-44cc7bdfc0fd/results.json)
+
+Image của commit phát hành, tag chính thức, CI remote và diễn tập với dữ liệu/môi trường đích còn mở.

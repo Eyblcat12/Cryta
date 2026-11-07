@@ -118,10 +118,10 @@ flowchart LR
 ### 5.6. Cảnh báo tự động
 
 - Quét tài sản định kỳ.
-- Cảnh báo trước 30, 7 hoặc 1 ngày.
+- Cảnh báo theo `warning_days` trong policy gắn tài sản.
 - Chuyển trạng thái sang `EXPIRED` khi hết hạn.
-- Gửi thông báo trong ứng dụng và email demo.
-- Không gửi trùng khi job chạy lại.
+- Gửi thông báo trong ứng dụng và xếp hàng email cho owner, Approver đúng phạm vi và Admin đủ điều kiện.
+- Giữ một bản ghi theo người nhận, mốc và kênh khi quét lại. Email phụ thuộc SMTP và quy trình đối soát.
 
 ### 5.7. Audit Log
 
@@ -278,18 +278,19 @@ Sản phẩm không chỉ thực hiện CRUD mà còn có state machine, transac
 
 ---
 
-## 11. Công nghệ dự kiến
+## 11. Công nghệ đang sử dụng
 
 | Lớp | Công nghệ |
 |---|---|
-| Frontend | React + TypeScript |
-| Backend | Node.js + TypeScript |
-| Database | PostgreSQL |
-| ORM | Prisma hoặc TypeORM |
-| Job | BullMQ/Redis hoặc node-cron cho MVP |
+| Frontend | React, TypeScript, Vite, React Router |
+| Backend | Node.js, TypeScript, NestJS |
+| Database | PostgreSQL 17 qua driver `pg` |
+| Job | Worker trong backend, transaction và hàng đợi PostgreSQL |
 | API | REST + OpenAPI/Swagger |
-| Email demo | MailHog |
+| Email | Nodemailer qua SMTP khi được bật |
 | Đóng gói | Docker Compose |
+
+Demo chạy với adapter MOCK, PostgreSQL và Nginx trên máy thử. SMTP, provider và môi trường triển khai thật cần được cấu hình và nghiệm thu trước khi đưa tài sản thật vào hệ thống. [Hướng dẫn sử dụng](docs/HUONG_DAN_CRYPTA.md) · [Kiến trúc hiện hành](02_so_do_he_thong_tong_quat.md) · [Nghiệm thu 12 luồng](docs/NGHIEM_THU_UAT.md)
 
 ---
 

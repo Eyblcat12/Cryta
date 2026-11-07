@@ -1,0 +1,14 @@
+# Isolated E2E override. The SMTP and mailbox API bind inside the backend container.
+services:
+  backend:
+    environment:
+      T07_TEST_PROJECT: ${T07_TEST_PROJECT:?An isolated project is required}
+      ACCOUNT_ACTIONS_ENABLED: "true"
+      ACCOUNT_ACTION_KEY: ${T07_TEST_KEY:?A generated test key is required}
+      SMTP_ENABLED: "true"
+      SMTP_HOST: 127.0.0.1
+      SMTP_PORT: "2527"
+      SMTP_FROM: crypta@localhost.test
+    volumes:
+      - ./account-actions-mailbox.cjs:/t07-mailbox.cjs:ro
+    entrypoint: ["node", "/t07-mailbox.cjs"]

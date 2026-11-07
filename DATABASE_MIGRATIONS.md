@@ -1,0 +1,65 @@
+# Migration operator và startup runtime
+
+API mặc định dùng `DATABASE_MIGRATION_MODE=validate`. Startup chỉ đọc `public.schema_migrations` trong transaction repeatable-read/read-only và kiểm đủ version/checksum đã biết. Nó không CREATE/ALTER, áp migration hoặc backfill checksum. Ledger thiếu, version pending/unknown và checksum NULL/sai đều chặn startup; sửa cấu hình/database qua quy trình migration trước khi khởi động lại.
+
+`database_schema.sql` dùng để khởi tạo database mới trong một transaction. Tệp tạo schema cơ sở và từ chối đối tượng đã có. Chạy CLI migration sau đó để có đầy đủ ledger hiện hành. Dữ liệu demo nằm riêng trong `seed_data.sql`. Cài mới production dùng [CLI tạo Admin đầu tiên](RELEASE_RUNBOOK.md#khởi-tạo-admin-đầu-tiên) sau migration.
+
+Operator chạy migration bằng **process riêng**, sau build backend:
+
+```powershell
+# Chạy trong backend; file chỉ dành cho operator, không đưa vào runtime container.
+node --env-file=.env.migration dist/database/migrate.js
+```
+
+File bảo vệ `.env.migration` của operator cung cấp `DATABASE_URL` có quyền migration; tên này được Git ignore bằng `.env.*`. Không gửi URL/mật khẩu vào chat hoặc đưa file vào Git. Có thể dùng `npm run migrate` khi môi trường process đã cấp đúng URL; script có thể đọc `.env` tại backend, nên không dùng nhầm file cấu hình runtime hoặc thư mục khác. CLI không khởi động API, worker, timer hoặc email service; pool tối đa một connection và được đóng cả khi thất bại. Lỗi CLI chỉ ghi thông báo chung, không in URL hoặc lỗi driver thô.
+
+Operator có thể cấp `DATABASE_MIGRATION_OWNER_ROLE` để CLI chạy `SET ROLE` trên cùng connection trước transaction migration. Giá trị chỉ nhận tên role chữ thường bắt đầu bằng chữ, tiếp theo là chữ/số/underscore, tối đa63 ký tự; giá trị sai bị từ chối trước khi mở pool. Role owner nên là NOLOGIN, migrator LOGIN được phép chuyển sang owner. Biến này không được API sử dụng.
+
+Sau migration, runtime chỉ nhận URL của role runtime và `DATABASE_MIGRATION_MODE=validate`; không truyền credential migrator hoặc đặt runtime làm thành viên owner. Không sửa SQL001–008 đã phát hành. Migration checksum không phải checksum toàn schema: kiểm ledger không chứng minh mọi object/trigger/permission đều đúng, không thay schema audit hoặc kiểm nghiệp vụ.
+
+### Migration 017 và chỉ mục tìm kiếm Audit Log
+
+Kiểm `pg_available_extensions` để xác nhận máy PostgreSQL có `pg_trgm`. Nếu DBA đã cài extension ở schema riêng, migration dùng operator class trong schema đó. Cấp `USAGE` trên schema extension cho migration owner. Nếu chưa cài và migration owner thiếu quyền `CREATE` trên database, DBA cài trước trong schema được kiểm soát. API chạy với các quyền đọc và ghi nghiệp vụ hiện có. [Tài liệu pg_trgm của PostgreSQL 17](https://www.postgresql.org/docs/17/pgtrgm.html)
+
+Lên lịch nâng cấp trong cửa sổ bảo trì vì `CREATE INDEX` trong transaction giữ khóa chặn ghi audit khi xây dựng chỉ mục. Migration giới hạn chờ lấy khóa chỉ mục ở 5 giây. Kiểm thời gian tạo trên bản sao dữ liệu trước khi chạy, đặc biệt với bảng lớn vì CLI đặt `statement_timeout` 30 giây. Nếu có lỗi, kiểm ledger và index sau rollback, xử lý nguồn chặn rồi thử lại theo runbook. [Quy trình nâng cấp và phục hồi](RELEASE_RUNBOOK.md)
+
+[Compose local/demo](docker-compose.yml) khai báo `apply` với bootstrap role để khởi động bằng launcher. Chế độ này có thể chạy DDL và bổ sung checksum cho ledger cũ.
+
+[Compose production](docker-compose.production.yml) đọc URL runtime từ `DATABASE_URL_FILE`. URL phải có tên máy, database, tài khoản và mật khẩu, với tham số duy nhất `sslmode=verify-full`. Tên máy phải khớp chứng thư PostgreSQL và chuỗi CA phải được Node tin cậy. Startup kiểm TLS, role LOGIN riêng có NOINHERIT, membership, các đặc quyền cluster, ownership của database/schema/relation và quyền CREATE/TEMP. Sau đó runtime kiểm ledger trong cùng transaction chỉ đọc. Đối chiếu quyền ứng dụng và các ngoại lệ cấp cột trước rollout. [TLS của node-postgres](https://node-postgres.com/features/ssl) · [T43 review](T43_DB_HARDENING_REVIEW_2026-11-05.md) · [Runbook](RELEASE_RUNBOOK.md)
+
+Các runner worker/policy/expiry tạo database con mới dùng `applyPending()` rõ ràng trước khi gọi service. Runner [runtime-ledger](tools/test-real-runtime-ledger.cjs) kiểm compiled CLI/validator, role chỉ SELECT ledger, các lệnh ghi bị từ chối và cleanup. Role test được kích hoạt qua SET ROLE trên pool riêng; chưa chứng minh đăng nhập/password rotation hoặc toàn API bằng role hạn chế.
+
+Runner [runtime privileges](tools/test-real-runtime-privileges.cjs) bổ sung ba role riêng và API compiled kết nối bằng LOGIN/password thực trong database test mới. Đây là bước kiểm riêng, không tự chuyển Compose local/demo sang role hạn chế. Template [runtime-grants.sql](tools/testing/runtime-grants.sql) phải được operator xem xét trước khi dùng với môi trường đã chọn:
+
+```powershell
+psql -X -v ON_ERROR_STOP=1 -v database=<database> -v runtime_role=<runtime-login-role> -f tools/testing/runtime-grants.sql
+```
+
+Template chỉ chấp nhận runtime LOGIN không ownership/membership, không quyền đặc biệt và NOINHERIT; từ chối database sai và PUBLIC grants trên bảng/cột/sequence ứng dụng hoặc CREATE database. Trong cùng transaction, nó reset quyền trực tiếp trên database, schema public,17 bảng/cột và sequence audit rồi cấp lại bộ quyền khai báo. Nó cũng thu hồi PUBLIC CREATE schema và TEMPORARY database; cần đánh giá ảnh hưởng tới các tài khoản cùng database trước rollout. Nó không kiểm soát mọi object/extension/schema ngoài danh mục này hoặc thay thế audit toàn cluster.
+
+PostgreSQL yêu cầu UPDATE trên ít nhất một cột để khóa dòng. Template cấp UPDATE `policies.is_active` để khóa và ngừng áp dụng policy, thay cho `policies.updated_at`. Các ngoại lệ `policy_versions.id` và `cryptographic_keys.asset_id` vẫn có trong bộ quyền. Trigger chặn cập nhật phiên bản policy đã phát hành. Quyền UPDATE `cryptographic_keys.asset_id` thực sự tồn tại và cần được đánh giá trước khi nghiệm thu least privilege đầy đủ.
+
+API T20 dùng schema hiện có. Áp lại `runtime-grants.sql` trước khi đưa API mới vào môi trường chạy bằng runtime LOGIN. Template thêm INSERT trên `policies.code`, `policies.name` và chỉ cho cập nhật `policies.is_active`. [Kiểm chứng T20](T20_POLICY_LIFECYCLE_2026-11-06.md).
+
+Với migration 009, chạy CLI migration trước khi áp lại `runtime-grants.sql`. API cần UPDATE các cột nội dung khi sửa nháp, mốc gửi khi submit và lý do khi hủy. Grant của PostgreSQL áp theo cột, còn giới hạn nháp, người tạo và trạng thái được kiểm tại API. Rà giới hạn quyền theo hàng trước khi nghiệm thu hardening. [Bằng chứng T09](T09_REQUEST_DRAFTS_2026-11-06.md).
+
+Nếu validation thất bại:
+
+1. Giữ API chưa sẵn sàng, ghi nhận mã lỗi và backup database bằng quy trình vận hành.
+2. Kiểm đúng database, phiên bản ứng dụng và ledger; không tự xóa dòng lạ hoặc sửa checksum để vượt cổng.
+3. Operator dùng phiên bản migration tương thích để nâng cấp hoặc phục hồi theo runbook. Legacy checksum NULL cần kiểm chứng baseline trước backfill.
+4. Chạy validator lại, rồi kiểm health/nghiệp vụ. Không tự reset volume hoặc chạy bootstrap DROP/CASCADE lên dữ liệu cần giữ.
+
+Migration `010_execution_notifications` chỉ mở rộng check constraint loại thông báo cho `REQUEST_COMPLETED` và `REQUEST_RECONCILIATION_REQUIRED`. Không sửa SQL/checksum001–009 hoặc thêm quyền DB. Chạy CLI apply trước khi chạy backend mới; runtime validate sẽ từ chối ledger thiếu010. Trước khi quay lại code cũ cần xem các loại thông báo mới và ledger; không xóa checksum hoặc sửa migration đã phát hành để ép startup. [Bằng chứng T24](T24_EMAIL_TEMPLATES_2026-11-06.md).
+
+Migration `011_department_administration` thêm cột `departments.version` với mặc định 1 và ràng buộc giá trị dương. Chạy migration trước khi áp lại quyền runtime. Bộ quyền mới cấp INSERT cho `departments`, UPDATE cho `departments.code`, `name`, `is_active`, `version` và `users.department_id`. [Quản lý đơn vị T08](T08_DEPARTMENT_ADMINISTRATION_2026-11-06.md).
+
+Migration `012_account_actions` thêm `account_actions`, `account_action_limits`, `users.invitation_pending` và khóa ngoại của thư mời/reset. Chạy migration trước khi áp lại quyền runtime. Các tài khoản hiện có nhận `invitation_pending=false`. Bảng cấp link giữ mã băm, thời hạn và dấu thời gian sử dụng hoặc thu hồi. Backup cần giữ cùng phiên bản ứng dụng và cấu hình khóa của môi trường. [Vận hành email](EMAIL_OPERATIONS.md).
+
+Migration `013_provider_recovery` mở rộng nhật ký `provider_operations` bằng thông tin claim, lịch thử lại và biên nhận đã kiểm tra. Nó cũng thêm trạng thái kết thúc của operation và loại thông báo `REQUEST_FAILED`. Các dòng cũ giữ nguyên tham chiếu và được xem là chưa đủ bằng chứng để thử lại hoặc áp dụng kết quả. Chạy CLI migration rồi áp lại quyền runtime trước khi khởi động bản mới. [Đối soát T15](T15_PROVIDER_RECOVERY_2026-11-06.md).
+
+Migration `014_asset_provider_scope` thêm liên kết phạm vi provider trên tài sản. Nó gắn `MOCK` cho mẫu seed xác định được và cho tài sản có audit hệ thống cấp hoặc gia hạn thành công ở chế độ MOCK. Các tài sản thiếu bằng chứng tiếp tục hiển thị lịch sử nhưng cần xác minh tham chiếu và tài khoản provider trước khi mở thao tác ghi. Runtime có thể ghi phạm vi khi tạo tài sản mới. Thay đổi phạm vi tài sản cũ cần quy trình đối soát vận hành riêng. Chạy CLI migration trước khi khởi động phiên bản mới. [Cấu hình provider](CAU_HINH_DICH_VU_THAT.md#provider).
+
+Migration `015_demo_asset_provider_scope` bổ sung liên kết MOCK cho ba UUID khóa mẫu bị ghi sai ở danh sách của 014. Chỉ các dòng đúng cả ID và reference mẫu, có scope NULL mới được cập nhật. Checksum 001–014 được giữ nguyên. Các dòng asset được backfill ở 014/015 đi qua trigger cập nhật `updated_at`. Runtime LOGIN đã kiểm 015 trên PostgreSQL. [Hướng dẫn nâng cấp và phục hồi](RELEASE_RUNBOOK.md)
+
+Migration `016_demo_certificate_provider_scope` sửa liên kết MOCK cho `CRT-FIN-ACTIVE` có UUID chính xác, loại `CERTIFICATE`, đúng reference mẫu và scope NULL. Giữ nguyên checksum 001–015. Tài sản nhập cũ chưa xác minh vẫn cần đối soát trước khi thao tác với provider.

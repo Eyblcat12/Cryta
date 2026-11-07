@@ -1,9 +1,9 @@
 export type RequestRow = {
   id: string;
-  request_type: string;
+  request_type: 'CREATE' | 'RENEW' | 'REVOKE';
   creator_id: string;
   department_id: string;
-  policy_version_id: string;
+  policy_version_id: string | null;
   target_asset_id: string | null;
   result_asset_id: string | null;
   status: string;
@@ -11,12 +11,13 @@ export type RequestRow = {
   emergency: boolean;
   requested_parameters: Record<string, unknown>;
   version: number;
-  submitted_at: Date | string;
+  submitted_at: Date | string | null;
   completed_at: Date | string | null;
   updated_at: Date | string;
   creator_name?: string;
   department_name?: string;
   target_asset_code?: string | null;
+  cancellation_reason?: string | null;
 };
 
 export function presentRequest(row: RequestRow) {
@@ -39,5 +40,6 @@ export function presentRequest(row: RequestRow) {
     creatorName: row.creator_name,
     departmentName: row.department_name,
     targetAssetCode: row.target_asset_code,
+    cancellationReason: row.cancellation_reason ?? null,
   };
 }

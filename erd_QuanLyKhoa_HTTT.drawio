@@ -1,4 +1,171 @@
 <mxfile host="app.diagrams.net">
+  <diagram id="crypta-schema-017" name="Schema hiện hành 017">
+    <mxGraphModel grid="1" gridSize="10" page="1" pageWidth="2700" pageHeight="2900" guides="1" connect="1" arrows="1" fold="1" pageScale="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title-017" parent="1" vertex="1" value="Crypta · schema 017 · 19 bảng · 33 khóa ngoại · nguồn PostgreSQL 17" style="text;html=0;align=left;fontSize=22;fontStyle=1;strokeColor=none;fillColor=none;">
+          <mxGeometry x="30" y="15" width="2400" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="table-departments" parent="1" vertex="1" value="&lt;b&gt;departments&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;code · character varying(50)&lt;br&gt;name · character varying(255)&lt;br&gt;is_active · boolean&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;updated_at · timestamp with time zone&lt;br&gt;version · integer" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="30" y="70" width="500" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="table-roles" parent="1" vertex="1" value="&lt;b&gt;roles&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;code · character varying(50)&lt;br&gt;name · character varying(255)&lt;br&gt;created_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="560" y="70" width="500" height="158" as="geometry" />
+        </mxCell>
+        <mxCell id="table-users" parent="1" vertex="1" value="&lt;b&gt;users&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;department_id · uuid FK&lt;br&gt;email · character varying(255)&lt;br&gt;password_hash · character varying(255)&lt;br&gt;display_name · character varying(255)&lt;br&gt;status · character varying(30)&lt;br&gt;token_version · integer&lt;br&gt;failed_login_attempts · integer&lt;br&gt;locked_until · timestamp with time zone  nullable&lt;br&gt;must_change_password · boolean&lt;br&gt;last_login_at · timestamp with time zone  nullable&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;updated_at · timestamp with time zone&lt;br&gt;invitation_pending · boolean" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1090" y="70" width="500" height="378" as="geometry" />
+        </mxCell>
+        <mxCell id="table-user_roles" parent="1" vertex="1" value="&lt;b&gt;user_roles&lt;/b&gt;&lt;br&gt;&lt;br&gt;user_id · uuid PK,FK&lt;br&gt;role_id · uuid PK,FK&lt;br&gt;assigned_by · uuid FK nullable&lt;br&gt;assigned_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1620" y="70" width="500" height="158" as="geometry" />
+        </mxCell>
+        <mxCell id="table-approver_scopes" parent="1" vertex="1" value="&lt;b&gt;approver_scopes&lt;/b&gt;&lt;br&gt;&lt;br&gt;user_id · uuid PK,FK&lt;br&gt;department_id · uuid PK,FK&lt;br&gt;assigned_by · uuid FK nullable&lt;br&gt;assigned_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="2150" y="70" width="500" height="158" as="geometry" />
+        </mxCell>
+        <mxCell id="table-auth_sessions" parent="1" vertex="1" value="&lt;b&gt;auth_sessions&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;user_id · uuid FK&lt;br&gt;token_hash · character(64)&lt;br&gt;user_agent · character varying(500)  nullable&lt;br&gt;ip_address · inet  nullable&lt;br&gt;expires_at · timestamp with time zone&lt;br&gt;last_used_at · timestamp with time zone  nullable&lt;br&gt;revoked_at · timestamp with time zone  nullable&lt;br&gt;replaced_by · uuid FK nullable&lt;br&gt;created_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="30" y="528" width="500" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="table-account_actions" parent="1" vertex="1" value="&lt;b&gt;account_actions&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;user_id · uuid FK&lt;br&gt;purpose · character varying(30)&lt;br&gt;token_hash · character(64)&lt;br&gt;token_version · integer&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;expires_at · timestamp with time zone&lt;br&gt;used_at · timestamp with time zone  nullable&lt;br&gt;revoked_at · timestamp with time zone  nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="560" y="528" width="500" height="268" as="geometry" />
+        </mxCell>
+        <mxCell id="table-account_action_limits" parent="1" vertex="1" value="&lt;b&gt;account_action_limits&lt;/b&gt;&lt;br&gt;&lt;br&gt;bucket_key · character varying(80) PK&lt;br&gt;attempt_count · integer&lt;br&gt;expires_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1090" y="528" width="500" height="136" as="geometry" />
+        </mxCell>
+        <mxCell id="table-policies" parent="1" vertex="1" value="&lt;b&gt;policies&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;code · character varying(50)&lt;br&gt;name · character varying(255)&lt;br&gt;is_active · boolean&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;updated_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1620" y="528" width="500" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="table-policy_versions" parent="1" vertex="1" value="&lt;b&gt;policy_versions&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;policy_id · uuid FK&lt;br&gt;version · integer&lt;br&gt;configuration · jsonb&lt;br&gt;changed_by · uuid FK nullable&lt;br&gt;effective_from · timestamp with time zone&lt;br&gt;created_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="2150" y="528" width="500" height="224" as="geometry" />
+        </mxCell>
+        <mxCell id="table-crypto_assets" parent="1" vertex="1" value="&lt;b&gt;crypto_assets&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;asset_code · character varying(100)&lt;br&gt;asset_type · character varying(30)&lt;br&gt;owner_id · uuid FK&lt;br&gt;department_id · uuid FK&lt;br&gt;policy_version_id · uuid FK&lt;br&gt;purpose · character varying(255)&lt;br&gt;status · character varying(30)&lt;br&gt;valid_from · timestamp with time zone&lt;br&gt;expires_at · timestamp with time zone&lt;br&gt;replaces_asset_id · uuid FK nullable&lt;br&gt;provider_reference · character varying(255)  nullable&lt;br&gt;version · integer&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;updated_at · timestamp with time zone&lt;br&gt;provider_scope · character varying(64)  nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="30" y="898" width="500" height="422" as="geometry" />
+        </mxCell>
+        <mxCell id="table-cryptographic_keys" parent="1" vertex="1" value="&lt;b&gt;cryptographic_keys&lt;/b&gt;&lt;br&gt;&lt;br&gt;asset_id · uuid PK,FK&lt;br&gt;algorithm · character varying(50)&lt;br&gt;key_size · integer&lt;br&gt;usage · character varying(100)&lt;br&gt;public_key_fingerprint · character varying(255)" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="560" y="898" width="500" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="table-certificates" parent="1" vertex="1" value="&lt;b&gt;certificates&lt;/b&gt;&lt;br&gt;&lt;br&gt;asset_id · uuid PK,FK&lt;br&gt;serial_number · character varying(100)&lt;br&gt;subject_dn · character varying(500)&lt;br&gt;issuer_dn · character varying(500)&lt;br&gt;fingerprint · character varying(255)&lt;br&gt;public_key_asset_id · uuid FK nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1090" y="898" width="500" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="table-requests" parent="1" vertex="1" value="&lt;b&gt;requests&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;request_type · character varying(30)&lt;br&gt;creator_id · uuid FK&lt;br&gt;department_id · uuid FK&lt;br&gt;policy_version_id · uuid FK nullable&lt;br&gt;target_asset_id · uuid FK nullable&lt;br&gt;result_asset_id · uuid FK nullable&lt;br&gt;status · character varying(30)&lt;br&gt;reason · text&lt;br&gt;emergency · boolean&lt;br&gt;requested_parameters · jsonb&lt;br&gt;version · integer&lt;br&gt;submitted_at · timestamp with time zone  nullable&lt;br&gt;completed_at · timestamp with time zone  nullable&lt;br&gt;updated_at · timestamp with time zone&lt;br&gt;cancellation_reason · text  nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1620" y="898" width="500" height="422" as="geometry" />
+        </mxCell>
+        <mxCell id="table-request_decisions" parent="1" vertex="1" value="&lt;b&gt;request_decisions&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;request_id · uuid FK&lt;br&gt;approver_id · uuid FK&lt;br&gt;decision · character varying(30)&lt;br&gt;comment · text  nullable&lt;br&gt;decided_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="2150" y="898" width="500" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="table-provider_operations" parent="1" vertex="1" value="&lt;b&gt;provider_operations&lt;/b&gt;&lt;br&gt;&lt;br&gt;request_id · uuid PK,FK&lt;br&gt;operation_type · character varying(30)&lt;br&gt;status · character varying(30)&lt;br&gt;attempt_count · integer&lt;br&gt;provider_reference · character varying(255)  nullable&lt;br&gt;last_error_code · character varying(100)  nullable&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;updated_at · timestamp with time zone&lt;br&gt;claim_version · integer  nullable&lt;br&gt;retry_count · integer&lt;br&gt;retry_after · timestamp with time zone  nullable&lt;br&gt;failure_class · character varying(30)  nullable&lt;br&gt;sent_at · timestamp with time zone  nullable&lt;br&gt;receipt_at · timestamp with time zone  nullable&lt;br&gt;input_digest · character(64)  nullable&lt;br&gt;receipt · jsonb  nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="30" y="1400" width="500" height="422" as="geometry" />
+        </mxCell>
+        <mxCell id="table-audit_logs" parent="1" vertex="1" value="&lt;b&gt;audit_logs&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · bigint PK&lt;br&gt;actor_id · uuid FK nullable&lt;br&gt;actor_type · character varying(30)&lt;br&gt;action · character varying(100)&lt;br&gt;entity_type · character varying(50)&lt;br&gt;entity_id · character varying(100)  nullable&lt;br&gt;outcome · character varying(30)&lt;br&gt;request_id · uuid FK nullable&lt;br&gt;ip_address · inet  nullable&lt;br&gt;metadata · jsonb&lt;br&gt;occurred_at · timestamp with time zone" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="560" y="1400" width="500" height="312" as="geometry" />
+        </mxCell>
+        <mxCell id="table-notifications" parent="1" vertex="1" value="&lt;b&gt;notifications&lt;/b&gt;&lt;br&gt;&lt;br&gt;id · uuid PK&lt;br&gt;recipient_id · uuid FK&lt;br&gt;asset_id · uuid FK nullable&lt;br&gt;request_id · uuid FK nullable&lt;br&gt;type · character varying(50) FK&lt;br&gt;channel · character varying(30)&lt;br&gt;delivery_status · character varying(30)&lt;br&gt;deduplication_key · character varying(255)&lt;br&gt;attempt_count · integer&lt;br&gt;scheduled_for · timestamp with time zone&lt;br&gt;claimed_at · timestamp with time zone  nullable&lt;br&gt;created_at · timestamp with time zone&lt;br&gt;sent_at · timestamp with time zone  nullable&lt;br&gt;failed_at · timestamp with time zone  nullable&lt;br&gt;read_at · timestamp with time zone  nullable&lt;br&gt;error_message · text  nullable&lt;br&gt;account_action_id · uuid FK nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1090" y="1400" width="500" height="444" as="geometry" />
+        </mxCell>
+        <mxCell id="table-schema_migrations" parent="1" vertex="1" value="&lt;b&gt;schema_migrations&lt;/b&gt;&lt;br&gt;&lt;br&gt;version · character varying(100) PK&lt;br&gt;applied_at · timestamp with time zone&lt;br&gt;checksum · character(64)  nullable" style="rounded=0;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fillColor=#f7faff;strokeColor=#6b84a5;">
+          <mxGeometry x="1620" y="1400" width="500" height="136" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-0" parent="1" edge="1" source="table-account_actions" target="table-users" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-1" parent="1" edge="1" source="table-approver_scopes" target="table-users" value="assigned_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-2" parent="1" edge="1" source="table-approver_scopes" target="table-departments" value="department_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-3" parent="1" edge="1" source="table-approver_scopes" target="table-users" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-4" parent="1" edge="1" source="table-audit_logs" target="table-users" value="actor_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-5" parent="1" edge="1" source="table-audit_logs" target="table-requests" value="request_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-6" parent="1" edge="1" source="table-auth_sessions" target="table-auth_sessions" value="replaced_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-7" parent="1" edge="1" source="table-auth_sessions" target="table-users" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-8" parent="1" edge="1" source="table-certificates" target="table-crypto_assets" value="asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-9" parent="1" edge="1" source="table-certificates" target="table-crypto_assets" value="public_key_asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-10" parent="1" edge="1" source="table-crypto_assets" target="table-departments" value="department_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-11" parent="1" edge="1" source="table-crypto_assets" target="table-users" value="owner_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-12" parent="1" edge="1" source="table-crypto_assets" target="table-policy_versions" value="policy_version_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-13" parent="1" edge="1" source="table-crypto_assets" target="table-crypto_assets" value="replaces_asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-14" parent="1" edge="1" source="table-cryptographic_keys" target="table-crypto_assets" value="asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-15" parent="1" edge="1" source="table-notifications" target="table-account_actions" value="account_action_id, recipient_id, type" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-16" parent="1" edge="1" source="table-notifications" target="table-crypto_assets" value="asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-17" parent="1" edge="1" source="table-notifications" target="table-users" value="recipient_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-18" parent="1" edge="1" source="table-notifications" target="table-requests" value="request_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-19" parent="1" edge="1" source="table-policy_versions" target="table-users" value="changed_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-20" parent="1" edge="1" source="table-policy_versions" target="table-policies" value="policy_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-21" parent="1" edge="1" source="table-provider_operations" target="table-requests" value="request_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-22" parent="1" edge="1" source="table-request_decisions" target="table-users" value="approver_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-23" parent="1" edge="1" source="table-request_decisions" target="table-requests" value="request_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-24" parent="1" edge="1" source="table-requests" target="table-users" value="creator_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-25" parent="1" edge="1" source="table-requests" target="table-departments" value="department_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-26" parent="1" edge="1" source="table-requests" target="table-policy_versions" value="policy_version_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-27" parent="1" edge="1" source="table-requests" target="table-crypto_assets" value="result_asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-28" parent="1" edge="1" source="table-requests" target="table-crypto_assets" value="target_asset_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-29" parent="1" edge="1" source="table-user_roles" target="table-users" value="assigned_by" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-30" parent="1" edge="1" source="table-user_roles" target="table-roles" value="role_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-31" parent="1" edge="1" source="table-user_roles" target="table-users" value="user_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fk-017-32" parent="1" edge="1" source="table-users" target="table-departments" value="department_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=0;fontSize=10;endArrow=open;strokeColor=#8795a6;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
   <diagram name="Trang-1" id="cJdLyHGULIw5jepDJ57U">
     <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>

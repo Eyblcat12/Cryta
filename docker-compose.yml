@@ -1,7 +1,14 @@
 name: crypta
+x-log-rotation: &log-rotation
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:17-alpine
+    logging: *log-rotation
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-crypta}
       POSTGRES_USER: ${POSTGRES_USER:-crypta}
@@ -17,44 +24,43 @@ services:
       retries: 20
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes: ["crypta_redis_data:/data"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 12
-    restart: unless-stopped
-
   backend:
     build: ./backend
+    logging: *log-rotation
+    stop_grace_period: 150s
     environment:
       NODE_ENV: production
+      CRYPTA_DEPLOYMENT_MODE: demo
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER:-crypta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-crypta}
+      # Legacy local/demo bootstrap. Restricted deployments must migrate separately and use validate.
+      DATABASE_MIGRATION_MODE: ${DATABASE_MIGRATION_MODE:-apply}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CORS_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      OPERATIONS_MONITOR_TOKEN_SHA256: ${OPERATIONS_MONITOR_TOKEN_SHA256:-}
       SMTP_ENABLED: ${SMTP_ENABLED:-false}
+      ACCOUNT_ACTIONS_ENABLED: ${ACCOUNT_ACTIONS_ENABLED:-false}
+      ACCOUNT_ACTION_KEY: ${ACCOUNT_ACTION_KEY:-}
+      APP_URL: ${APP_URL:-}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-Asia/Ho_Chi_Minh}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_SECURE: ${SMTP_SECURE:-false}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-Crypta <no-reply@example.com>}
-      CRYPTO_PROVIDER_MODE: ${CRYPTO_PROVIDER_MODE:-MOCK}
+      CRYPTO_PROVIDER_MODE: ${CRYPTO_PROVIDER_MODE-MOCK}
       CRYPTO_PROVIDER_URL: ${CRYPTO_PROVIDER_URL:-}
       CRYPTO_PROVIDER_TOKEN: ${CRYPTO_PROVIDER_TOKEN:-}
+      CRYPTO_PROVIDER_SCOPE: ${CRYPTO_PROVIDER_SCOPE:-}
       CRYPTO_PROVIDER_TIMEOUT_MS: ${CRYPTO_PROVIDER_TIMEOUT_MS:-15000}
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/v1/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/v1/health/ready"]
       interval: 10s
       timeout: 4s
       retries: 12
@@ -62,6 +68,7 @@ services:
 
   frontend:
     build: ./frontend
+    logging: *log-rotation
     ports: ["${APP_PORT:-8080}:80"]
     depends_on:
       backend: { condition: service_healthy }
@@ -69,10 +76,10 @@ services:
 
   mailhog:
     image: mailhog/mailhog:v1.0.1
+    logging: *log-rotation
     profiles: ["local-mail"]
     ports: ["1025:1025", "8025:8025"]
     restart: unless-stopped
 
 volumes:
   crypta_postgres_data:
-  crypta_redis_data:

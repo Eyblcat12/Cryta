@@ -1,21 +1,28 @@
-import { Controller, Get, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Pool } from 'pg';
-import { DATABASE_POOL } from '../database/database.constants';
+import { ReadinessService } from './readiness.service';
 
 @ApiTags('System')
 @Controller('health')
 export class HealthController {
-  constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
+  constructor(private readonly readiness: ReadinessService) {}
+
+  @Get('live')
+  @ApiOperation({ summary: 'Kiểm tra tiến trình API' })
+  live() {
+    return { status: 'ok', timestamp: new Date().toISOString() };
+  }
+
+  @Get('ready')
+  @ApiOperation({ summary: 'Kiểm tra khả năng truy cập database từ API' })
+  ready() {
+    return this.check();
+  }
 
   @Get()
   @ApiOperation({ summary: 'Kiểm tra API và kết nối database' })
   async check() {
-    try {
-      await this.pool.query('SELECT 1');
-      return { status: 'ok', database: 'connected', timestamp: new Date().toISOString() };
-    } catch {
-      throw new ServiceUnavailableException({ code: 'DATABASE_UNAVAILABLE', message: 'Không thể kết nối database.' });
-    }
+    await this.readiness.check();
+    return { status: 'ok', database: 'connected', timestamp: new Date().toISOString() };
   }
 }

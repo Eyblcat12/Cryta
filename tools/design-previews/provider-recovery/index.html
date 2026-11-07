@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypta · Đối soát provider</title>
+<style>
+:root{color-scheme:light;--bg:#f5f7f7;--panel:#fff;--ink:#172b29;--muted:#526966;--line:#c8d6d3;--accent:#165d50;--soft:#e9f3ef;--danger:#9b2929}
+body.dark{color-scheme:dark;--bg:#111c1c;--panel:#192a29;--ink:#edf5f2;--muted:#adc6c0;--line:#536c65;--accent:#9ed6c1;--soft:#233f35;--danger:#ffb4ad}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}header,aside{background:var(--panel);border-bottom:1px solid var(--line);padding:12px max(16px,calc((100vw - 1080px)/2))}header{font-size:22px;font-weight:700;color:var(--accent)}main{max-width:1120px;margin:auto;padding:28px 20px}h1,h2,h3,p{margin:0}h1{font-size:28px}h2{font-size:20px}p,small{color:var(--muted)}small{display:block}button,textarea,select{font:inherit;border:1px solid var(--line);border-radius:7px;min-height:42px;background:var(--panel);color:var(--ink);padding:7px 12px}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}.primary{background:var(--accent);color:var(--bg);font-weight:650}.danger{color:var(--danger)}:focus-visible{outline:3px solid #2584bc;outline-offset:3px}.row{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.split{justify-content:space-between;gap:16px;margin-bottom:20px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}.scroll{overflow:auto}table{border-collapse:collapse;text-align:left;width:100%;min-width:690px}th,td{padding:13px 16px;border-bottom:1px solid var(--line)}th{color:var(--muted);font-size:13px}.footer,.state{padding:16px}.state{text-align:center;padding-block:40px}.pill,.note{background:var(--soft);padding:6px 10px;border-radius:6px}.alert{color:var(--danger);padding:12px;border:1px solid var(--danger);border-radius:7px}.note,.alert{margin:16px 0}dialog{width:min(620px,calc(100% - 24px));max-height:calc(100% - 32px);overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);padding:24px}dialog::backdrop{background:#081a1bb3}.actions{justify-content:flex-end;margin-top:20px}form label:not(.check){display:grid;gap:5px;margin:12px 0}.check{display:flex;align-items:center;gap:8px}.check input{width:22px;height:22px;margin:0}dl{display:grid;grid-template-columns:1fr 1fr;gap:12px}dl>div{padding:8px 12px;background:var(--bg);border-radius:6px}dt{color:var(--muted);font-size:13px}dd{margin:4px 0;overflow-wrap:anywhere}li{margin:6px 0}[hidden]{display:none!important}
+</style>
+<body>
+<aside class="row"><strong>Bản xem trước · dữ liệu minh họa</strong><label>Trạng thái <select id="state"><option value="ready">Có dữ liệu</option><option value="loading">Đang tải</option><option value="empty">Trống</option><option value="error">Lỗi tải</option><option value="conflict">Xung đột thao tác</option></select></label><button id="theme">Đổi sáng/tối</button></aside>
+<header>Crypta · Vận hành</header>
+<main>
+  <div class="row split"><div><h1>Đối soát provider</h1><p>Kiểm tra yêu cầu gặp lỗi, lần gửi và bằng chứng đã ghi.</p></div><button id="refresh">Làm mới</button></div>
+  <p class="note" id="notice" role="status" hidden></p>
+  <section class="panel" id="ready" aria-label="Danh sách yêu cầu cần đối soát"><div class="scroll"><table>
+    <thead><tr><th>Yêu cầu</th><th>Tình trạng</th><th>Lần gửi provider</th><th>Cập nhật</th><th>Thao tác</th></tr></thead><tbody id="rows"></tbody>
+  </table></div><small id="count" class="footer">4 yêu cầu</small></section>
+  <div class="panel state" id="loading" role="status" hidden>Đang tải yêu cầu…</div>
+  <div class="panel state" id="empty" hidden><h2>Chưa có yêu cầu cần đối soát</h2><p>Yêu cầu cần can thiệp hoặc đang chờ thử lại sẽ xuất hiện ở đây.</p></div>
+  <div class="alert" id="error" role="alert" hidden>Không tải được yêu cầu. <button id="retry-load">Thử lại</button></div>
+</main>
+<dialog id="details" aria-labelledby="detail-title">
+  <h2 id="detail-title">Chi tiết yêu cầu</h2><p id="detail-status"></p>
+  <dl id="facts"></dl>
+  <p class="note" id="impact"></p>
+  <h3>Lịch sử xử lý</h3><ul id="timeline"></ul>
+  <div class="row actions" id="detail-actions"></div>
+</dialog>
+<dialog id="action-dialog" aria-labelledby="action-title">
+  <h2 id="action-title"></h2><p class="note" id="action-impact"></p>
+  <form id="confirm-form">
+    <label>Lý do<textarea id="reason" required minlength="10" maxlength="500" rows="3"></textarea></label>
+    <label class="check"><input type="checkbox" required> Tôi đã kiểm tra thông tin và xác nhận thao tác.</label>
+    <p class="alert" id="conflict" role="alert" hidden>Yêu cầu vừa thay đổi. Lý do bạn nhập vẫn được giữ. <button id="check-again" type="button">Tải lại trạng thái</button></p>
+    <div class="row actions"><button id="cancel" type="button">Quay lại</button><button class="primary">Xác nhận</button></div>
+  </form>
+</dialog>
+<script>
+const $=id=>document.getElementById(id);
+const fixtures=[
+  {id:'8cd4a119',type:'Cấp mới',status:'Có kết quả đã ghi',attempts:1,retries:0,code:'PROCESSING_ERROR',sent:'06/11/2026 09:31',receipt:'06/11/2026 09:31',actions:['confirm'],impact:'Provider đã trả kết quả. Crypta có thể áp dụng biên nhận nếu dữ liệu phê duyệt vẫn khớp.',history:['09:31 · Ghi nhận kết quả provider','09:31 · Giao dịch lưu tài sản gặp lỗi']},
+  {id:'912f53e1',type:'Gia hạn',status:'Lỗi tạm thời · Chưa gửi',attempts:0,retries:2,code:'PREFLIGHT_DB_BUSY',actions:['retry','close'],impact:'Đã dùng hai lượt thử tự động. Bạn có thể lên lịch thêm một lượt sau 60 giây hoặc đóng yêu cầu.',history:['09:29 · Đã thử lại sau 15 giây','09:30 · Đã thử lại sau 60 giây','09:31 · Cần quản trị viên kiểm tra']},
+  {id:'1aaf640d',type:'Thu hồi',status:'Chưa rõ kết quả',attempts:1,retries:0,code:'CRYPTO_PROVIDER_HTTP_503',sent:'06/11/2026 09:31',actions:[],impact:'Đã ghi lần gửi. Cần đối chiếu với nhà cung cấp trước khi thay đổi yêu cầu.',history:['09:31 · Lượt gửi có kết quả chưa xác định']},
+  {id:'ac942cf8',type:'Gia hạn',status:'Lỗi vĩnh viễn · Chưa gửi',attempts:0,retries:0,code:'PROCESSING_ERROR',actions:['close'],impact:'Điều kiện xử lý đã thay đổi trước khi gửi. Có thể đóng yêu cầu và thông báo cho người tạo.',history:['09:31 · Điều kiện xử lý không còn phù hợp']}
+];
+const actions={confirm:['Áp dụng biên nhận','Crypta sẽ lưu kết quả đã ghi và thông báo cho người tạo. Thao tác không gửi thêm yêu cầu đến provider.','Đã hoàn tất'],retry:['Lên lịch thử lại','Worker sẽ kiểm tra lại điều kiện xử lý sau 60 giây trước khi gửi.','Đang chờ thử lại'],close:['Đóng do lỗi xử lý','Yêu cầu sẽ chuyển sang Xử lý lỗi và người tạo sẽ nhận thông báo.','Xử lý lỗi']};
+let selected, action, conflict;
+function button(label,callback,css=''){const item=document.createElement('button');item.textContent=label;item.onclick=callback;item.className=css;return item}
+function setState(){const state=$('state').value;for(const id of ['ready','loading','empty','error'])$(id).hidden=(state==='conflict'?'ready':state)!==id}
+function render(){
+  $('rows').replaceChildren(...fixtures.filter(item=>item.status!=='Đã hoàn tất').map(item=>{
+    const row=document.createElement('tr');for(const value of [item.type+' · '+item.id,item.status,item.attempts,'09:31'])row.insertCell().textContent=value;
+    row.insertCell().append(button('Xem chi tiết',()=>showDetails(item)));return row;
+  }));$('count').textContent=$('rows').rows.length+' yêu cầu';
+}
+function showDetails(item){
+  selected=item;$('detail-title').textContent=item.type+' · '+item.id;$('detail-status').textContent=item.status;$('impact').textContent=item.impact;
+  $('facts').replaceChildren(...[['Lần gửi provider',item.attempts],['Lượt thử lại đã lên lịch',item.retries],['Mốc gửi',item.sent??'—'],['Mốc nhận biên nhận',item.receipt??'—'],['Mã lỗi',item.code]].map(([label,value])=>{
+    const group=document.createElement('div'),term=document.createElement('dt'),definition=document.createElement('dd');term.textContent=label;definition.textContent=value;group.append(term,definition);return group;
+  }));$('timeline').replaceChildren(...item.history.map(value=>{const li=document.createElement('li');li.textContent=value;return li}));
+  $('detail-actions').replaceChildren(button('Đóng',()=>$('details').close()),...item.actions.map(key=>button(actions[key][0],()=>showAction(key),key==='close'?'danger':'primary')));
+  if(!$('details').open)$('details').showModal();
+}
+function showAction(key){action=key;conflict=$('state').value==='conflict';$('confirm-form').reset();$('conflict').hidden=true;$('action-title').textContent=actions[key][0];$('action-impact').textContent=actions[key][1];$('action-dialog').showModal()}
+$('confirm-form').onsubmit=event=>{event.preventDefault();if(conflict){$('conflict').hidden=false;return}if($('reason').value.trim().length<10){$('reason').focus();return}selected.status=actions[action][2];selected.actions=[];selected.history.unshift('09:32 · '+actions[action][0]);selected.impact=actions[action][1];if(action==='retry')selected.retries++;$('action-dialog').close();$('details').close();render();$('notice').textContent=selected.type+' · '+selected.status;$('notice').hidden=false};
+$('cancel').onclick=()=>$('action-dialog').close();$('check-again').onclick=()=>{conflict=false;$('conflict').hidden=true;$('confirm-form').querySelector('input').checked=false};
+$('state').onchange=setState;$('theme').onclick=()=>document.body.classList.toggle('dark');$('retry-load').onclick=$('refresh').onclick=()=>{$('state').value='ready';setState()};render();
+</script>
+</body>
+</html>

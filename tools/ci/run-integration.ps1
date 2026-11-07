@@ -1,0 +1,58 @@
+param([switch]$ProveFailureGate)
+
+$ErrorActionPreference = 'Stop'
+$taskCiRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+$taskCiTooling = Join-Path $PSScriptRoot 'node_modules'
+if ($env:CRYPTA_REAL_TEST_FILTER) { throw 'Clear CRYPTA_REAL_TEST_FILTER before running full CI verification.' }
+if (-not (Test-Path -LiteralPath (Join-Path $taskCiTooling 'playwright/package.json'))) {
+  throw 'Install the pinned tools/ci dependencies before integration verification.'
+}
+. (Join-Path $taskCiRoot 'tools/testing/database-context.ps1')
+$taskCiBefore = @(Get-CryptaContainerInventory)
+$taskCiState = @{
+  reportPath = $null
+  verificationPassed = $false
+  proveFailureGate = [bool]$ProveFailureGate
+  powershellVersion = $PSVersionTable.PSVersion.ToString()
+  platform = $PSVersionTable.OS
+}
+
+$taskCiVerification = {
+  param([string]$ReportPath)
+  $taskCiState.reportPath = $ReportPath
+  $taskCiReport = Get-Content -Raw -LiteralPath $ReportPath | ConvertFrom-Json
+  $taskCiState.project = $taskCiReport.project
+  if ($taskCiState.proveFailureGate) {
+    & node -e 'process.exit(23)'
+    if ($LASTEXITCODE -ne 0) { throw 'Intentional native test failure for CI propagation and cleanup verification.' }
+  }
+  foreach ($script in @('test-real-body-parser.cjs', 'test-real-runtime-ledger.cjs',
+      'test-real-runtime-privileges.cjs', 'test-real-worker-recovery.cjs',
+      'test-real-expiry-scan.cjs', 'test-real-email-delivery.cjs')) {
+    & node (Join-Path $taskCiRoot "tools/$script") $ReportPath
+    if ($LASTEXITCODE -ne 0) { throw "Integration failed in $script." }
+  }
+  & node (Join-Path $taskCiRoot 'tools/test-real-integration.cjs') $ReportPath $taskCiTooling chromium
+  if ($LASTEXITCODE -ne 0) { throw 'Real Chromium integration failed.' }
+  # The signal rehearsal stops the isolated backend, so run it after browser tests.
+  & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
+  $taskCiState.verificationPassed = $true
+}
+
+try {
+  & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -VerifyStack $taskCiVerification
+} finally {
+  $taskCiAfter = @(Get-CryptaContainerInventory)
+  $taskCiState.containerIdentitiesPreserved = Test-CryptaContainerIdentitiesMatch -Before $taskCiBefore -After $taskCiAfter
+  $taskCiState.otherContainers = $taskCiAfter.Count
+  $taskCiState.completedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+  if ($taskCiState.reportPath) {
+    $taskCiFinalReport = Get-Content -Raw -LiteralPath $taskCiState.reportPath | ConvertFrom-Json
+    $taskCiState.cleanupCompleted = $taskCiFinalReport.cleanupCompleted
+    $taskCiState.proveFailureGate = [bool]$ProveFailureGate
+    $taskCiStatePath = Join-Path (Split-Path -Parent $taskCiState.reportPath) 'ci-verification.json'
+    [IO.File]::WriteAllText($taskCiStatePath, ($taskCiState | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+    if (-not $taskCiState.cleanupCompleted) { throw 'CI stack cleanup failed.' }
+  }
+  if (-not $taskCiState.containerIdentitiesPreserved) { throw 'Container identities outside the CI stack changed.' }
+}

@@ -1,0 +1,98 @@
+{
+  "video": "crypta-demo.webm",
+  "bytes": 5485142,
+  "sha256": "54a1dbfd08e73204db209701e83eb9b1f022f39f8ba51013caff4863fa8d4a7c",
+  "durationSeconds": 48.16,
+  "viewport": [
+    1440,
+    900
+  ],
+  "provider": "MOCK",
+  "smtpEnabled": false,
+  "sessionSetup": "API login before role changes, credentials outside the recorded UI",
+  "expirySetup": "Two synthetic assets plus an explicit call to ExpiryScanService.run",
+  "buildAssets": [
+    "/assets/index-BDI-K94F.js",
+    "/assets/index-DIi5GvX9.css"
+  ],
+  "images": {
+    "backend": "sha256:dffb03c5d6b56c49ffc6171b051d61d9076f5ac257a7ba2d1122cad9e06a6791",
+    "frontend": "sha256:f5efc8418ad9f4dfb27d27ee78b591f3ebf3fade5b9a25dc11c4583e5c785c4b"
+  },
+  "chapters": [
+    {
+      "id": "UC01",
+      "title": "User gửi yêu cầu cấp khóa mới",
+      "offsetMs": 2136
+    },
+    {
+      "id": "UC05",
+      "title": "Approver lọc hàng chờ trong phạm vi đơn vị",
+      "offsetMs": 4142
+    },
+    {
+      "id": "UC02",
+      "title": "Gia hạn từ tài sản vừa cấp",
+      "offsetMs": 8935
+    },
+    {
+      "id": "UC03",
+      "title": "Xác nhận thu hồi khẩn, sau đó Approver duyệt",
+      "offsetMs": 15846
+    },
+    {
+      "id": "UC04",
+      "title": "Approver xem danh mục theo phạm vi được giao",
+      "offsetMs": 25859
+    },
+    {
+      "id": "UC06",
+      "title": "Approver từ chối có lý do. User mở lại chi tiết",
+      "offsetMs": 29067
+    },
+    {
+      "id": "UC07",
+      "title": "Admin tra cứu danh mục toàn hệ thống",
+      "offsetMs": 34625
+    },
+    {
+      "id": "UC08",
+      "title": "Admin phát hành phiên bản mới của policy RSA",
+      "offsetMs": 36109
+    },
+    {
+      "id": "UC09",
+      "title": "Tra nhật ký quyết định từ chối",
+      "offsetMs": 39190
+    },
+    {
+      "id": "UC10",
+      "title": "Admin cấp vai trò Approver cho một đơn vị",
+      "offsetMs": 40766
+    },
+    {
+      "id": "UC11",
+      "title": "Cảnh báo sắp hết hạn xuất hiện trong ứng dụng",
+      "offsetMs": 43448
+    },
+    {
+      "id": "UC12",
+      "title": "Worker chuyển tài sản đến hạn sang Đã hết hạn",
+      "offsetMs": 45158
+    }
+  ],
+  "schema": {
+    "migration": "017_audit_search_trigram",
+    "tables": 19,
+    "columns": 164,
+    "foreignKeys": 33
+  },
+  "renderedDiagrams": 20,
+  "acceptance": "Technical demonstration. User handover acceptance is pending.",
+  "sourceSha256": {
+    "seed_data.sql": "ea12021200e4d01eb65c7c710767f092c5c71fa72545ef85c21d69b0b2f222c0",
+    "database_schema.sql": "fa86967e47c10ce15adfd1496a26ec7691eb1c100badec35f6096f823903ba06",
+    "backend/src/database/migration.service.ts": "f76b48d52fcb47cbf8d91a9d1536162e524ada35f881d1b956dcf28d47f7f433",
+    "tools/record-crypta-demo.cjs": "f5032adde703fe6d4cbfaa9c90c7677123ecd6e3ad65902815723869be47ead4"
+  }
+}

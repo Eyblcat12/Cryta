@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AuthUser } from '../src/common/auth-user';
-import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy } from '../src/requests/request-policy';
+import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy, normalizeRequestParameters } from '../src/requests/request-policy';
 
 const approver: AuthUser = {
   id: 'approver-1', email: 'approver@example.test', displayName: 'Approver', departmentId: 'it',
@@ -53,6 +53,9 @@ describe('request creation policy', () => {
 });
 
 describe('request parameter policy',()=>{
+  it('normalizes legacy names once before storing or processing',()=>{expect(normalizeRequestParameters({asset_type:'KEY',key_size:3072,validity_days:90})).toEqual({assetType:'KEY',keySize:3072,validityDays:90})});
+  it('rejects conflicting aliases rather than picking a different value in the worker',()=>{expect(()=>normalizeRequestParameters({keySize:3072,key_size:1024})).toThrowError(/khác nhau/)});
+  it('rejects unsupported or malformed provider parameters',()=>{expect(()=>normalizeRequestParameters({privateKey:'secret'})).toThrowError(/không được hỗ trợ/);expect(()=>normalizeRequestParameters({validityDays:'90'})).toThrowError(/Thời hạn/)});
   it('accepts parameters within policy bounds',()=>{expect(()=>assertParametersMatchPolicy({assetType:'KEY',algorithm:'RSA',keySize:3072,validityDays:90},{algorithm:'RSA',minimum_key_size:2048,maximum_validity_days:365})).not.toThrow()});
   it('rejects a weak key size',()=>{expect(()=>assertParametersMatchPolicy({assetType:'KEY',keySize:1024},{minimum_key_size:2048})).toThrowError(/thấp hơn/)});
   it('rejects excessive validity',()=>{expect(()=>assertParametersMatchPolicy({assetType:'KEY',validityDays:730},{maximum_validity_days:365})).toThrowError(/vượt quá/)});

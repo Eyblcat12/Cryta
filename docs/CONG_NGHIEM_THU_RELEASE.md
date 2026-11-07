@@ -1,0 +1,24 @@
+# Rà điều kiện nghiệm thu Crypta
+
+Ngày 06/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.** Bảng dưới đối chiếu mục 7 của kế hoạch với bằng chứng hiện có. Chủ dự án, QA và vận hành cần xác nhận lại trên cùng commit, image và môi trường trước khi gắn phiên bản phát hành. [Kế hoạch](../KE_HOACH_HOAN_THIEN_DU_AN.md) · [Bảng từng task](../TASK_STATUS_2026-11-05.md)
+
+| Điều kiện R1 | Bằng chứng hiện có | Còn thiếu và người xác nhận |
+| --- | --- | --- |
+| 12 UC qua UI, API, DB/job và kiểm quyền | Demo 12 chương và kịch bản UAT 12 UC. T49 chạy thật các luồng cấp, gia hạn, thu hồi và từ chối trên stack cách ly. | QA đối chiếu đủ nhánh và quyền theo ma trận. Đại diện nghiệp vụ chạy và ký từng UC. [UAT](NGHIEM_THU_UAT.md) |
+| Xử lý mọi P0 và lỗi Critical/High | Hồi quy API/DB có thu hồi phiên, quyết định đồng thời, scope và bảo vệ Admin cuối. Dependency audit đã chạy theo phiên bản ghi trong tracker. | QA và chủ dự án đóng từng P0 trên commit ứng viên. Các mục phụ thuộc cấu hình và dữ liệu đích còn mở. [Tracker](../TASK_STATUS_2026-11-05.md) |
+| Bảo vệ bí mật qua mọi kênh | Có redaction audit, bộ kiểm log runtime và danh sách cho phép artifact CI. | Vận hành và QA kiểm Git, image, DB, log, frontend, thư và bằng chứng của môi trường đích trước khi cho người dùng thật vào. [Quyền DB](../DATABASE_MIGRATIONS.md) · [CI](../tools/ci/README.md) |
+| Phục hồi tác vụ provider và đối soát | Worker chạy ca crash, receipt, retry và timeout trên DB với MOCK/HTTP loopback. Admin có luồng đối soát qua giao diện. | Vận hành diễn tập tình huống chưa rõ kết quả với cấu hình pilot. Nếu dùng provider thật, kiểm theo hợp đồng sandbox và đối chiếu operation ID. [T15](../T15_PROVIDER_RECOVERY_2026-11-06.md) · [T16](../T16_HTTP_ADAPTER_2026-11-06.md) |
+| Policy, lịch cảnh báo và hết hạn | API phiên bản bất biến, worker giữ policy đã gắn, kiểm hết hạn và phân phạm vi người nhận trên PostgreSQL. | QA xác nhận toàn luồng trên bản build ứng viên và kiểm sau rollout. [T20](../T20_POLICY_LIFECYCLE_2026-11-06.md) · [T27](../T27_HARDENING_2026-11-06.md) |
+| Email đến hộp thư và theo dõi backlog | Kiểm gửi qua SMTP loopback và quan sát trạng thái hàng đợi. | Vận hành chọn SMTP và danh tính gửi. QA kiểm thư thực sự đến hộp thư thử cho quyết định, cảnh báo, mời và reset, gồm Inbox/Spam, header và URL. [Vận hành email](../EMAIL_OPERATIONS.md) |
+| Giao diện và khả năng truy cập | Có hồi quy trình duyệt cho hai theme, mobile, bàn phím và các trạng thái lỗi, chờ, trống. | QA hoàn tất kiểm T30, screen reader và các kịch bản UAT trên bản ứng viên. [Tracker giao diện](../IMPLEMENTATION_TRACKER.md) |
+| CI xanh trên commit phát hành | Build, unit, smoke, DB/worker và trình duyệt đã chạy cục bộ. Cổng lỗi cố ý trả mã lỗi và dọn stack. | Quản lý repo xác nhận GitHub Actions, check bắt buộc và lần chạy có test lỗi trên nhánh kiểm thử. [CI](../tools/ci/README.md) |
+| Startup, nâng cấp, backup, restore và tải | Diễn tập migration 001–003 lên 017, khôi phục trên DB cách ly, đo tải với fixture lớn. | Vận hành lặp trên máy đích, chốt RPO/RTO và ngưỡng tải. [Runbook](../RELEASE_RUNBOOK.md) · [T50](../T50_CAPACITY_2026-11-06.md) |
+| Tài liệu, UAT và trách nhiệm hỗ trợ | Có hướng dẫn theo vai trò, changelog và demo bàn giao. | Chủ dự án chỉ định người tiếp nhận và người trực, sau đó người nhận tự dựng và xác nhận kịch bản. [Bàn giao](DEMO_VA_BAN_GIAO.md) |
+
+## Chuẩn bị pilot và quyết định release
+
+T51 cần staging được phép sử dụng, domain HTTPS, sao lưu, tài khoản thử và người trực. Trước khi mở cho nhóm thử, ghi SHA commit, digest image, ledger, chế độ provider, SMTP, kết quả smoke và bản backup. Vận hành kiểm cảnh báo cùng một chu kỳ nghiệp vụ và giữ điểm phục hồi. Khi T16 còn mở, pilot chỉ dùng dữ liệu mô phỏng và ghi rõ phạm vi đó. T25, T42 và T46 vẫn phải được xác nhận theo tiêu chí T51. [Điều kiện dịch vụ thật](../CAU_HINH_DICH_VU_THAT.md) · [Nâng cấp và quay lui](../RELEASE_RUNBOOK.md)
+
+Trước quyết định T54, ghi người duyệt, ngày, commit/image, kết quả từng hàng, lỗi còn mở, người xử lý và kênh hỗ trợ. Dữ liệu thật chỉ được đưa vào pilot sau khi mọi P0 đạt. Chỉ gắn phiên bản phát hành sau quyết định của chủ dự án. Để công nhận vận hành tài sản thật, cần thêm T16 và xác nhận quyền truy cập, secret, TLS, backup, đối soát và các yêu cầu bắt buộc của tổ chức.
+
+R2 gồm X01–X06 và được nghiệm thu riêng sau R1 theo phạm vi đã chọn. Các mục mở rộng chưa có kết quả nghiệm thu hoặc biên bản thay đổi phạm vi tiếp tục giữ trạng thái mở.
