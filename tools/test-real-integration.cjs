@@ -495,7 +495,7 @@ async function main() {
   await test('T28: reconciliation commits one evidenced decision and rolls back on audit failure', async () => {
     const accepted = randomUUID(), unsent = randomUUID(), fault = randomUUID();
     const ids = [accepted, unsent, fault].map(id => `'${id}'`).join(',');
-    const secondAdmin = await createUser(['ADMIN']);
+    const secondAdmin = await login('ciso@congty.com');
     const pathFor = id => `/notifications/delivery-issues/${id}`;
     const resolve = (id, body, actor = admin) => call('POST', `${pathFor(id)}/reconcile`, body, actor.accessToken);
     const acceptedAt = new Date(Date.now() - 60_000).toISOString();
