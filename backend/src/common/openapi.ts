@@ -79,6 +79,13 @@ const documentedReads: Record<string, SchemaObject | typeof userRef> = {
   '/api/v1/users': legacyListResult,
   '/api/v1/notifications': legacyListResult,
   '/api/v1/audit-logs': legacyListResult,
+  '/api/v1/audit-logs/{id}': object({
+    id: { type: 'string', pattern: '^[1-9][0-9]*$' }, action: { type: 'string' }, entityType: { type: 'string' },
+    entityId: { type: 'string', nullable: true }, outcome: { type: 'string', enum: ['SUCCESS', 'FAILED', 'DENIED'] },
+    occurredAt: timestamp, actorName: { type: 'string' }, requestId: { ...uuid, nullable: true }, correlationId: requestId,
+    changes: { type: 'array', items: object({ field: { type: 'string' }, before: { type: 'string' }, after: { type: 'string' } }, ['field', 'after']) },
+    related: { ...object({ kind: { type: 'string', enum: ['USER', 'ASSET'] }, id: uuid }), nullable: true },
+  }, ['id', 'action', 'entityType', 'entityId', 'outcome', 'occurredAt', 'actorName', 'requestId', 'changes', 'related']),
   '/api/v1/departments': pageResult,
   '/api/v1/notifications/delivery-issues': pageResult,
   '/api/v1/operations/provider-issues': pageResult,

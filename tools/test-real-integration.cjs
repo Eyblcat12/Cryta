@@ -68,7 +68,8 @@ async function main() {
     if (cookie) headers.Cookie = cookie;
     const response = await fetch(new URL(`/api/v1${endpoint}`, origin), { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
     const envelope = await response.json();
-    return { status: response.status, data: envelope.data, code: envelope.error?.code, cookie: response.headers.get('set-cookie')?.split(';')[0] };
+    return { status: response.status, data: envelope.data, code: envelope.error?.code,
+      cookie: response.headers.get('set-cookie')?.split(';')[0], requestId: response.headers.get('x-request-id') };
   }
   function expectStatus(response, status, code) { assert.equal(response.status, status, `HTTP status ${response.status}; expected ${status}; code ${response.code ?? '-'}`); if (code) assert.equal(response.code, code); return response.data; }
   async function login(email, password = 'Password@123') { return expectStatus(await call('POST', '/auth/login', { email, password }), 200); }
@@ -270,6 +271,66 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('T22: audit search, redacted event detail and export use the same scope and filters', async () => {
+    const user = await createUser(['USER'], [], false);
+    const disabled = await call('PATCH', `/users/${user.id}/status`, { status: 'INACTIVE' }, admin.accessToken);
+    expectStatus(disabled, 200);
+    assert.match(disabled.requestId, /^req_[a-f0-9-]{36}$/);
+    expectStatus(await call('PATCH', `/users/${user.id}/status`, { status: 'ACTIVE' }, admin.accessToken), 200);
+    const filters = { actor: admin.user.displayName, action: 'USER_STATUS_CHANGED', entity: user.id, outcome: 'SUCCESS' };
+    const query = new URLSearchParams({ ...filters, page: '2', pageSize: '1' });
+    const second = expectStatus(await call('GET', `/audit-logs?${query}`, undefined, admin.accessToken), 200);
+    assert.equal(second.total, 2);
+    assert.equal(second.items[0].correlationId, disabled.requestId);
+    const id = second.items[0].id;
+    expectStatus(await call('GET', `/audit-logs/${id}`, undefined, approver.accessToken), 403, 'ADMIN_REQUIRED');
+    expectStatus(await call('GET', `/audit-logs/${id}`, undefined, dev.accessToken), 403, 'ADMIN_REQUIRED');
+    const event = expectStatus(await call('GET', `/audit-logs/${id}`, undefined, admin.accessToken), 200);
+    assert.deepEqual(event.changes, [{ field: 'status', before: 'ACTIVE', after: 'INACTIVE' }]);
+    assert.deepEqual(event.related, { kind: 'USER', id: user.id });
+    assert.ok(!Object.hasOwn(event, 'metadata'));
+    const exact = { ...filters, correlationId: disabled.requestId, from: new Date(Date.now() - 86_400_000).toISOString(),
+      to: new Date(Date.now() + 86_400_000).toISOString() };
+    const filtered = expectStatus(await call('GET', `/audit-logs?${new URLSearchParams(exact)}`, undefined, admin.accessToken), 200);
+    const preview = expectStatus(await call('POST', '/reports/preview', { dataset: 'AUDIT', filters: exact }, admin.accessToken), 200);
+    assert.equal(filtered.items[0].id, id);
+    assert.equal(preview.total, 1);
+    assert.equal(preview.total, filtered.total);
+
+    for (const width of [1440, 390]) {
+      const { context, page, errors } = await newPage({ width, height: 900 });
+      try {
+        if (width === 390) await page.addInitScript(() => localStorage.setItem('crypta-theme', 'dark'));
+        await page.goto(new URL('/audit', origin).href);
+        await uiLogin(page, admin.user.email);
+        await page.getByText('Bộ lọc nâng cao', { exact: true }).click();
+        await page.getByLabel('Mã truy vết HTTP', { exact: true }).fill(disabled.requestId);
+        await page.getByLabel('Mã đối tượng', { exact: true }).fill(user.id);
+        await page.getByRole('button', { name: 'Áp dụng' }).click();
+        await page.waitForURL(url => url.searchParams.get('correlationId') === disabled.requestId);
+        await page.reload();
+        const trigger = page.getByRole('button', { name: 'USER_STATUS_CHANGED', exact: true });
+        await trigger.focus();
+        await page.keyboard.press('Enter');
+        const dialog = page.getByRole('dialog', { name: 'Chi tiết sự kiện' });
+        await dialog.getByText('Đã vô hiệu hóa', { exact: true }).waitFor();
+        assert.ok(await dialog.getByText('Đang hoạt động', { exact: true }).isVisible());
+        assert.ok(await dialog.getByText(disabled.requestId, { exact: true }).isVisible());
+        assert.ok(await dialog.evaluate(element => element.getBoundingClientRect().width <= innerWidth));
+        await page.screenshot({ path: path.join(output, `audit-detail-${width}.png`), animations: 'disabled' });
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden' });
+        await page.waitForFunction(element => document.activeElement === element, await trigger.elementHandle());
+        await trigger.click();
+        await dialog.getByRole('link', { name: 'Mở tài khoản liên quan' }).click();
+        await page.waitForURL(url => url.pathname === '/users' && url.searchParams.get('userId') === user.id);
+        await page.getByText(user.email, { exact: true }).waitFor();
+        assert.equal(await page.getByRole('table').locator('tbody tr').count(), 1);
+        assert.deepEqual(errors, []);
+      } finally { await context.close(); }
+    }
+    return { secondPage: true, noRawMetadata: true, adminOnly: true, reportMatches: true, browserWidths: [1440, 390] };
+  });
   await test('X02: scoped Approvers advance separate levels and worker only runs after both', async () => {
     const second = await createUser(['APPROVER'], [it]);
     const foreign = await createUser(['APPROVER'], [finance.user.departmentId]);

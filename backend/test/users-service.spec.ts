@@ -43,7 +43,7 @@ describe('user access changes', () => {
 
   it('rolls back status and session revocation when audit fails', async () => {
     const { service, query, release } = setup((sql) => {
-      if (sql.includes('SELECT id,invitation_pending FROM users')) return { rowCount: 1, rows: [{ invitation_pending: false }] };
+      if (sql.includes('SELECT id,invitation_pending,status FROM users')) return { rowCount: 1, rows: [{ invitation_pending: false, status: 'LOCKED' }] };
       if (sql.includes('UPDATE users')) return { rows: [{ id: 'user-1', email: 'u@example.test', display_name: 'User', status: 'ACTIVE' }] };
       if (sql.includes('INSERT INTO audit_logs')) throw new Error('audit unavailable');
       return { rowCount: 1 };
@@ -59,7 +59,7 @@ describe('user access changes', () => {
 
   it('blocks disabling the last active Admin before writing', async () => {
     const { service, query } = setup((sql) => {
-      if (sql.includes('SELECT id,invitation_pending FROM users')) return { rowCount: 1 };
+      if (sql.includes('SELECT id,invitation_pending,status FROM users')) return { rowCount: 1, rows: [{ invitation_pending: false, status: 'ACTIVE' }] };
       if (sql.includes('WHERE u.id=$1')) return { rowCount: 1 };
       if (sql.includes('WHERE u.id<>$1')) return { rowCount: 0 };
       return { rowCount: 1 };

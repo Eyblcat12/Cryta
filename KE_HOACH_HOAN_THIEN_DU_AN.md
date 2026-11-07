@@ -785,8 +785,8 @@ Mỗi dòng ghi ngày, môi trường, revision, role, fixture và pass/fail/ch�
 #### T46 — Đóng gói phiên bản và nâng cấp/rollback · P1 · OPS/BE
 
 - [ ] Chốt tag/version, image có thể truy xuất nguồn, changelog và tập tin cấu hình mẫu không chứa secret.
-- [ ] Viết quy trình trước nâng cấp: backup, kiểm tra tương thích, migration, health/smoke sau nâng cấp.
-- [ ] Phân biệt rollback code với rollback dữ liệu; migration không đảo được phải có kế hoạch restore hoặc forward-fix.
+- [x] Viết quy trình backup, kiểm tra tương thích, migration và health/smoke sau nâng cấp. CI đã diễn tập từ baseline 001–003 đến 023.
+- [x] Tách rollback code và phục hồi dữ liệu. CI đã khôi phục dump trên DB riêng và chạy smoke bằng API baseline. [Runbook và manifest](RELEASE_RUNBOOK.md)
 - **Kết quả:** một release có thể cài lại, nâng cấp và khôi phục theo hướng dẫn.
 - **Nghiệm thu:** diễn tập nâng cấp từ baseline có dữ liệu; rollback tương thích thành công hoặc phục hồi theo runbook được đo thời gian.
 - **Phụ thuộc:** T04, T41–T42, T45.
@@ -871,19 +871,21 @@ Các mục dưới đây là backlog riêng, không mất khỏi kế hoạch ch
 
 #### X01 — MFA cho vai trò nhạy cảm · P2, nâng P0 nếu chính sách yêu cầu
 
-- [ ] Chọn phương thức, thiết kế đăng ký/xác nhận, recovery code và mất thiết bị; yêu cầu xác thực tăng cường cho thao tác nhạy cảm.
-- [ ] Mã hóa secret cần lưu; rate limit và audit; chống đi vòng MFA qua refresh hoặc API khác.
+- [x] Tích hợp TOTP 6 số, 10 mã khôi phục dùng một lần và thay ứng dụng theo mẫu đã duyệt. Kiểm xác thực tăng cường và khôi phục trên stack cách ly.
+- [x] Mã hóa secret, giới hạn số lần thử và ghi audit. Kiểm API, refresh và đăng ký qua Chromium. [X01](docs/MFA_X01.md)
 - **Kết quả:** Approver/Admin có bước xác thực bổ sung và đường khôi phục có kiểm soát.
 - **Nghiệm thu:** không vào nghiệp vụ trước khi hoàn tất MFA; recovery code dùng một lần; có test reset MFA.
 - **Phụ thuộc:** T05–T07, T39, T43; chốt phương thức với chủ dự án.
+- **Môi trường đích:** Bật yêu cầu MFA và diễn tập khôi phục với cấu hình đích trước nghiệm thu.
 
 #### X02 — Phê duyệt hai cấp theo độ nhạy cảm · P2
 
-- [ ] Mô hình hóa cấp duyệt, người đủ điều kiện, điều kiện từ chối/hủy và thời hạn; ngăn một người duyệt cả hai cấp khi quy định cấm.
-- [ ] Cập nhật policy, queue, notification, timeline và worker: chỉ thực thi sau đủ cấp.
+- [x] Tích hợp hai Approver khác nhau cùng phạm vi, thời hạn theo policy, mặc định 48 giờ, và lịch sử từ chối/hủy theo mẫu đã duyệt.
+- [x] Cập nhật policy, hàng chờ, thông báo, lịch sử và worker. Đã kiểm quyết định đồng thời và chặn thực thi khi thiếu cấp trên PostgreSQL. [X02](docs/X02_TWO_STAGE_APPROVAL.md)
 - **Kết quả:** tài sản nhạy cảm có quy trình kiểm soát bổ sung.
 - **Nghiệm thu:** concurrent decisions đúng; thiếu một cấp không cấp phát; policy cũ được migrate rõ ràng.
 - **Phụ thuộc:** T02, T10–T15, T19, T38–T39; cần nghiệp vụ duyệt của tổ chức.
+- **Môi trường đích:** Xác nhận cấu hình policy, danh sách Approver và kịch bản UAT.
 
 #### X03 — SSO/OIDC · P2
 

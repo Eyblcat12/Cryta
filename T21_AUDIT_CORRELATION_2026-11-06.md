@@ -35,3 +35,13 @@ API audit thêm bộ lọc chính xác `correlationId=req_UUID`, dùng tham số
 - Còn kiểm log Nginx/startup, dữ liệu SMTP lịch sử, đường lưu fallback bền vững, tra cứu correlation qua proxy. T21/T22 tiếp tục trạng thái một phần.
 
 [Runner DB](tools/testing/runtime-privileges-runner.cjs), [ảnh chụp hash nguồn/build](tools/test-artifacts/audit-correlation-20261106/source-snapshot.json).
+
+## T22 — Tra cứu sự kiện trên ứng viên ngày 07/11/2026
+
+Security Admin có thể dùng bộ lọc nhanh hoặc mở bộ lọc theo người thực hiện, hành động, đối tượng, mã truy vết và thời gian Việt Nam. Bộ lọc áp dụng được lưu trong URL và dùng chung cho danh sách, đếm dòng và xuất báo cáo X04. [Mẫu đã duyệt](tools/design-previews/audit-investigation/index.html)
+
+Chi tiết dùng mã audit `BIGINT` dưới dạng chuỗi và chỉ trả trường được phép. Thay đổi trạng thái tài khoản mới lưu giá trị trước và sau cùng giao dịch với cập nhật tài khoản và thu hồi phiên. Sự kiện lịch sử chỉ hiện phần đã ghi nhận. Liên kết tài khoản hoặc tài sản xuất hiện khi bản ghi còn tồn tại. Trang đích kiểm quyền theo luồng hiện có.
+
+Kiểm cục bộ đạt backend 498/498, frontend 148/148, build, lint và OpenAPI. Chromium trên bản build với API fixture đạt hai viewport sáng/tối, gồm nhập sai mã, giữ URL sau tải lại, trả focus, chuyển đến tài khoản và giữ bộ lọc trong yêu cầu xuất báo cáo. Năm nhóm hồi quy tải, lỗi và phân trang Audit Log đều đạt. Bộ kiểm PostgreSQL/Chromium trong CI có ca T22 riêng.
+
+Audit Log tiếp tục chỉ đọc trên giao diện. Kho lưu dài hạn, thời hạn giữ và quyền truy cập bản lưu cần xác nhận ở môi trường đích. Các checkpoint đã ký của X05 phải được lưu độc lập theo chính sách của môi trường. [X05](docs/X05_AUDIT_ANCHOR.md)

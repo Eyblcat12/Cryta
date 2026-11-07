@@ -145,6 +145,7 @@ async function fixture(browser,role='USER',options={}){
     }
     else if(endpoint==='/users/summary')data={total:35,active:35,roles:{USER:35,APPROVER:1,ADMIN:1}};
     else if(endpoint==='/operations/provider-issues')data={items:[],total:0,page:Number(params.get('page')??1),pageSize:Number(params.get('pageSize')??25)};
+    else if(endpoint==='/reports')data=[];
     else if(endpoint==='/audit-logs'||endpoint==='/notifications/delivery-issues'){
       const isAudit=endpoint==='/audit-logs';
       const delay=isAudit?state.auditDelay:state.emailDelay;

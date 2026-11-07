@@ -1,6 +1,6 @@
 # Rà điều kiện nghiệm thu Crypta
 
-Ngày 06/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.** Bảng dưới đối chiếu mục 7 của kế hoạch với bằng chứng hiện có. Chủ dự án, QA và vận hành cần xác nhận lại trên cùng commit, image và môi trường trước khi gắn phiên bản phát hành. [Kế hoạch](../KE_HOACH_HOAN_THIEN_DU_AN.md) · [Bảng từng task](../TASK_STATUS_2026-11-05.md)
+Ngày 07/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.** Bảng dưới đối chiếu mục 7 của kế hoạch với bằng chứng hiện có. Chủ dự án, QA và vận hành cần xác nhận lại trên cùng commit, image và môi trường trước khi gắn phiên bản phát hành. [Kế hoạch](../KE_HOACH_HOAN_THIEN_DU_AN.md) · [Bảng từng task](../TASK_STATUS_2026-11-05.md)
 
 | Điều kiện R1 | Bằng chứng hiện có | Còn thiếu và người xác nhận |
 | --- | --- | --- |
@@ -11,8 +11,8 @@ Ngày 06/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.
 | Policy, lịch cảnh báo và hết hạn | API phiên bản bất biến, worker giữ policy đã gắn, kiểm hết hạn và phân phạm vi người nhận trên PostgreSQL. | QA xác nhận toàn luồng trên bản build ứng viên và kiểm sau rollout. [T20](../T20_POLICY_LIFECYCLE_2026-11-06.md) · [T27](../T27_HARDENING_2026-11-06.md) |
 | Email đến hộp thư và theo dõi backlog | Kiểm gửi qua SMTP loopback và quan sát trạng thái hàng đợi. | Vận hành chọn SMTP và danh tính gửi. QA kiểm thư thực sự đến hộp thư thử cho quyết định, cảnh báo, mời và reset, gồm Inbox/Spam, header và URL. [Vận hành email](../EMAIL_OPERATIONS.md) |
 | Giao diện và khả năng truy cập | Có hồi quy trình duyệt cho hai theme, mobile, bàn phím và các trạng thái lỗi, chờ, trống. | QA hoàn tất kiểm T30, screen reader và các kịch bản UAT trên bản ứng viên. [Tracker giao diện](../IMPLEMENTATION_TRACKER.md) |
-| CI xanh trên commit phát hành | GitHub Actions trên ứng viên a599aae đạt đủ năm job, 419 backend, 147 frontend, 6 SMTP và 158 nhóm tích hợp. Nhánh thử riêng chứng minh cổng lỗi và cleanup. | Required checks bị GitHub trả 403 do điều kiện gói cho repo private. Xác nhận CI trên commit được chọn phát hành. [Bằng chứng](CI_REMOTE_2026-11-07.md) |
-| Startup, nâng cấp, backup, restore và tải | Diễn tập migration 001–003 lên 017, khôi phục trên DB cách ly, đo tải với fixture lớn. | Vận hành lặp trên máy đích, chốt RPO/RTO và ngưỡng tải. [Runbook](../RELEASE_RUNBOOK.md) · [T50](../T50_CAPACITY_2026-11-06.md) |
+| CI xanh trên commit phát hành | GitHub Actions trên `9766e5a` đạt đủ năm job và 193 nhóm tích hợp. Nhánh thử riêng chứng minh cổng lỗi và cleanup. | Required checks bị GitHub trả 403 do điều kiện gói cho repo private. Xác nhận CI trên commit được chọn phát hành. [Bằng chứng](CI_REMOTE_2026-11-07.md) |
+| Startup, nâng cấp, backup, restore và tải | CI nâng baseline 001–003 lên 023 và phục hồi DB cách ly. Hai image CI có manifest truy xuất nguồn. Đo tải fixture lớn có báo cáo riêng. | Vận hành lặp trên máy đích, chốt RPO/RTO và ngưỡng tải. [Runbook](../RELEASE_RUNBOOK.md) · [T50](../T50_CAPACITY_2026-11-06.md) |
 | Tài liệu, UAT và trách nhiệm hỗ trợ | Có hướng dẫn theo vai trò, changelog và demo bàn giao. | Chủ dự án chỉ định người tiếp nhận và người trực, sau đó người nhận tự dựng và xác nhận kịch bản. [Bàn giao](DEMO_VA_BAN_GIAO.md) |
 
 ## Chuẩn bị pilot và quyết định release
@@ -21,4 +21,4 @@ T51 cần staging được phép sử dụng, domain HTTPS, sao lưu, tài kho�
 
 Trước quyết định T54, ghi người duyệt, ngày, commit/image, kết quả từng hàng, lỗi còn mở, người xử lý và kênh hỗ trợ. Dữ liệu thật chỉ được đưa vào pilot sau khi mọi P0 đạt. Chỉ gắn phiên bản phát hành sau quyết định của chủ dự án. Để công nhận vận hành tài sản thật, cần thêm T16 và xác nhận quyền truy cập, secret, TLS, backup, đối soát và các yêu cầu bắt buộc của tổ chức.
 
-R2 gồm X01–X06 và được nghiệm thu riêng sau R1 theo phạm vi đã chọn. Các mục mở rộng chưa có kết quả nghiệm thu hoặc biên bản thay đổi phạm vi tiếp tục giữ trạng thái mở.
+R2 gồm X01–X06 và được nghiệm thu riêng sau R1 theo phạm vi đã chọn. Cả sáu mục có bằng chứng trên stack cách ly. X06 dùng OpenBao cho khóa ký RSA/ECDSA. Môi trường đích còn cần realm HTTPS, kho checkpoint audit độc lập, cấu hình MFA và xác nhận phạm vi KMS/CA. [Bảng từng task](../TASK_STATUS_2026-11-05.md)

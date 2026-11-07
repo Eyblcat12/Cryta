@@ -23,6 +23,7 @@ describe('audit pagination', () => {
     await expect(controller.list({ ...admin, roles: ['USER'] }, { page: '1' })).rejects.toThrow();
     await expect(controller.list(admin, { page: '1', outcome: 'WRONG' })).rejects.toThrow();
     await expect(controller.list(admin, { page: '1', requestId: 'not-a-uuid' })).rejects.toThrow();
+    await expect(controller.list(admin, { from: '2026-11-07T12:00:00Z', to: '2026-11-07T11:00:00Z' })).rejects.toMatchObject({ response: { code: 'INVALID_DATE' } });
     expect(query).not.toHaveBeenCalled();
   });
 
@@ -50,5 +51,40 @@ describe('audit pagination', () => {
     const query = vi.fn();
     await expect(new AuditController({ query } as unknown as Pool).list(admin, { correlationId } as Record<string,string>)).rejects.toMatchObject({ response: { code: Array.isArray(correlationId) ? 'INVALID_FILTER' : 'INVALID_CORRELATION_ID' } });
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('audit event detail', () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+
+  it('returns only display fields, preserves a bigint identifier and checks the related object', async () => {
+    const id = '9007199254740993';
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id, action: 'USER_STATUS_CHANGED', entity_type: 'USER', entity_id: userId,
+        metadata: { previousStatus: 'ACTIVE', status: 'INACTIVE', fixture: 'must never leave the detail endpoint' } }] })
+      .mockResolvedValueOnce({ rowCount: 1 });
+    const controller = new AuditController({ query } as unknown as Pool);
+    const event = await controller.detail(admin, id);
+    expect(query.mock.calls[0][1]).toEqual([id]);
+    expect(query.mock.calls[1][1]).toEqual([userId]);
+    expect(event).toMatchObject({ id, changes: [{ field: 'status', before: 'ACTIVE', after: 'INACTIVE' }], related: { kind: 'USER', id: userId } });
+    expect(event).not.toHaveProperty('metadata');
+  });
+
+  it('rejects other roles and an out-of-range bigint before reading the database', async () => {
+    const query = vi.fn();
+    const controller = new AuditController({ query } as unknown as Pool);
+    await expect(controller.detail({ ...admin, roles: ['APPROVER'] }, '1')).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+    await expect(controller.detail(admin, '9223372036854775808')).rejects.toMatchObject({ response: { code: 'INVALID_AUDIT_ID' } });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('preserves partial legacy changes without a link to a removed object', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: '1', action: 'USER_STATUS_CHANGED', entity_type: 'USER', entity_id: userId, metadata: { status: 'LOCKED' } }] })
+      .mockResolvedValueOnce({ rowCount: 0 });
+    await expect(new AuditController({ query } as unknown as Pool).detail(admin, '1')).resolves.toMatchObject({
+      changes: [{ field: 'status', after: 'LOCKED' }], related: null,
+    });
   });
 });

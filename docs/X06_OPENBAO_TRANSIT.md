@@ -38,4 +38,4 @@ Thời hạn trong journal điều khiển trạng thái hiển thị và việc
 
 OpenBao native Windows 2.7.2 đạt 4/4 nhóm trên loopback. Ca cấp lại đi qua client HTTP của Crypta. Ca thu hồi xác nhận khóa cũ không sinh chữ ký, khóa gia hạn vẫn ký được. Kiểm thêm tra cứu hết hạn, token thiếu quyền, từ chối chứng thư và mất kết nối. Binary thử đã đối chiếu SHA-256 `b058d30eac461e78e56305d3aa7371c061405a060f364aa20999dc3a309264f4` của archive phát hành. Tiến trình và token thử đã được dọn.
 
-Pipeline có cùng bộ kiểm hợp đồng và image sandbox ghim digest `sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f`.
+CI Ubuntu đạt 4/4 nhóm với image sandbox ghim digest `sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f`. Sandbox và token thử đã được dọn. [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42369465464)

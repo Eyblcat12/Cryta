@@ -6,7 +6,7 @@ import type { UserResponse,UserReferenceResponse } from './api/contracts/users';
 import type { DepartmentResponse,DepartmentDetail } from './api/contracts/departments';
 import type { AdminPolicy, PolicyConfigurationInput, PolicyResponse, PolicyVersion } from './api/contracts/policies';
 import { recoveryAcknowledgment, type ProviderIssue, type ProviderIssueDetail, type RecoveryAction } from './api/contracts/provider-recovery';
-import type { AuditResponse } from './api/contracts/audit';
+import type { AuditDetail, AuditFilters, AuditResponse } from './api/contracts/audit';
 import type { PageResponse } from './api/contracts/page';
 import type { DashboardResponse,DashboardSummaryResponse } from './api/contracts/dashboard';
 import type { MfaChallenge, MfaCodes, MfaStepUp } from './api/contracts/mfa';
@@ -326,7 +326,14 @@ export const api={
   userReference(signal?:AbortSignal){return request<UserReferenceResponse>('/users/reference-data',{signal})},
   createUser(body:unknown){const email=typeof (body as {email?:unknown})?.email==='string'?(body as {email:string}).email.trim().toLowerCase():undefined;return mutate({kind:'user-create',key:'user:create',email,resources:mutationResources.user,reviewPath:'/users'},'/users',{method:'POST',body:JSON.stringify(body)})},
   updateUserStatus(id:string,status:'ACTIVE'|'INACTIVE'|'LOCKED'){return mutate({kind:'user-status',key:`user:${id}`,targetId:id,expectedStatus:status,resources:mutationResources.user,reviewPath:'/users'},`/users/${id}/status`,{method:'PATCH',body:JSON.stringify({status})})},
-  auditPage(options:{page:number;pageSize:number;search?:string;outcome?:string},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.search)params.set('search',options.search);if(options.outcome)params.set('outcome',options.outcome);return request<PageResponse<AuditResponse>>(`/audit-logs?${params}`,{signal})},
+  auditPage({page, pageSize, ...filters}: {page: number; pageSize: number} & AuditFilters, signal?: AbortSignal) {
+    const params = new URLSearchParams({page: String(page), pageSize: String(pageSize)});
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+    return request<PageResponse<AuditResponse>>(`/audit-logs?${params}`, {signal});
+  },
+  auditDetail(id: string, signal?: AbortSignal) {
+    return request<AuditDetail>(`/audit-logs/${encodeURIComponent(id)}`, {signal});
+  },
   createRequest(body:unknown){return mutate({kind:'request-create',key:'request:create',resources:mutationResources.request,reviewPath:'/requests'},'/requests',{method:'POST',body:JSON.stringify(body)})},
   saveDraft(id:string,body:DraftFields,version?:number){
     const detail=`/requests/${encodeURIComponent(id)}`;

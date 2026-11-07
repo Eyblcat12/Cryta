@@ -1,9 +1,10 @@
-import { BadRequestException, Controller, ForbiddenException, Get, Inject, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { BadRequestException, Controller, ForbiddenException, Get, Header, Inject, NotFoundException, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Pool } from 'pg';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/current-user.decorator';
+import { UUID_LIKE } from '../common/uuid-like.pipe';
 import { DATABASE_POOL } from '../database/database.constants';
 import { redactAuditMetadata } from './audit-redaction';
 import { listOrder } from '../common/list-order';
@@ -22,10 +23,66 @@ export class AuditController {
   list(@CurrentUser() user: AuthUser, @Query() query: Record<string, string> = {}) {
     return listAudit(this.pool, user, query);
   }
+
+  @Get(':id')
+  @Header('Cache-Control', 'no-store')
+  @ApiParam({ name: 'id', type: String, description: 'Mã sự kiện audit dạng số nguyên dương.' })
+  async detail(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    requireAuditAdmin(user);
+    if (!/^[1-9]\d{0,18}$/.test(id) || BigInt(id) > 9_223_372_036_854_775_807n)
+      throw new BadRequestException({ code: 'INVALID_AUDIT_ID', message: 'Mã sự kiện không hợp lệ.' });
+    const result = await this.pool.query<Record<string, unknown>>(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.outcome,a.occurred_at,
+      a.request_id,a.metadata,u.display_name AS actor_name
+      FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id WHERE a.id=$1::bigint`, [id]);
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException({ code: 'AUDIT_EVENT_NOT_FOUND', message: 'Không tìm thấy sự kiện.' });
+    const { metadata, ...audit } = presentAudit(row);
+    let related: { kind: 'USER' | 'ASSET'; id: string } | null = null;
+    if (typeof audit.entityId === 'string' && UUID_LIKE.test(audit.entityId)) {
+      if (audit.entityType === 'USER' && (await this.pool.query('SELECT 1 FROM users WHERE id=$1', [audit.entityId])).rowCount) {
+        related = { kind: 'USER', id: audit.entityId };
+      }
+      if (audit.entityType === 'CRYPTO_ASSET' && (await this.pool.query('SELECT 1 FROM crypto_assets WHERE id=$1', [audit.entityId])).rowCount) {
+        related = { kind: 'ASSET', id: audit.entityId };
+      }
+    }
+    return { ...audit, changes: auditChanges(audit.action, metadata), related };
+  }
+}
+
+function requireAuditAdmin(user: AuthUser) {
+  if (!user.roles.includes('ADMIN')) throw new ForbiddenException({ code: 'ADMIN_REQUIRED', message: 'Chỉ Security Admin được tra cứu Audit Log.' });
+}
+
+function auditChanges(action: unknown, value: unknown) {
+  const metadata = value as Record<string, unknown> | undefined;
+  const changes: Array<{ field: string; before?: string; after: string }> = [];
+  const record = (field: string, before: unknown, after: unknown, valid: (value: string) => boolean) => {
+    if (typeof after === 'string' && valid(after)) {
+      changes.push({ field, ...(typeof before === 'string' && valid(before) && { before }), after });
+    }
+  };
+  if (action === 'USER_STATUS_CHANGED') {
+    record('status', metadata?.previousStatus, metadata?.status, value => ['ACTIVE', 'INACTIVE', 'LOCKED'].includes(value));
+  } else if (action === 'USER_DEPARTMENT_CHANGED') {
+    record('departmentId', metadata?.previousDepartmentId, metadata?.departmentId, value => UUID_LIKE.test(value));
+  } else if (action === 'DEPARTMENT_UPDATED') {
+    const previous = metadata?.previous as Record<string, unknown> | undefined;
+    record('departmentCode', previous?.code, metadata?.code, value => /^[A-Z][A-Z0-9_-]{0,49}$/.test(value));
+    record('departmentName', previous?.name, metadata?.name, value => value.length > 0 && value.length <= 255);
+  } else if (action === 'POLICY_VERSION_CREATED') {
+    const previous = metadata?.previousVersion;
+    const next = metadata?.newVersion;
+    if (typeof next === 'number') {
+      record('policyVersion', typeof previous === 'number' ? String(previous) : undefined,
+        String(next), value => /^[1-9]\d{0,9}$/.test(value));
+    }
+  }
+  return changes;
 }
 
 export async function listAudit(reader: Pick<Pool, 'query'>, user: AuthUser, query: Record<string, string>, maxPageSize = 100) {
-    if (!user.roles.includes('ADMIN')) throw new ForbiddenException({ code: 'ADMIN_REQUIRED', message: 'Chỉ Security Admin được tra cứu Audit Log.' });
+    requireAuditAdmin(user);
     const parseNumber = (value: string | undefined, fallback: number, max: number) => {
       if (value === undefined) return fallback;
       if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value) || !Number.isSafeInteger(Number(value)) || Number(value) > max)
@@ -80,10 +137,14 @@ export async function listAudit(reader: Pick<Pool, 'query'>, user: AuthUser, que
         throw new BadRequestException({ code: 'INVALID_CORRELATION_ID', message: 'Mã truy vết không hợp lệ.' });
       values.push(query.correlationId); filters.push(`a.metadata->>'correlationId' = $${values.length}`);
     }
+    let lowerBound: number | undefined;
     for (const [key, op] of [['from', '>='], ['to', '<=']] as const) {
       if (!query[key]) continue;
       const date = new Date(query[key]);
-      if (!Number.isFinite(date.getTime())) throw new BadRequestException({ code: 'INVALID_DATE', message: 'Khoảng thời gian không hợp lệ.' });
+      const timestamp = date.getTime();
+      if (!Number.isFinite(timestamp) || (key === 'to' && lowerBound !== undefined && timestamp < lowerBound))
+        throw new BadRequestException({ code: 'INVALID_DATE', message: 'Khoảng thời gian không hợp lệ.' });
+      if (key === 'from') lowerBound = timestamp;
       values.push(date.toISOString()); filters.push(`a.occurred_at ${op} $${values.length}::timestamptz`);
     }
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';

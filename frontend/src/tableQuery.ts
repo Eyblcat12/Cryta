@@ -12,7 +12,7 @@ export interface TableQueryOptions {
   defaultPageSize?:number;
   search?:boolean;
   enabled?:boolean;
-  filters?:Readonly<Record<string,readonly string[]>>;
+  filters?:Readonly<Record<string,readonly string[] | ((value: string) => boolean)>>;
 }
 export interface TableQueryChanges { page?:number; pageSize?:number; status?:string; q?:string; filters?:Record<string,string> }
 
@@ -38,8 +38,10 @@ export function parseTableQuery(params:URLSearchParams,statuses:readonly string[
   write(normalized,'page',page>1?String(page):'');
   write(normalized,'pageSize',pageSize!==defaultPageSize?String(pageSize):'');
   write(normalized,'status',status);write(normalized,'q',search);
-  for(const [key,values] of Object.entries(options.filters??{})) {
-    filters[key]=allowedValue(singleValue(params,key),values);write(normalized,key,filters[key]);
+  for(const [key,rule] of Object.entries(options.filters??{})) {
+    const value = singleValue(params,key);
+    filters[key] = typeof rule === 'function' ? (value && rule(value) ? value : '') : allowedValue(value,rule);
+    write(normalized,key,filters[key]);
   }
   return {page,pageSize,status,search,filters,params:normalized};
 }

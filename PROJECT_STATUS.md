@@ -10,7 +10,9 @@ X04 đã tích hợp xuất CSV/PDF vào Tài sản, Yêu cầu và Audit Log. G
 
 X05 đã có CLI ký và xác minh checkpoint audit. GitHub Actions đạt 5/5 nhóm X05, gồm sửa/xóa/chèn dòng, xoay khóa và phục hồi PostgreSQL. Cần kho và khóa ký độc lập cho môi trường đích. [Chi tiết X05](docs/X05_AUDIT_ANCHOR.md)
 
-X06 đã có adapter OpenBao Transit cho khóa ký. Sandbox native đạt 4/4 nhóm, gồm client HTTP Crypta, gia hạn, tra cứu, thu hồi và mất kết nối. [Chi tiết X06](docs/X06_OPENBAO_TRANSIT.md)
+X06 đã có adapter OpenBao Transit cho khóa ký. Sandbox native và CI Ubuntu cùng đạt 4/4 nhóm, gồm gia hạn, tra cứu, thu hồi và mất kết nối. Lượt native chạy thêm client HTTP Crypta. [Chi tiết X06](docs/X06_OPENBAO_TRANSIT.md)
+
+Commit `9766e5a` đạt 193/193 nhóm tích hợp, gồm nâng cấp đến migration 023 và phục hồi baseline. CI đã build hai image có manifest truy xuất nguồn. Cổng triển khai vẫn cần môi trường, provider/CA theo phạm vi, SMTP thật và xác nhận nghiệp vụ. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md) · [Cổng nghiệm thu](docs/CONG_NGHIEM_THU_RELEASE.md)
 
 X01 đã tích hợp TOTP 6 số và 10 mã khôi phục theo mẫu đã duyệt. GitHub Actions trên `b4d4dc7` đạt 4/4 nhóm MFA và 160/160 nhóm hồi quy. Backend 478/478, frontend 148/148. Còn xác nhận trên môi trường đích. [Chi tiết X01](docs/MFA_X01.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42345358091)
 

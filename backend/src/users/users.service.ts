@@ -90,7 +90,35 @@ import { listOrder } from '../common/list-order';
     }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }
 
-  async status(admin:AuthUser,id:string,dto:UpdateUserStatusDto){this.assertAdmin(admin);if(admin.id===id&&dto.status!=='ACTIVE')throw new ConflictException({code:'CANNOT_DISABLE_SELF',message:'Bạn không thể vô hiệu hóa tài khoản đang đăng nhập.'});const client=await this.pool.connect();try{await client.query('BEGIN');await this.lockAdministration(client,admin);const found=await client.query<{invitation_pending:boolean}>('SELECT id,invitation_pending FROM users WHERE id=$1 FOR UPDATE',[id]);if(!found.rowCount)throw new NotFoundException({code:'USER_NOT_FOUND',message:'Không tìm thấy người dùng.'});if(dto.status==='ACTIVE'&&found.rows[0]?.invitation_pending)throw new ConflictException({code:'INVITATION_PENDING',message:'Người nhận cần chấp nhận lời mời trước khi kích hoạt tài khoản.'});if(dto.status!=='ACTIVE')await this.assertAnotherActiveAdmin(client,id);else await this.assertUserDepartmentActive(client,id);const result=await client.query(`UPDATE users SET status=$2,token_version=token_version+1,locked_until=NULL,failed_login_attempts=0 WHERE id=$1 RETURNING id,email,display_name,status`,[id,dto.status]);await client.query(`UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=$1`,[id]);await this.audit(client,admin.id,'USER_STATUS_CHANGED',id,{status:dto.status});await client.query('COMMIT');return{id:result.rows[0].id,email:result.rows[0].email,displayName:result.rows[0].display_name,status:result.rows[0].status}}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}
+  async status(admin: AuthUser, id: string, dto: UpdateUserStatusDto) {
+    this.assertAdmin(admin);
+    if (admin.id === id && dto.status !== 'ACTIVE')
+      throw new ConflictException({ code: 'CANNOT_DISABLE_SELF', message: 'Bạn không thể vô hiệu hóa tài khoản đang đăng nhập.' });
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.lockAdministration(client, admin);
+      const current = (await client.query<{ invitation_pending: boolean; status: string }>(
+        'SELECT id,invitation_pending,status FROM users WHERE id=$1 FOR UPDATE', [id])).rows[0];
+      if (!current) throw new NotFoundException({ code: 'USER_NOT_FOUND', message: 'Không tìm thấy người dùng.' });
+      if (dto.status === 'ACTIVE' && current.invitation_pending)
+        throw new ConflictException({ code: 'INVITATION_PENDING', message: 'Người nhận cần chấp nhận lời mời trước khi kích hoạt tài khoản.' });
+      if (dto.status !== 'ACTIVE') await this.assertAnotherActiveAdmin(client, id);
+      else await this.assertUserDepartmentActive(client, id);
+      const result = await client.query(`UPDATE users SET status=$2,token_version=token_version+1,locked_until=NULL,failed_login_attempts=0
+        WHERE id=$1 RETURNING id,email,display_name,status`, [id, dto.status]);
+      await client.query(`UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=$1`, [id]);
+      await this.audit(client, admin.id, 'USER_STATUS_CHANGED', id, { previousStatus: current.status, status: dto.status });
+      await client.query('COMMIT');
+      const updated = result.rows[0];
+      return { id: updated.id, email: updated.email, displayName: updated.display_name, status: updated.status };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   async access(admin:AuthUser,id:string,dto:UpdateUserAccessDto){this.assertAdmin(admin);if(dto.roles.includes('ADMIN')&&dto.roles.includes('APPROVER'))throw new ConflictException({code:'SOD_ROLE_CONFLICT',message:'Một tài khoản không thể đồng thời là Admin và Approver.'});const client=await this.pool.connect();try{await client.query('BEGIN');await this.lockAdministration(client,admin);if(!(await client.query('SELECT 1 FROM users WHERE id=$1 FOR UPDATE',[id])).rowCount)throw new NotFoundException({code:'USER_NOT_FOUND',message:'Không tìm thấy người dùng.'});if(!dto.roles.includes('ADMIN'))await this.assertAnotherActiveAdmin(client,id);await client.query('DELETE FROM approver_scopes WHERE user_id=$1',[id]);await client.query('DELETE FROM user_roles WHERE user_id=$1',[id]);await this.replaceAccess(client,id,dto.roles,dto.approverDepartmentIds,admin.id);await client.query('UPDATE users SET token_version=token_version+1 WHERE id=$1',[id]);await client.query(`UPDATE auth_sessions SET revoked_at=COALESCE(revoked_at,NOW()) WHERE user_id=$1`,[id]);await this.audit(client,admin.id,'USER_ACCESS_CHANGED',id,{roles:dto.roles,scopes:dto.approverDepartmentIds});await client.query('COMMIT');return{updated:true}}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}
   async lockAdministration(client:PoolClient,admin:AuthUser){
     this.assertAdmin(admin);
