@@ -37,6 +37,8 @@ Migration `021_auth_oidc` tách liên kết định danh, challenge, phiên SSO 
 
 Lượt `crypta-t30-test-8d61643986a3` ngày 07/11/2026 đạt 6/6 nhóm với PostgreSQL, Nginx, Keycloak 26.8.2 và Chromium. Các ca gồm callback gắn với trình duyệt, từ chối email trùng, TOTP và quyền Approver đúng đơn vị, gia hạn phiên và logout back-channel, vô hiệu hóa tài khoản tại Keycloak và Admin cục bộ hoàn tất MFA khi Keycloak dừng. Stack, volume và thông tin xác thực thử đã được dọn. Bộ unit đạt 489/489 ở backend và 148/148 ở frontend. Cần lặp kiểm với origin HTTPS và danh tính thật khi có môi trường đích.
 
+GitHub Actions xác nhận đủ 5 job, gồm 6/6 nhóm Keycloak, 50/50 nhóm quyền runtime và dọn cả ba stack. [Báo cáo CI](CI_REMOTE_2026-11-07.md#lượt-tích-hợp-keycloak-x03)
+
 Lệnh dưới đây dùng Keycloak, PostgreSQL, Nginx và Chromium trong một project Compose riêng. Chromium ánh xạ hai hostname thử về loopback. Realm và thông tin xác thực thử được xóa sau khi dọn stack. Báo cáo chỉ lưu kết quả kiểm.
 
 ```powershell

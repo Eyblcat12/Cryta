@@ -4,7 +4,9 @@ T30 đã sửa callback tiêu đề lấy mất focus trước Enter. Bộ UI/AP
 
 X02 đã tích hợp hai cấp phê duyệt vào policy, hàng chờ, chi tiết và worker theo mẫu đã duyệt. GitHub Actions trên `dcfff1d` đạt 165/165 nhóm tích hợp, gồm X02, các ca T49 và 4 nhóm MFA. Cả hai stack đã được dọn. [Chi tiết X02](docs/X02_TWO_STAGE_APPROVAL.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42347634913)
 
-X03 đã tích hợp Keycloak, liên kết danh tính theo issuer/subject, MFA và thu hồi phiên. Stack Keycloak/PostgreSQL/Nginx cách ly đạt 6/6 nhóm với Chromium và đã dọn. Môi trường đích cần cấu hình realm HTTPS, tài khoản khẩn cấp và chạy UAT. [Chi tiết X03](docs/X03_OIDC.md)
+X03 đã tích hợp Keycloak, liên kết danh tính theo issuer/subject, MFA và thu hồi phiên. GitHub Actions đạt 172/172 nhóm tích hợp, gồm 6 nhóm Keycloak với Chromium và 50 nhóm quyền runtime. Môi trường đích cần cấu hình realm HTTPS, tài khoản khẩn cấp và chạy UAT. [Chi tiết X03](docs/X03_OIDC.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42350581928)
+
+X04 đã có mẫu tương tác xuất CSV/PDF theo bộ lọc và phạm vi hiện tại. Mẫu đạt 20 ca Chromium. [Bản xem trước](tools/design-previews/report-exports/index.html)
 
 X01 đã tích hợp TOTP 6 số và 10 mã khôi phục theo mẫu đã duyệt. GitHub Actions trên `b4d4dc7` đạt 4/4 nhóm MFA và 160/160 nhóm hồi quy. Backend 478/478, frontend 148/148. Còn xác nhận trên môi trường đích. [Chi tiết X01](docs/MFA_X01.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42345358091)
 
