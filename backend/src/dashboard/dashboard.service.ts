@@ -70,7 +70,18 @@ export class DashboardService {
   }
 
   private async adminMetrics() {
-    const result=await this.pool.query(`SELECT (SELECT COUNT(*)::int FROM crypto_assets)total_assets,(SELECT COUNT(*)::int FROM crypto_assets WHERE status='EXPIRING_SOON')expiring,(SELECT COUNT(*)::int FROM users WHERE status='ACTIVE')active_users,(SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='ADMIN')admin_users,(SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='APPROVER')approver_users,(SELECT COUNT(*)::int FROM users u WHERE EXISTS(SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN') AND EXISTS(SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='APPROVER'))sod_conflicts,(SELECT COUNT(*)::int FROM notifications WHERE delivery_status='FAILED')failed_jobs,(SELECT COUNT(*)::int FROM notifications WHERE delivery_status='RECONCILIATION_REQUIRED')email_reconciliation,(SELECT COUNT(*)::int FROM departments WHERE is_active)departments`);
+    const result=await this.pool.query(`SELECT
+      (SELECT COUNT(*)::int FROM crypto_assets) total_assets,
+      (SELECT COUNT(*)::int FROM crypto_assets WHERE status='EXPIRING_SOON') expiring,
+      (SELECT COUNT(*)::int FROM users WHERE status='ACTIVE') active_users,
+      (SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='ADMIN') admin_users,
+      (SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='APPROVER') approver_users,
+      (SELECT COUNT(*)::int FROM users u
+        WHERE EXISTS(SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='ADMIN')
+          AND EXISTS(SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND r.code='APPROVER')) sod_conflicts,
+      (SELECT COUNT(*)::int FROM notifications WHERE channel='EMAIL' AND delivery_status='FAILED') failed_jobs,
+      (SELECT COUNT(*)::int FROM notifications WHERE channel='EMAIL' AND delivery_status='RECONCILIATION_REQUIRED') email_reconciliation,
+      (SELECT COUNT(*)::int FROM departments WHERE is_active) departments`);
     return result.rows[0];
   }
 

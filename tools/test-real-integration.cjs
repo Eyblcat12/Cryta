@@ -271,6 +271,49 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('T29: dashboard counters use the email channel and charts use their displayed periods', async () => {
+    const dashboard = async (role, token) => expectStatus(await call('GET', `/dashboard?role=${role}`, undefined, token), 200);
+    const adminSummary = async () => expectStatus(await call('GET', '/dashboard/summary?role=ADMIN', undefined, admin.accessToken), 200);
+    const before = (await adminSummary()).metrics;
+    const prefix = `t29-${randomUUID()}`;
+    sql(`INSERT INTO notifications(recipient_id,request_id,type,channel,delivery_status,deduplication_key,failed_at)
+      SELECT '${account.id}', '${ownerRequest.id}', 'REQUEST_APPROVED', channel, status,
+        '${prefix}-' || channel || '-' || status, CASE WHEN status='FAILED' THEN NOW() END
+      FROM (VALUES ('EMAIL'),('IN_APP')) AS channels(channel)
+      CROSS JOIN (VALUES ('FAILED'),('RECONCILIATION_REQUIRED')) AS statuses(status);`);
+    try {
+      const metrics = (await adminSummary()).metrics;
+      assert.equal(metrics.failed_jobs, before.failed_jobs + 1);
+      assert.equal(metrics.email_reconciliation, before.email_reconciliation + 1);
+      const listed = expectStatus(await call('GET', '/notifications/delivery-issues?page=1&pageSize=1', undefined, admin.accessToken), 200);
+      assert.equal(metrics.failed_jobs + metrics.email_reconciliation, listed.total);
+      const ownerData = await dashboard('USER', dev.accessToken);
+      const approverData = await dashboard('APPROVER', approver.accessToken);
+      for (const [session, label, total] of [
+        [dev, 'Yêu cầu tháng này', ownerData.trend.at(-1).value],
+        [approver, 'Quyết định trong 7 ngày', approverData.trend.reduce((sum, item) => sum + item.value, 0)],
+      ]) {
+        const { context, page, errors } = await newPage();
+        try {
+          await page.goto(new URL('/dashboard', origin).href);
+          await uiLogin(page, session.user.email);
+          const ready = page.locator('[aria-label="Tổng quan"][aria-busy="false"]');
+          const trend = ready.locator('.trend-summary').filter({ hasText: label });
+          await trend.waitFor();
+          assert.equal(await trend.locator('strong').textContent(), String(total));
+          if (session === approver) {
+            const donut = ready.locator('.composition-card').filter({ hasText: 'Kết quả 30 ngày' });
+            assert.equal(await donut.locator('.donut-chart strong').textContent(), String(approverData.metrics.approved + approverData.metrics.rejected));
+            assert.equal(await donut.getByText('Chờ xử lý', { exact: true }).count(), 0);
+          }
+          assert.deepEqual(errors, []);
+        } finally { await context.close(); }
+      }
+    } finally {
+      sql(`DELETE FROM notifications WHERE deduplication_key LIKE '${prefix}-%';`);
+    }
+    return { emailChannelOnly: true, ownerMonth: true, approverSevenDays: true, decisionsThirtyDays: true };
+  });
   await test('T22: audit search, redacted event detail and export use the same scope and filters', async () => {
     const user = await createUser(['USER'], [], false);
     const disabled = await call('PATCH', `/users/${user.id}/status`, { status: 'INACTIVE' }, admin.accessToken);
