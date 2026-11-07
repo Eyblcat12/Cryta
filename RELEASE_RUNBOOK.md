@@ -16,6 +16,8 @@ Sau khi kiểm tích hợp đạt, GitHub Actions dùng script này trên commit
 
 Giữ manifest, `.env.example` và changelog cùng bản phát hành. Khi chuyển image sang máy khác, lưu archive bằng `docker image save` và đối chiếu SHA-256 của archive trước `docker image load`. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Base image trong Dockerfile hiện theo tag. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
 
+Frontend đóng gói mặc định dùng `VITE_ROUTE_MOTION=off`. Thay đổi riêng hiệu ứng chuyển trang chỉ cần đổi image frontend tương thích với API hiện tại. Giữ digest frontend trước khi thử image khác, rồi chạy smoke URL sâu và điều hướng sau khi chuyển image. [Điều hướng và kết quả đo](IMPLEMENTATION_TRACKER.md)
+
 ## Cấu hình Docker production
 
 1. Điền [mẫu cấu hình](deploy/production.env.example) vào tệp riêng của máy đích. Dùng hai image theo digest đã duyệt. Chọn một `APP_ORIGIN` HTTPS chính xác, dạng scheme và tên máy kèm cổng nếu có, bỏ dấu gạch chéo cuối. Proxy TLS trên máy đích chuyển cả SPA và `/api/` đến `127.0.0.1:18080` hoặc cổng `CRYPTA_PROXY_PORT` đã chọn. Backend nằm trong mạng nội bộ Compose. Kiểm login và cookie qua HTTPS trước khi mở lưu lượng.

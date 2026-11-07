@@ -70,7 +70,7 @@ Mỗi thao tác gửi `operationId` là ID yêu cầu và header `Idempotency-Ke
 
 ## Kiến trúc chạy
 
-Điều hướng dashboard dùng client-side routing: chọn menu thay nội dung chính và cập nhật URL, Back/Forward hoạt động trong SPA. Các trang Admin Users, Assets, Audit, Email, User Requests và Approver Queue giữ bộ lọc/tìm kiếm/trang trong query URL. Lát cắt hiệu ứng đang thử nghiệm: fade ngắn ở main, tự tắt theo thiết lập giảm chuyển động của hệ điều hành. Có thể build frontend với `VITE_ROUTE_MOTION=off` để tắt riêng hiệu ứng này; chức năng điều hướng vẫn hoạt động. Xem `IMPLEMENTATION_TRACKER.md` để biết phạm vi chưa nghiệm thu.
+Điều hướng dashboard dùng client-side routing. Menu thay nội dung chính và cập nhật URL, Back/Forward hoạt động trong SPA. Các trang Admin Users, Assets, Audit, Email, User Requests và Approver Queue giữ bộ lọc, tìm kiếm và trang trong query URL. Image Docker mặc định tắt fade khi chuyển trang theo kết quả đo N6. Khi cần thử riêng, build frontend với `--build-arg VITE_ROUTE_MOTION=on`. Fade thử nghiệm tuân theo thiết lập giảm chuyển động của hệ điều hành. [Kết quả N6](IMPLEMENTATION_TRACKER.md)
 
 - `frontend`: React/TypeScript được Nginx phục vụ tại cổng `8080`.
 - `backend`: NestJS API nội bộ; Swagger ở `/docs` trong mạng backend hoặc khi mở cổng riêng.

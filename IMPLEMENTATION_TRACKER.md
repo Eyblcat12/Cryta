@@ -2,6 +2,17 @@
 
 ## Cập nhật ngày 07/11/2026
 
+### T30/N6 trên cây mã `4d50242`
+
+Chromium 151.0.7922.34 chạy ba vòng luân phiên bật/tắt fade, 12 lượt chuyển trang mỗi mẫu tại 1440 và 390 px. Cấu hình mô phỏng CPU chậm 4 lần, mạng trễ 80 ms và API fixture. Cả 12 mẫu hoàn thành. Trace ghi số tác vụ trên 50 ms qua `PerformanceObserver` và ghi riêng công việc renderer.
+
+| Khung nhìn | Tác vụ trên 50 ms khi bật | Khi tắt | Tổng dịch chuyển bố cục mỗi mẫu |
+| --- | --- | --- | --- |
+| 1440 px | 13 | 0 | 0,1683–0,1688 |
+| 390 px | 25 | 10 | 0,4610 |
+
+Khi bật, 29/72 tác vụ renderer chứa bước bắt đầu hiệu ứng dài trên 50 ms. Bước gọi `Element.animate` mất tối đa 4,50 ms. Trace ghi công việc dài cả khi tắt và số liệu không quy hết phần chênh lệch cho fade. Theo tiêu chí N6, image Docker mặc định tắt fade khi chuyển trang. Chromium qua Nginx/PostgreSQL xác nhận chuyển từ Tài khoản sang Audit Log trong cùng tài liệu, focus đến tiêu đề và không gọi animation ở vùng nội dung. T30 còn nghiệm thu toàn ma trận, trình đọc màn hình và môi trường triển khai. [Số đo](tools/test-artifacts/n6-4d50242/comparison.json) · [Trace đã phân tích](tools/test-artifacts/n6-4d50242/root-task-analysis.json) · [Ca kiểm image](tools/test-artifacts/integration/crypta-t30-test-35384ed3d537/real-chromium-1794058183471/results.json)
+
 T07, T08, T15, T18 và T20 đã tích hợp các mẫu được duyệt. T04 có CLI Admin đầu tiên và schema cài mới an toàn. Nhánh ứng viên đã được đẩy lên repo, CI GitHub có 419 backend, 147 frontend, 6 SMTP loopback và 158 nhóm tích hợp đạt. Required checks còn bị giới hạn bởi gói repo private. Tiến độ hiện hành và các cổng còn mở nằm ở [bảng task](TASK_STATUS_2026-11-05.md), [trạng thái](PROJECT_STATUS.md) và [bằng chứng CI](docs/CI_REMOTE_2026-11-07.md).
 
 ## Lịch sử các pha

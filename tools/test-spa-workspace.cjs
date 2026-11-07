@@ -53,7 +53,8 @@ async function fixture(browser,role='USER',options={}){
       if(state.guest||state.refreshDenied){status=401;data={error:{code:'INVALID_SESSION',message:'Phiên kiểm thử hết hạn.'}}}
       else if(state.refreshOutage){status=503;data={error:{code:'UNAVAILABLE',message:'Dịch vụ phiên tạm thời không khả dụng.'}}}
       else {if(state.refreshUser)Object.assign(user,state.refreshUser);state.expire=false;data={accessToken:'isolated-fixture-token',user}}
-    }else if(state.expire){status=401;data={error:{code:'INVALID_SESSION',message:'Phiên kiểm thử hết hạn.'}}}
+    }else if(endpoint==='/auth/oidc/status'){data={enabled:false}}
+    else if(state.expire){status=401;data={error:{code:'INVALID_SESSION',message:'Phiên kiểm thử hết hạn.'}}}
     else if(request.method()!=='GET'){
       mutations.push({endpoint,body:request.postDataJSON()});
       if(endpoint==='/auth/logout')state.guest=true;
@@ -610,7 +611,7 @@ if(require.main===module)(async()=>{
       let writeButton;
       if(kind==='policy'){await page.goto(origin+'/policies');await page.getByRole('button',{name:'Tạo phiên bản',exact:true}).click();const form=page.getByRole('form',{name:'Tạo phiên bản chính sách'});await form.locator('input[type=number]').first().fill('366');await form.getByRole('checkbox').check();writeButton=form.getByRole('button',{name:'Phát hành phiên bản'});state.lostResponse='/policies/policy-1/versions'}
       else if(kind==='access'){await page.goto(origin+'/users/access');await page.getByRole('button',{name:'Sau',exact:true}).click();await page.getByLabel('Người dùng',{exact:true}).selectOption('person-30');await page.getByLabel('Vai trò',{exact:true}).selectOption('ADMIN');await page.getByRole('checkbox').check();writeButton=page.getByRole('button',{name:'Lưu quyền truy cập'});state.lostResponse='/users/person-30/access'}
-      else if(kind==='status'){await page.goto(origin+'/users?page=2');writeButton=page.getByRole('row').filter({hasText:'person26@example.test'}).getByRole('button');state.lostResponse='/users/person-26/status'}
+      else if(kind==='status'){await page.goto(origin+'/users?page=2');writeButton=page.getByRole('row').filter({hasText:'person26@example.test'}).getByRole('button',{name:/^(Vô hiệu hóa|Kích hoạt)$/});state.lostResponse='/users/person-26/status'}
       else if(kind==='notification'){await page.goto(origin+'/notifications?page=2');writeButton=page.locator('#notifications .section-heading').getByRole('button',{name:'Đánh dấu đã đọc',exact:true});state.lostResponse='/notifications/read-all'}
       else{await page.goto(origin+'/operations/email');await page.getByRole('button',{name:'Gửi thử',exact:true}).click();await page.getByRole('dialog').getByRole('textbox',{name:/Email nhận/}).fill('recipient@example.test');writeButton=page.getByRole('button',{name:'Gửi email thử',exact:true});state.lostResponse='/notifications/test-email'}
       await writeButton.click();const notice=page.getByRole('region',{name:'Kết quả thao tác chưa rõ'});await notice.waitFor();assert.equal(mutations.length,1);assert.equal(await page.locator('.toast').filter({hasText:/Đã cập nhật|Đã phát hành|xác nhận gửi/}).count(),0);
@@ -677,7 +678,7 @@ if(require.main===module)(async()=>{
       await form.getByRole('button',{name:'Hủy',exact:true}).click();await page.getByRole('alertdialog').getByRole('button',{name:'Bỏ thay đổi'}).click();
       await page.getByRole('button',{name:'Tạo phiên bản',exact:true}).last().click();await page.getByRole('heading',{name:'Tạo phiên bản · Chính sách thứ hai'}).waitFor();assert.equal(await form.locator('input[type=number]').first().inputValue(),'180');assert.equal(mutations.length,0);
     },{secondPolicy:true}));
-    for(const kind of ['request','create-user','policy','access'])await test(browser,`${kind} dirty state protects native reload, resets on restored values and stores no draft`,()=>withFixture(browser,kind==='request'?'USER':'ADMIN',async({page})=>{
+    for(const kind of ['request','create-user','policy','access'])await test(browser,`${kind} dirty state protects native reload and tab close, resets on restored values and stores no draft`,()=>withFixture(browser,kind==='request'?'USER':'ADMIN',async({page,mutations})=>{
       const prevented=()=>page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented});
       let field,original,dirtyValue;
       if(kind==='request'){await page.goto(origin+'/requests/new');await page.getByRole('option',{name:'Chính sách RSA v1'}).waitFor({state:'attached'});field=page.getByRole('dialog').locator('textarea');original='';dirtyValue='keep-value-sentinel';}
@@ -688,6 +689,21 @@ if(require.main===module)(async()=>{
       const dialogPromise=page.waitForEvent('dialog');const reload=page.reload().catch(error=>error);const dialog=await dialogPromise;assert.equal(dialog.type(),'beforeunload');await dialog.dismiss();await reload;assert.equal(await field.inputValue(),dirtyValue);
       const stored=await page.evaluate(()=>JSON.stringify({local:{...localStorage},session:{...sessionStorage}}));assert.equal(stored.includes('keep-value-sentinel'),false);assert.equal(page.url().includes('keep-value-sentinel'),false);
       kind==='access'?await field.selectOption(original):await field.fill(original);assert.equal(await prevented(),false);
+      kind==='access'?await field.selectOption(dirtyValue):await field.fill(dirtyValue);
+      const closePrompt = page.waitForEvent('dialog');
+      await page.close({ runBeforeUnload: true });
+      const cancelledClose = await closePrompt;
+      assert.equal(cancelledClose.type(), 'beforeunload');
+      await cancelledClose.dismiss();
+      assert.equal(await field.inputValue(), dirtyValue);
+      const discardPrompt = page.waitForEvent('dialog');
+      const closed = page.waitForEvent('close');
+      await page.close({ runBeforeUnload: true });
+      const confirmedClose = await discardPrompt;
+      assert.equal(confirmedClose.type(), 'beforeunload');
+      await confirmedClose.accept();
+      await closed;
+      assert.equal(mutations.length, 0);
     }));
     await test(browser,'Asset pageSize survives details, F5, Back and Forward without stealing filter focus',()=>withFixture(browser,'USER',async({page,calls})=>{
       await page.goto(origin+'/assets?status=ACTIVE&pageSize=50&page=2');await page.getByRole('table').locator('tbody tr').nth(49).waitFor();

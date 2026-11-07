@@ -271,6 +271,34 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('T30 N6: default frontend image navigates without route animation', async () => {
+    const { context, page, errors } = await newPage();
+    try {
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.addInitScript(() => {
+        window.__routeAnimationCount = 0;
+        const animate = Element.prototype.animate;
+        Element.prototype.animate = function (...args) {
+          if (this.id === 'main-content') window.__routeAnimationCount++;
+          return animate.apply(this, args);
+        };
+      });
+      await page.goto(new URL('/users', origin).href);
+      await uiLogin(page, admin.user.email);
+      await page.waitForURL('**/users');
+      await page.getByRole('heading', { name: 'Người dùng và vai trò' }).waitFor();
+      await page.getByRole('link', { name: 'Audit Log', exact: true }).click();
+      await page.waitForURL('**/audit');
+      await page.waitForFunction(() => document.activeElement?.id === 'page-title');
+      const count = await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => {
+        resolve(window.__routeAnimationCount);
+      })));
+      assert.equal(count, 0);
+      assert.equal(await page.evaluate(() => performance.getEntriesByType('navigation').length), 1);
+      assert.deepEqual(errors, []);
+      return { routeAnimations: count, oneDocument: true, pageFocus: true };
+    } finally { await context.close(); }
+  });
   await test('T29: dashboard counters use the email channel and charts use their displayed periods', async () => {
     const dashboard = async (role, token) => expectStatus(await call('GET', `/dashboard?role=${role}`, undefined, token), 200);
     const adminSummary = async () => expectStatus(await call('GET', '/dashboard/summary?role=ADMIN', undefined, admin.accessToken), 200);
