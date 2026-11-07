@@ -131,7 +131,8 @@ async function main(reportArgument) {
   };
   for (const relative of ['tools/test-real-expiry-scan.cjs', 'tools/testing/expiry-scan-runner.cjs',
     'database_schema.sql', 'backend/src/jobs/expiry-scan.service.ts', 'backend/src/jobs/expiry-warning-policy.ts', 'backend/src/audit/audit-context.ts', 'backend/src/notifications/asset-alert-recipient.ts',
-    'backend/src/notifications/notifications.service.ts', 'backend/src/database/migration.service.ts']) {
+    'backend/src/notifications/notifications.service.ts', 'backend/src/database/migration.service.ts',
+    'backend/src/operations/operations-metrics.service.ts']) {
     report.sourceHashes[relative] = await hashFile(relative);
   }
   let createdDatabase = false;

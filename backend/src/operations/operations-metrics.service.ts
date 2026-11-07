@@ -8,6 +8,8 @@ type JobRun = { outcome: 'completed' | 'failed'; finishedAt: string; durationMs:
 type StatusGroup = '2xx' | '3xx' | '4xx' | '5xx' | 'other';
 type QueueSnapshot = {
   collected_at: Date;
+  expiry_failed: boolean;
+  expiry_stale: boolean;
   assets: { ready: number; processing: number; oldestReadySeconds: number | null };
   provider: { reconciliationRequired: number; lastRecordedFailureAt: string | null };
   email: {
@@ -47,14 +49,16 @@ const QUEUE_SNAPSHOT = {
       FROM notifications
       WHERE channel = 'EMAIL' AND delivery_status IN ('PENDING', 'SENDING', 'FAILED', 'RECONCILIATION_REQUIRED')
     )
-    SELECT statement_timestamp() AS collected_at, assets, provider, email
+    SELECT statement_timestamp() AS collected_at, assets, provider, email,
+      expiry.last_failed AS expiry_failed,
+      COALESCE(expiry.last_success_at,expiry.initialized_at) <= statement_timestamp()-INTERVAL '2 hours' AS expiry_stale
     FROM asset_queue CROSS JOIN provider_queue CROSS JOIN email_queue
+    CROSS JOIN public.expiry_scan_status expiry WHERE expiry.singleton
   `,
 };
 
 const ASSET_WAIT_LIMIT_SECONDS = 120;
 const EMAIL_WAIT_LIMIT_SECONDS = 300;
-const EXPIRY_STALE_LIMIT_MS = 2 * 60 * 60 * 1_000;
 
 @Injectable()
 export class OperationsMetricsService {
@@ -85,7 +89,8 @@ export class OperationsMetricsService {
   }
 
   async snapshot() {
-    const { collected_at, assets, provider, email } = await this.readQueues();
+    const queues = await this.readQueues();
+    const { collected_at, assets, provider, email } = queues;
     const smtpEnabled = process.env.SMTP_ENABLED === 'true';
     return {
       collectedAt: collected_at,
@@ -96,7 +101,7 @@ export class OperationsMetricsService {
       assets: { ...assets, oldestReadySeconds: assets.oldestReadySeconds === null ? null : Math.max(0, assets.oldestReadySeconds) },
       provider: { ...provider, mode: cryptoProviderMode() },
       email: { ...email, enabled: smtpEnabled },
-      signals: this.signals(assets, provider, email, smtpEnabled),
+      signals: this.signals(queues, smtpEnabled),
       process: {
         since: this.since,
         jobs: { ...this.jobs },
@@ -111,8 +116,8 @@ export class OperationsMetricsService {
   }
 
   async monitorSnapshot() {
-    const { collected_at, assets, provider, email } = await this.readQueues();
-    return { collectedAt: collected_at, signals: this.signals(assets, provider, email, process.env.SMTP_ENABLED === 'true') };
+    const queues = await this.readQueues();
+    return { collectedAt: queues.collected_at, signals: this.signals(queues, process.env.SMTP_ENABLED === 'true') };
   }
 
   private readQueues() {
@@ -121,9 +126,7 @@ export class OperationsMetricsService {
   }
 
   private signals(
-    assets: QueueSnapshot['assets'],
-    provider: QueueSnapshot['provider'],
-    email: QueueSnapshot['email'],
+    { assets, provider, email, expiry_failed, expiry_stale }: QueueSnapshot,
     smtpEnabled: boolean,
   ): string[] {
     const signals: string[] = [];
@@ -131,17 +134,15 @@ export class OperationsMetricsService {
     if (provider.reconciliationRequired > 0) signals.push('PROVIDER_RECONCILIATION_REQUIRED');
     if (smtpEnabled && (email.oldestDueSeconds ?? 0) >= EMAIL_WAIT_LIMIT_SECONDS) signals.push('EMAIL_QUEUE_DELAYED');
     if (email.reconciliationRequired > 0) signals.push('EMAIL_RECONCILIATION_REQUIRED');
-    const expiry = this.jobs.expiryScan;
-    if (expiry?.outcome === 'failed') signals.push('EXPIRY_SCAN_FAILED');
-    if (Date.now() - Date.parse(expiry?.finishedAt ?? this.since) >= EXPIRY_STALE_LIMIT_MS) {
-      signals.push('EXPIRY_SCAN_STALE');
-    }
+    if (expiry_failed) signals.push('EXPIRY_SCAN_FAILED');
+    if (expiry_stale) signals.push('EXPIRY_SCAN_STALE');
     return signals;
   }
 
   private async queryQueues() {
     try {
       const { rows: [snapshot] } = await this.pool.query<QueueSnapshot>(QUEUE_SNAPSHOT);
+      if (!snapshot) throw new Error('EXPIRY_SCAN_STATUS_MISSING');
       return snapshot;
     } catch {
       throw new ServiceUnavailableException({ code: 'METRICS_UNAVAILABLE', message: 'Không thể đọc chỉ số vận hành.' });

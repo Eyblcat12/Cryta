@@ -46,7 +46,7 @@ Mỗi tiến trình giữ kết quả và thời gian chạy gần nhất của 
 | `PROVIDER_RECONCILIATION_REQUIRED` | Có ít nhất một thao tác provider cần đối soát | Vận hành mật mã |
 | `EMAIL_QUEUE_DELAYED` | SMTP bật và email đã đến hạn chờ từ 300 giây | Vận hành email |
 | `EMAIL_RECONCILIATION_REQUIRED` | Có ít nhất một email cần đối soát | Vận hành email |
-| `EXPIRY_SCAN_FAILED` / `EXPIRY_SCAN_STALE` | Lượt gần nhất lỗi hoặc đã 2 giờ từ lần ghi nhận gần nhất, tính từ lúc chạy nếu chưa có lượt | Vận hành job |
+| `EXPIRY_SCAN_FAILED` / `EXPIRY_SCAN_STALE` | Lần quét lấy được khóa gần nhất thất bại hoặc đã 2 giờ từ lần thành công gần nhất theo PostgreSQL. Nếu chưa thành công, tính từ lúc tạo dòng trạng thái. | Vận hành job |
 
 Khi metrics trả `503 METRICS_UNAVAILABLE`, kiểm `/health/ready` để phân biệt lỗi truy vấn hàng đợi với mất kết nối DB. Kiểm thử khóa bảng xác nhận thời hạn khoảng 2 giây sau khi gửi truy vấn. Xác thực và lấy connection dùng pool API. Kênh thu thập và người trực cụ thể sẽ cấu hình theo môi trường triển khai, ưu tiên kênh ngoài email cho cảnh báo SMTP.
 
@@ -84,3 +84,9 @@ Kênh hiện có là stdout JSON, độc lập với SMTP. `operations.alert_ope
 | Hồi quy và dọn tài nguyên | 187/187 test backend và build đạt. Metrics Admin và khóa bảng đạt trên cùng image. Đã dọn stack và file token thử. | [Unit](tools/test-artifacts/operations-monitor-20261106/backend.json), [Metrics](tools/test-artifacts/integration/crypta-t30-test-15a59776c463/operations-metrics.json), [Cleanup](tools/test-artifacts/integration/crypta-t30-test-15a59776c463/cleanup-report.json) |
 
 T44 còn nối collector stdout vào kênh người trực đã chọn, kiểm ngưỡng dưới tải và diễn tập gián đoạn với provider/SMTP của môi trường đó.
+
+## Lượt 08/11/2026
+
+Migration 025 lưu trạng thái quét hết hạn trong PostgreSQL. Replica không lấy được khóa giữ nguyên trạng thái chung. Lượt thành công chỉ cập nhật mốc sau khi công việc cùng giao dịch có thể commit. Lượt thất bại ghi sau rollback nếu database còn truy cập được. Một lỗi cũ ghi muộn không ghi đè lượt thành công mới hơn. Kết quả trong `process.jobs` vẫn mô tả riêng từng tiến trình, còn mã cảnh báo đọc từ database chung. Khi PostgreSQL gián đoạn, theo dõi readiness cùng tín hiệu lỗi cục bộ.
+
+Bộ expiry PostgreSQL đạt 21/21, gồm hai bộ đọc metrics dùng chung DB, khởi tạo lại bộ đọc, bỏ qua lượt thua khóa và mô phỏng lỗi ghi muộn. Ca kiểm đưa mốc thành công về ba giờ trước để xác minh `EXPIRY_SCAN_STALE`. Còn kiểm nhiều máy và chuyển cảnh báo đến người trực trên môi trường đích. [Kết quả cách ly](tools/test-artifacts/integration/crypta-t30-test-b97d86ae9c93/expiry-scan-c609ce13b0f8/results.json)

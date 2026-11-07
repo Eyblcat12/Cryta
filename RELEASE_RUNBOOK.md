@@ -102,6 +102,8 @@ Runner build backend cũ từ Git, dùng schema và seed của cùng commit, r�
 
 Ngày 08/11, diễn tập nâng cấp và phục hồi đạt 7/7 nhóm. Database phục hồi dưới owner mới khớp nội dung 26 bảng, 24 dòng ledger có checksum, sequence audit và 144 quyền runtime trên đối tượng/cột. API bằng runtime LOGIN đạt smoke sau 18,60 giây tính từ lúc bắt đầu cấp database đích. Runtime bị từ chối khi gọi hàm checkpoint, sửa/xóa audit và tạo bảng. Bộ backup/restore riêng đạt 12/12 và kiểm quyền `PUBLIC`. [Diễn tập ứng viên](tools/test-artifacts/integration/crypta-t30-test-d90e8bf3b2b7/release-upgrade-1bb2250e9c8b/results.json) · [Bộ backup/restore](tools/test-artifacts/integration/crypta-t30-test-0e0ff1582d71/backup-restore-137a1505b980/results.json)
 
+Sau migration 025, diễn tập đạt lại 7/7. Database phục hồi khớp 27 bảng, 25 checksum và 148 quyền runtime, gồm quyền đọc và cập nhật trạng thái quét hết hạn. API qua smoke sau 18,87 giây tính từ lúc bắt đầu cấp database đích thử. [Diễn tập 025](tools/test-artifacts/integration/crypta-t30-test-b97d86ae9c93/release-upgrade-b49020ced714/results.json)
+
 ## Kết quả diễn tập ngày 06/11/2026
 
 Ngày 07/11 đã nâng baseline `105d104` lên migration 021 và kiểm 6/6 nhóm. Startup validate từ chối ledger cũ, lỗi DDL thử rollback được, migration lặp lại giữ dữ liệu cũ, các quyết định lịch sử nhận cấp 1 và phiên cũ giữ liên kết SSO rỗng. Runtime LOGIN đọc được dữ liệu sau nâng cấp. API baseline khởi động lại từ dump được phục hồi vào database riêng. Stack thử đã dọn. [Báo cáo diễn tập 021](tools/test-artifacts/integration/crypta-t30-test-94f13dd8b7b7/release-upgrade-00153d89cb95/results.json)

@@ -401,6 +401,16 @@ BEGIN
   CREATE INDEX idx_assets_expiry_page ON public.crypto_assets (expires_at, id);
   PERFORM set_config('lock_timeout', previous_lock_timeout, true);
 END $$;
+`},
+{version:'025_expiry_scan_status',sql:`
+CREATE TABLE public.expiry_scan_status (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  initialized_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  last_attempt_at timestamptz,
+  last_success_at timestamptz,
+  last_failed boolean NOT NULL DEFAULT false
+);
+INSERT INTO public.expiry_scan_status DEFAULT VALUES;
 `}
 ];
 

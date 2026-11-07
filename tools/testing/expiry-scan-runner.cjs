@@ -19,6 +19,7 @@ async function main(options) {
   const { Pool } = require('/app/node_modules/pg');
   const { Logger } = require('/app/node_modules/@nestjs/common');
   const { ExpiryScanService } = require('/app/dist/jobs/expiry-scan.service.js');
+  const { OperationsMetricsService } = require('/app/dist/operations/operations-metrics.service.js');
   const { NotificationsService } = require('/app/dist/notifications/notifications.service.js');
   const { MigrationService } = require('/app/dist/database/migration.service.js');
   Logger.overrideLogger([]);
@@ -28,10 +29,10 @@ async function main(options) {
   const report = {
     database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
     clockMethod: 'Schema-local now() with explicit search_path and per-session test time and zone; service SQL is unchanged.',
-    actualServiceInstances: ['ExpiryScanService', 'NotificationsService', 'MigrationService'],
-    plannedTotal: 20,
+    actualServiceInstances: ['ExpiryScanService', 'NotificationsService', 'MigrationService', 'OperationsMetricsService'],
+    plannedTotal: 21,
     compiledServiceHashes: Object.fromEntries(['jobs/expiry-scan.service.js', 'jobs/expiry-warning-policy.js', 'audit/audit-context.js', 'notifications/asset-alert-recipient.js',
-      'notifications/notifications.service.js', 'database/migration.service.js'].map(relative => [relative,
+      'notifications/notifications.service.js', 'database/migration.service.js', 'operations/operations-metrics.service.js'].map(relative => [relative,
       crypto.createHash('sha256').update(fs.readFileSync(`/app/dist/${relative}`)).digest('hex')])),
     results,
   };
@@ -43,6 +44,7 @@ async function main(options) {
   const locks = [];
   let pauseAfterLock;
   let pauseBeforeWarnings, pauseAfterWarnings, warningPid;
+  let pauseBeforeFailureStatus;
   const children = new Set();
   const { spawn } = require('node:child_process');
   async function waitUntil(check, message, timeout=7000){
@@ -86,6 +88,7 @@ async function main(options) {
         async query(text, parameters) {
           const warnings = typeof text === 'string' && text.includes('SELECT a.id, thresholds.warning_day');
           if (warnings && pauseBeforeWarnings) await pauseBeforeWarnings();
+          if (typeof text === 'string' && text.includes('last_failed=true') && pauseBeforeFailureStatus) await pauseBeforeFailureStatus();
           const value = await client.query(text, parameters);
           if (warnings && pauseAfterWarnings) { warningPid = client.processID; await pauseAfterWarnings(); }
           if (typeof text === 'string' && text.includes('pg_try_advisory_xact_lock')) {
@@ -500,6 +503,50 @@ async function main(options) {
         report.processCrashRecoveryCovered=true;
         return{terminationSignal:'SIGKILL',uncommittedRowsRolledBack:true,startupRuns:2,notificationRowsPerAsset:6,transitionAuditsPerAsset:1,hourlyTimerWaited:false};
       }finally{await stopScannerProcess(crashed);}
+    });
+    await test('Expiry health is shared across replicas, survives process reset and ignores stale failures', async () => {
+      await reset();
+      const first = new OperationsMetricsService(pool);
+      const second = new OperationsMetricsService(pool);
+      const expirySignals = async monitor => (await monitor.monitorSnapshot()).signals.filter(signal => signal.startsWith('EXPIRY_'));
+      const allSignals = async expected => {
+        for (const monitor of [first, second, new OperationsMetricsService(pool)]) assert.deepEqual(await expirySignals(monitor), expected);
+      };
+      await scanner.run();
+      await allSignals([]);
+      await pool.query("UPDATE public.expiry_scan_status SET last_success_at=clock_timestamp()-INTERVAL '3 hours'");
+      const blocker = await pool.connect();
+      try {
+        await blocker.query('BEGIN; SELECT pg_advisory_xact_lock(20260904)');
+        await secondScanner.run();
+      } finally {
+        await blocker.query('ROLLBACK');
+        blocker.release();
+      }
+      await allSignals(['EXPIRY_SCAN_STALE']);
+
+      pauseBeforeWarnings = () => { throw new Error('synthetic scan failure'); };
+      try { await scanner.run(); } finally { pauseBeforeWarnings = undefined; }
+      await allSignals(['EXPIRY_SCAN_FAILED', 'EXPIRY_SCAN_STALE']);
+
+      let entered = false, unblock;
+      const gate = new Promise(resolve => { unblock = resolve; });
+      pauseBeforeWarnings = () => { throw new Error('synthetic delayed scan failure'); };
+      pauseBeforeFailureStatus = async () => { entered = true; await gate; };
+      const olderAttempt = scanner.run();
+      try {
+        await waitUntil(() => entered, 'EXPIRY_FAILURE_UPDATE_NOT_REACHED');
+        pauseBeforeWarnings = undefined;
+        await secondScanner.run();
+        await allSignals([]);
+      } finally {
+        pauseBeforeWarnings = undefined;
+        pauseBeforeFailureStatus = undefined;
+        unblock();
+        await olderAttempt;
+      }
+      await allSignals([]);
+      return { replicasAgree: true, lockLoserLeavesStatusUntouched: true, staleUsesLastSuccess: true, olderFailureCannotOverrideNewSuccess: true };
     });
     report.success = results.length===report.plannedTotal&&results.every(test=>test.passed);
   } catch {

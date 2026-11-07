@@ -41,14 +41,17 @@ export class ExpiryScanService implements OnModuleInit, OnModuleDestroy, BeforeA
   private async scan() {
     const startedAt = performance.now();
     let client: PoolClient | undefined;
+    let attemptAt: string | undefined;
     try {
       client = await this.pool.connect();
       await client.query('BEGIN');
-      const lock = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_xact_lock(20260904) AS locked');
+      const lock = await client.query<{ locked: boolean; attempt_at: string }>(
+        'SELECT pg_try_advisory_xact_lock(20260904) AS locked, clock_timestamp()::text AS attempt_at');
       if (!lock.rows[0].locked) {
         await client.query('ROLLBACK');
         return;
       }
+      attemptAt = lock.rows[0].attempt_at;
 
       const expired = await client.query<{ id: string }>(`UPDATE crypto_assets SET status='EXPIRED',version=version+1
         WHERE status IN ('ACTIVE','EXPIRING_SOON') AND expires_at<=NOW() RETURNING id`);
@@ -87,6 +90,8 @@ export class ExpiryScanService implements OnModuleInit, OnModuleDestroy, BeforeA
       for (const asset of firstWarnings.rows) await this.audit(client, asset.id, 'ASSET_MARKED_EXPIRING_SOON');
       for (const asset of due.rows) await this.notifications.enqueueAsset(client, asset.id, 'ASSET_EXPIRING', `${asset.warning_day}-days`);
 
+      await client.query(`UPDATE public.expiry_scan_status SET last_attempt_at=$1,last_success_at=clock_timestamp(),last_failed=false
+        WHERE singleton`, [attemptAt]);
       await client.query('COMMIT');
       if (invalidPolicies) this.logger.warn({ event: 'expiry.invalid_warning_policy', invalidPolicies });
       this.metrics?.recordJob('expiryScan', 'completed', startedAt);
@@ -99,7 +104,14 @@ export class ExpiryScanService implements OnModuleInit, OnModuleDestroy, BeforeA
       });
     } catch {
       this.metrics?.recordJob('expiryScan', 'failed', startedAt);
-      if (client) await client.query('ROLLBACK').catch(() => undefined);
+      if (client) {
+        await client.query('ROLLBACK').catch(() => undefined);
+        if (attemptAt) {
+          // An overlapping, newer scan may have finished after this transaction rolled back.
+          await client.query(`UPDATE public.expiry_scan_status SET last_attempt_at=$1,last_failed=true
+            WHERE singleton AND (last_attempt_at IS NULL OR last_attempt_at<$1)`, [attemptAt]).catch(() => undefined);
+        }
+      }
       this.logger.error({ event: 'expiry.scan_failed', durationMs: Math.round(performance.now() - startedAt) });
     } finally {
       client?.release();
