@@ -20,7 +20,7 @@ async function main(options) {
   const department = id(), owner = id(), otherOwner = id(), policy = id(), policyVersion = id();
   const notifications = new NotificationsService(pool), provider = new CryptoProviderService();
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    loopbackSmtp: true, externalSmtp: false, plannedTotal: 11, results, compiledServiceHashes: Object.fromEntries([
+    loopbackSmtp: true, externalSmtp: false, plannedTotal: 14, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
       'jobs/asset-processing.service.js', 'database/migration.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
@@ -52,6 +52,7 @@ async function main(options) {
     catch (error) { results.push({ name, passed: false, error: error instanceof assert.AssertionError ? error.message : error.name + ': ' + String(error.message).slice(0, 200) }); }
   }
   const sockets = new Set(), messages = [], envelopes = [];
+  let dataResponse = '250 queued locally';
   const server = net.createServer(socket => {
     sockets.add(socket); socket.once('close', () => sockets.delete(socket)); socket.on('error', () => {}); socket.setEncoding('utf8');
     socket.write('220 localhost test\r\n'); let buffer = '', data = false, lines = [], recipients = [];
@@ -59,7 +60,9 @@ async function main(options) {
       buffer += chunk; let end;
       while ((end = buffer.indexOf('\r\n')) >= 0) {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 2);
-        if (data) { if (line === '.') { messages.push(lines.join('\r\n')); envelopes.push(recipients); lines = []; data = false; socket.write('250 queued locally\r\n'); } else lines.push(line.replace(/^\.\./, '.')); }
+        if (data) { if (line === '.') { messages.push(lines.join('\r\n')); envelopes.push(recipients); lines = []; data = false;
+          if (dataResponse) socket.write(`${dataResponse}\r\n`); else socket.destroy();
+        } else lines.push(line.replace(/^\.\./, '.')); }
         else if (/^(EHLO|HELO) /.test(line)) socket.write('250 localhost\r\n');
         else if (/^MAIL FROM:/.test(line)) { recipients = []; socket.write('250 ok\r\n'); }
         else if (/^RCPT TO:/.test(line)) { recipients.push(line); socket.write('250 ok\r\n'); }
@@ -120,9 +123,15 @@ async function main(options) {
       return { distinctClaims: 2, sent: 2, attemptsEach: 1, stableMessageIds: true };
     });
     const notificationTypes = ['REQUEST_SUBMITTED','REQUEST_APPROVED','REQUEST_REJECTED','REQUEST_COMPLETED','REQUEST_RECONCILIATION_REQUIRED','REQUEST_FAILED','ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED'];
+    const recipient = id(), approverRole = id();
+    await sql("INSERT INTO users(id,department_id,email,password_hash,display_name) VALUES($1,$2,'approver@example.invalid','fixture','Fixture Approver')",[recipient,department]);
+    await sql("INSERT INTO roles(id,code,name) VALUES($1,'APPROVER','Fixture Approver')",[approverRole]);
+    await sql('INSERT INTO user_roles(user_id,role_id) VALUES($1,$2)',[recipient,approverRole]);
+    const grantScope = () => sql('INSERT INTO approver_scopes(user_id,department_id) VALUES($1,$2)',[recipient,department]);
+    await grantScope();
     await test('all nine operational notification types reach loopback SMTP with isolated recipients and correct links', async () => {
       await reset(); captured.length = 0; const request = await approved(), asset = await target();
-      for (const [index, type] of notificationTypes.entries()) await sql('INSERT INTO notifications(recipient_id,request_id,asset_id,type,channel,deduplication_key) VALUES($1,$2,$3,$4,\'EMAIL\',$5)', [index % 2 ? otherOwner : owner, type.startsWith('REQUEST_') ? request : null, type.startsWith('ASSET_') ? asset : null, type, id()]);
+      for (const [index, type] of notificationTypes.entries()) await sql('INSERT INTO notifications(recipient_id,request_id,asset_id,type,channel,deduplication_key) VALUES($1,$2,$3,$4,\'EMAIL\',$5)', [type === 'REQUEST_SUBMITTED' ? recipient : index % 2 ? otherOwner : owner, type.startsWith('REQUEST_') ? request : null, type.startsWith('ASSET_') ? asset : null, type, id()]);
       const worker = mailWorker(); await worker.processBatch(); assert.equal(captured.length, notificationTypes.length);
       for (const mail of captured) {
         assert.ok(mail.html.includes(process.env.APP_URL)); assert.ok(mail.text.includes('(Asia/Ho_Chi_Minh)')); assert.ok(!mail.html.includes('<img'));
@@ -142,19 +151,15 @@ async function main(options) {
       return { smtpCalls: 0, status: row.delivery_status, secretAbsent: true };
     });
     await test('A former scoped Approver receives no queued expiry email or restricted notification metadata',async()=>{
-      await reset();captured.length=0;const asset=await target(),recipient=id(),role=id();
-      await sql("INSERT INTO users(id,department_id,email,password_hash,display_name) VALUES($1,$2,'former@example.invalid','fixture','Former Approver')",[recipient,department]);
-      await sql("INSERT INTO roles(id,code,name) VALUES($1,'APPROVER','Fixture Approver')",[role]);
-      await sql('INSERT INTO user_roles(user_id,role_id) VALUES($1,$2)',[recipient,role]);
-      await sql('INSERT INTO approver_scopes(user_id,department_id) VALUES($1,$2)',[recipient,department]);
+      await reset();captured.length=0;const asset=await target();
       await notifications.enqueueAsset(pool,asset,'ASSET_EXPIRING','7-days');
       assert.equal((await sql("SELECT count(*)::int AS n FROM notifications WHERE asset_id=$1",[asset])).rows[0].n,6);
       const worker=mailWorker();await worker.processBatch();assert.equal(captured.length,3);
-      assert(captured.some(mail=>mail.to==='former@example.invalid'));
+      assert(captured.some(mail=>mail.to==='approver@example.invalid'));
       const laterAsset=await target();await notifications.enqueueAsset(pool,laterAsset,'ASSET_EXPIRING','7-days');captured.length=0;
       await sql('DELETE FROM approver_scopes WHERE user_id=$1',[recipient]);
       await worker.processBatch();
-      assert.equal(captured.length,2);assert(!captured.some(mail=>mail.to==='former@example.invalid'));
+      assert.equal(captured.length,2);assert(!captured.some(mail=>mail.to==='approver@example.invalid'));
       const failed=(await sql("SELECT delivery_status,error_message FROM notifications WHERE recipient_id=$1 AND asset_id=$2 AND channel='EMAIL'",[recipient,laterAsset])).rows;
       assert.deepEqual(failed,[{delivery_status:'FAILED',error_message:'Email content could not be prepared'}]);
       const page=await notifications.list(recipient,{page:'1',pageSize:'25'});assert.equal(page.total,2);assert(page.items.every(item=>item.assetCode===null));
@@ -178,6 +183,79 @@ async function main(options) {
       assert.equal(messages.length, notificationTypes.length + 7);
       assert.ok(headers.every(header => /^notification-[0-9a-f-]+@example.invalid$/.test(header)));
       return { receivedDataMessages: messages.length, validStableMessageIds: headers.length };
+    });
+    await test('Queued submission email is blocked when Approver scope is removed before sending', async () => {
+      await reset();
+      await grantScope();
+      const request = await approved();
+      await notifications.enqueueRequestSubmitted(pool, request, department);
+      await sql('DELETE FROM approver_scopes WHERE user_id=$1', [recipient]);
+      const before = messages.length;
+      await mailWorker().processBatch();
+      assert.equal(messages.length, before);
+      const { rows } = await sql(`SELECT channel,delivery_status,attempt_count,error_message FROM notifications
+        WHERE recipient_id=$1 AND request_id=$2 ORDER BY channel`, [recipient, request]);
+      assert.deepEqual(rows, [
+        { channel: 'EMAIL', delivery_status: 'FAILED', attempt_count: 1, error_message: 'Email content could not be prepared' },
+        { channel: 'IN_APP', delivery_status: 'SENT', attempt_count: 0, error_message: null },
+      ]);
+      return { scopeRemovedAfterEnqueue: true, smtpDataCommands: 0 };
+    });
+    async function pendingEmail() {
+      const request = await approved();
+      const notification = id();
+      await sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key)
+        VALUES($1::uuid,$2,$3,'REQUEST_APPROVED','EMAIL',$1::uuid::text)`, [notification, owner, request]);
+      return notification;
+    }
+    async function deliveryState(notification) {
+      const { rows } = await sql(`SELECT delivery_status AS status,attempt_count AS attempts,failed_at IS NOT NULL AS failed,
+        sent_at IS NOT NULL AS sent,scheduled_for>clock_timestamp() AS scheduled_later,error_message
+        FROM notifications WHERE id=$1`, [notification]);
+      return rows[0];
+    }
+    await test('Explicit SMTP replies enforce backoff, five-attempt limit and stable Message-ID', async () => {
+      await reset();
+      const notification = await pendingEmail();
+      const before = messages.length;
+      try {
+        dataResponse = '451 synthetic temporary rejection';
+        for (let attempts = 1; attempts <= 5; attempts++) {
+          await mailWorker().processBatch();
+          assert.deepEqual(await deliveryState(notification), { status: attempts === 5 ? 'FAILED' : 'PENDING',
+            attempts, failed: attempts === 5, sent: false, scheduled_later: true, error_message: 'SMTP rejected delivery (451)' });
+          await mailWorker().processBatch();
+          assert.equal(messages.length - before, attempts);
+          await sql('UPDATE notifications SET scheduled_for=NOW() WHERE id=$1', [notification]);
+        }
+        await mailWorker().processBatch();
+        assert.equal(messages.length - before, 5);
+        const headers = messages.slice(before).map(message => message.match(/^Message-ID:\s*(<[^>]+>)/im)?.[1]);
+        assert.deepEqual([...new Set(headers)], [`<notification-${notification}@example.invalid>`]);
+        const rejected = await pendingEmail();
+        dataResponse = '550 synthetic permanent rejection';
+        await mailWorker().processBatch();
+        assert.deepEqual(await deliveryState(rejected), { status: 'FAILED', attempts: 1, failed: true, sent: false,
+          scheduled_later: true, error_message: 'SMTP rejected delivery (550)' });
+        return { temporaryAttempts: 5, permanentAttempts: 1, stableMessageId: true, retriedBeforeDue: false };
+      } finally { dataResponse = '250 queued locally'; }
+    });
+    await test('SMTP disconnect after DATA and stale Sending are held for reconciliation across workers', async () => {
+      await reset();
+      const ambiguous = await pendingEmail(), stale = await pendingEmail();
+      const before = messages.length;
+      await sql(`UPDATE notifications SET delivery_status='SENDING',attempt_count=1,claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1`, [stale]);
+      try { dataResponse = null; await mailWorker().processBatch(); }
+      finally { dataResponse = '250 queued locally'; }
+      for (const notification of [ambiguous, stale]) {
+        const row = await deliveryState(notification);
+        assert.equal(row.status, 'RECONCILIATION_REQUIRED');
+        assert.equal(row.attempts, 1);
+        assert.equal(row.sent || row.failed, false);
+      }
+      await Promise.all([mailWorker().processBatch(), mailWorker().processBatch()]);
+      assert.equal(messages.length - before, 1);
+      return { disconnectedAfterData: 1, staleSending: 1, replayed: 0 };
     });
     report.success = results.length === report.plannedTotal && results.every(value => value.passed);
     return report;

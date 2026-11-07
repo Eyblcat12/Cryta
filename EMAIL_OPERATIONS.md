@@ -22,6 +22,8 @@ Tám sự kiện đang hỗ trợ gồm yêu cầu mới/được duyệt/bị t
 
 Worker ghi thông báo kết quả cùng transaction trạng thái/audit. Nếu ghi thông báo hoàn tất lỗi sau khi provider đã trả kết quả, asset/hoàn tất rollback và receipt được giữ để đối soát. Không tự gọi lại provider. Mỗi kết quả và mỗi kênh có một deduplication key. Chuẩn bị nội dung lỗi trước khi gọi SMTP là kết quả chắc chắn chưa gửi: trạng thái FAILED với thông báo chuẩn; không xếp vào kết quả SMTP chưa rõ.
 
+Trước khi gửi thư yêu cầu mới, worker kiểm lại tài khoản, đơn vị, vai trò Approver và phạm vi của yêu cầu. Nếu Approver đã mất phạm vi, thư chờ chuyển `FAILED` mà không gọi SMTP. Trạng thái của thông báo trong ứng dụng được quản lý riêng.
+
 Mẫu mời và đặt lại mật khẩu dùng link riêng có hạn dùng. Xem mục Email mời và phục hồi tài khoản để bật luồng T07.
 
 `node tools/test-real-email-delivery.cjs <report-stack-test.json>` kiểm DB/worker và SMTP loopback trong DB riêng. `node tools/preview-email-templates.cjs <report-email.json> <node_modules-co-playwright>` tạo HTML/plain-text và ảnh desktop/mobile bằng dữ liệu giả. Đây không thay bằng chứng Inbox, Spam, email client thật hoặc nghiệm thu T25. [Bằng chứng T24](T24_EMAIL_TEMPLATES_2026-11-06.md).
