@@ -168,13 +168,14 @@ async function main() {
       await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
       const open = page.getByRole('button', { name: 'Xuất báo cáo' });
-      await open.click();
+      await open.focus();
+      await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog', { name: 'Xuất báo cáo' });
       await dialog.getByText('Dữ liệu của tôi', { exact: true }).waitFor();
       await page.screenshot({ path: path.join(output, 'desktop.png') });
       await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
-      assert.equal(await open.evaluate(element => element === document.activeElement), true);
+      await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Xuất báo cáo', undefined, { timeout: 5_000 });
       await open.click();
       await dialog.getByRole('button', { name: 'Tạo báo cáo' }).click();
       const download = page.getByRole('button', { name: 'Tải CSV' });
