@@ -53,8 +53,11 @@ export function AdminAuditTable({ refreshKey }: { refreshKey: number }) {
   }, [actor, action, entity, trace, from, to]);
   useEffect(() => setDraftOutcome(outcome), [outcome]);
 
-  const applied: AuditFilters = { search, outcome, actor, action, entity, correlationId: trace,
-    from: from ? `${from}:00+07:00` : '', to: to ? `${to}:00+07:00` : '' };
+  const applied: AuditFilters = {
+    search: search || undefined, outcome: outcome || undefined, actor: actor || undefined, action: action || undefined,
+    entity: entity || undefined, correlationId: trace || undefined,
+    from: from ? `${from}:00+07:00` : undefined, to: to ? `${to}:00+07:00` : undefined,
+  };
   const key = JSON.stringify([page, pageSize, applied]);
   const resource = useResource(`audit:${key}`, signal => api.auditPage({ page, pageSize, ...applied }, signal), refreshKey);
   const { data: result, loading, error } = resource;

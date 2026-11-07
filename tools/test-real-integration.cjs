@@ -346,6 +346,14 @@ async function main() {
         if (width === 390) await page.addInitScript(() => localStorage.setItem('crypta-theme', 'dark'));
         await page.goto(new URL('/audit', origin).href);
         await uiLogin(page, admin.user.email);
+        if (width === 1440) {
+          await page.getByRole('button', { name: 'Xuất báo cáo', exact: true }).click();
+          const reportDialog = page.getByRole('dialog', { name: 'Xuất báo cáo' });
+          const create = reportDialog.getByRole('button', { name: 'Tạo báo cáo', exact: true });
+          await page.waitForFunction(button => !button.disabled, await create.elementHandle());
+          await page.keyboard.press('Escape');
+          await reportDialog.waitFor({ state: 'hidden' });
+        }
         await page.getByText('Bộ lọc nâng cao', { exact: true }).click();
         await page.getByLabel('Mã truy vết HTTP', { exact: true }).fill(disabled.requestId);
         await page.getByLabel('Mã đối tượng', { exact: true }).fill(user.id);
