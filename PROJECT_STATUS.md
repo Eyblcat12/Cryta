@@ -6,7 +6,7 @@ X02 đã tích hợp hai cấp phê duyệt vào policy, hàng chờ, chi tiết
 
 X03 đã tích hợp Keycloak, liên kết danh tính theo issuer/subject, MFA và thu hồi phiên. GitHub Actions đạt 172/172 nhóm tích hợp, gồm 6 nhóm Keycloak với Chromium và 50 nhóm quyền runtime. Môi trường đích cần cấu hình realm HTTPS, tài khoản khẩn cấp và chạy UAT. [Chi tiết X03](docs/X03_OIDC.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42350581928)
 
-X04 đã có mẫu tương tác xuất CSV/PDF theo bộ lọc và phạm vi hiện tại. Mẫu đạt 20 ca Chromium. [Bản xem trước](tools/design-previews/report-exports/index.html)
+X04 đã tích hợp mẫu xuất CSV/PDF đã duyệt vào Tài sản, Yêu cầu và Audit Log. Local đạt build, OpenAPI, lint và 492/492 ca backend, 148/148 ca frontend. Đang kiểm trên PostgreSQL và Chromium. [Chi tiết X04](docs/X04_REPORT_EXPORTS.md)
 
 X01 đã tích hợp TOTP 6 số và 10 mã khôi phục theo mẫu đã duyệt. GitHub Actions trên `b4d4dc7` đạt 4/4 nhóm MFA và 160/160 nhóm hồi quy. Backend 478/478, frontend 148/148. Còn xác nhận trên môi trường đích. [Chi tiết X01](docs/MFA_X01.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42345358091)
 

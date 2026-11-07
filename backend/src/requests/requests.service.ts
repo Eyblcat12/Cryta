@@ -32,14 +32,21 @@ const approvalExpired = () => new ConflictException({ code: 'APPROVAL_DEADLINE_E
 export class RequestsService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool, private readonly notifications: NotificationsService) {}
 
-  async list(user: AuthUser, query: Record<string, string> = {}) {
+  async list(user: AuthUser, query: Record<string, string> = {}, reader: Pick<Pool, 'query'> = this.pool, maxPageSize = 100) {
     if(query.createdByMe!==undefined&&(typeof query.createdByMe!=='string'||!['true','false'].includes(query.createdByMe)))
       throw new BadRequestException({code:'INVALID_REQUEST_FILTER',message:'Bộ lọc yêu cầu cá nhân không hợp lệ.'});
-    const approver = query.createdByMe!=='true'&&!user.roles.includes('ADMIN') && user.roles.includes('APPROVER');
+    if (query.approvalScope !== undefined && !['true', 'false'].includes(query.approvalScope)) {
+      throw new BadRequestException({ code: 'INVALID_REQUEST_FILTER', message: 'Bộ lọc phạm vi phê duyệt không hợp lệ.' });
+    }
+    if (query.approvalScope === 'true' && !user.roles.includes('APPROVER')) {
+      throw new ForbiddenException({ code: 'APPROVER_REQUIRED', message: 'Bạn cần quyền phê duyệt để dùng bộ lọc này.' });
+    }
+    const approver = query.createdByMe !== 'true' && user.roles.includes('APPROVER') &&
+      (!user.roles.includes('ADMIN') || query.approvalScope === 'true');
     const submittedOnly = query.createdByMe !== 'true' && (approver || user.roles.includes('ADMIN'));
     const scope = query.createdByMe==='true' ? {sql:'WHERE r.creator_id = $1',values:[user.id]}
-      : user.roles.includes('ADMIN') ? { sql: '', values: [] as unknown[] }
       : approver ? { sql: 'WHERE r.department_id = ANY($1::uuid[])', values: [user.approverDepartmentIds] }
+      : user.roles.includes('ADMIN') ? { sql: '', values: [] as unknown[] }
       : { sql: 'WHERE r.creator_id = $1', values: [user.id] };
     const defaultOrder = approver ? 'r.emergency DESC, r.submitted_at ASC, r.id ASC'
       : query.status && query.status !== 'DRAFT' && query.status !== 'CANCELLED'
@@ -51,7 +58,7 @@ export class RequestsService {
     if (!Object.keys(query).length) {
       if (submittedOnly) conditions.push('r.submitted_at IS NOT NULL');
       const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-      return (await this.pool.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT 100`, scope.values)).rows.map(presentRequest);
+      return (await reader.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT 100`, scope.values)).rows.map(presentRequest);
     }
     const parseNumber = (value: string | undefined, fallback: number, max: number) => {
       if (value === undefined) return fallback;
@@ -60,7 +67,7 @@ export class RequestsService {
       return Number(value);
     };
     const page = parseNumber(query.page, 1, 1_000_000);
-    const pageSize = parseNumber(query.pageSize, 25, 100);
+    const pageSize = parseNumber(query.pageSize, 25, maxPageSize);
     for (const field of ['status', 'type', 'emergency', 'search', 'excludePending'])
       if (query[field] !== undefined && typeof query[field] !== 'string')
         throw new BadRequestException({ code: 'INVALID_FILTER', message: 'Bộ lọc yêu cầu không hợp lệ.' });
@@ -90,9 +97,9 @@ export class RequestsService {
     }
     if (submittedOnly) conditions.push('r.submitted_at IS NOT NULL');
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const count = await this.pool.query(`SELECT COUNT(*)::int AS total ${requestFrom} ${where}`, values);
+    const count = await reader.query(`SELECT COUNT(*)::int AS total ${requestFrom} ${where}`, values);
     const args = [...values, pageSize, (page - 1) * pageSize];
-    const rows = await this.pool.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
+    const rows = await reader.query<RequestRow>(`${requestSelect} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`, args);
     return { items: rows.rows.map(presentRequest), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
   }
 

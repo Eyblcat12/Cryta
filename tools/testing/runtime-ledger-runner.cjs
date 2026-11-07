@@ -17,9 +17,9 @@ async function main(options){
   assert.equal((await sql('SELECT current_database() AS name')).rows[0].name,options.database);
   await test('Standalone migration process applies all twenty migrations in the allocated DB',async()=>{
    execFileSync(process.execPath,['/app/dist/database/migrate.js'],{env:{...process.env,DATABASE_URL:url.href},stdio:['ignore','pipe','pipe'],timeout:45000});
-   const entries=await ledger();assert.equal(entries.length,21);assert(entries.every(e=>/^[a-f0-9]{64}$/.test(e.checksum)));return entries;
+   const entries=await ledger();assert.equal(entries.length,22);assert(entries.every(e=>/^[a-f0-9]{64}$/.test(e.checksum)));return entries;
   });
-  const original=await ledger();assert.equal(original.length,21);
+  const original=await ledger();assert.equal(original.length,22);
   assert.equal((await sql('SELECT count(*)::int AS count FROM pg_roles WHERE rolname=$1',[role])).rows[0].count,0);
   await sql(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);created=true;
   await sql('REVOKE CREATE ON SCHEMA public FROM PUBLIC');await sql(`GRANT USAGE ON SCHEMA public TO "${role}"`);await sql(`GRANT SELECT ON public.schema_migrations TO "${role}"`);

@@ -40,6 +40,12 @@ async function main() {
       for (const [status, response] of Object.entries(operation.responses)) {
         if (!/^2\d\d$/.test(status) || status === '204') continue;
         assert.ok(response.headers?.['x-request-id'], `${name} documents the response correlation header`);
+        if (name === `GET ${base}/reports/{id}/file`) {
+          for (const contentType of ['text/csv', 'application/pdf']) {
+            assert.equal(response.content?.[contentType]?.schema?.format, 'binary', name);
+          }
+          continue;
+        }
         assert.deepEqual(response.content?.['application/json']?.schema?.required, ['data', 'requestId'], name);
       }
     }

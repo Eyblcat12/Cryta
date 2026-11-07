@@ -336,6 +336,36 @@ ALTER TABLE auth_sessions ADD COLUMN oidc_session_id uuid,
   ADD FOREIGN KEY (oidc_session_id,user_id) REFERENCES auth_oidc_sessions(id,user_id) ON DELETE RESTRICT;
 ALTER TABLE auth_mfa_challenges ADD COLUMN oidc_session_id uuid,
   ADD FOREIGN KEY (oidc_session_id,user_id) REFERENCES auth_oidc_sessions(id,user_id) ON DELETE RESTRICT;
+`},
+{version:'022_report_exports',sql:`
+CREATE TABLE report_exports (
+  id uuid PRIMARY KEY,
+  request_key uuid NOT NULL,
+  requester_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  token_version integer NOT NULL CHECK (token_version > 0),
+  dataset text NOT NULL CHECK (dataset IN ('ASSETS','REQUESTS','AUDIT')),
+  format text NOT NULL CHECK (format IN ('CSV','PDF')),
+  filters jsonb NOT NULL CHECK (jsonb_typeof(filters)='object'),
+  scope jsonb NOT NULL CHECK (jsonb_typeof(scope)='object'),
+  state text NOT NULL DEFAULT 'QUEUED' CHECK (state IN ('QUEUED','RUNNING','READY','FAILED','CANCELLED','EXPIRED')),
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  finished_at timestamptz,
+  expires_at timestamptz,
+  lease_until timestamptz,
+  claim_token uuid,
+  attempts smallint NOT NULL DEFAULT 0 CHECK (attempts BETWEEN 0 AND 3),
+  row_count integer CHECK (row_count BETWEEN 1 AND 10000),
+  failure_code text,
+  content bytea CHECK (octet_length(content) <= 8388608),
+  UNIQUE (requester_id,request_key),
+  CHECK ((state='RUNNING') = (claim_token IS NOT NULL AND lease_until IS NOT NULL)),
+  CHECK ((state='READY') = (content IS NOT NULL)),
+  CHECK (state<>'READY' OR (expires_at IS NOT NULL AND row_count IS NOT NULL))
+);
+CREATE INDEX idx_report_exports_owner ON report_exports(requester_id,created_at DESC);
+CREATE INDEX idx_report_exports_queue ON report_exports(created_at,id) WHERE state IN ('QUEUED','RUNNING');
+CREATE INDEX idx_report_exports_file_expiry ON report_exports(expires_at) WHERE state='READY';
+CREATE INDEX idx_report_exports_retention ON report_exports(finished_at) WHERE finished_at IS NOT NULL;
 `}
 ];
 

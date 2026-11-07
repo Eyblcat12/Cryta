@@ -15,6 +15,7 @@ import { bindMutationOwner,clearMutations,rejectMutation,startMutation,updateMut
 import type { MutationInput } from './workspaceMutations';
 import { mutationResources } from './workspaceRefresh';
 import { announceCookieSessionBoundary,cookieSessionBoundaryMatches,currentCookieSessionBoundary,subscribeCookieSessionBoundary,withSessionCookieLock } from './sessionCookieLock';
+import type { ReportDataset, ReportFilters, ReportFormat, ReportJob, ReportPreview } from './api/contracts/reports';
 
 const API_BASE='/api/v1';
 let accessToken:string|undefined;
@@ -85,7 +86,7 @@ function dashboardMetrics(data:DashboardSummaryResponse,role?:UserRole) {
   return metrics;
 }
 
-async function request<T>(path:string,options:RequestInit={},retry=true):Promise<T>{
+async function request<T>(path:string,options:RequestInit={},retry=true,decode?: (response:Response)=>Promise<T>):Promise<T>{
   const generation=sessionGeneration;
   const boundary=sessionBoundary;
   const controller=new AbortController();
@@ -101,6 +102,7 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
     let response:Response;
     try{response=await fetch(`${API_BASE}${path}`,{...options,signal:controller.signal,headers,credentials:'include'})}catch{assertCurrent();throw new ApiError('NETWORK_ERROR','Không thể kết nối máy chủ. Kiểm tra dịch vụ rồi thử lại.',0)}
     assertCurrent();
+    if(response.ok&&decode){const result=await decode(response);assertCurrent();return result}
     const payload=await response.json().catch(()=>({}));
     assertCurrent();
     if(response.status===401&&retry&&path!=='/auth/login'&&path!=='/auth/oidc/finish'&&path!=='/auth/refresh'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID'){
@@ -111,7 +113,7 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
         if(error instanceof ApiError)throw new ApiError(error.code,error.message,error.status,error.requestId,'rejected');
         throw error;
       }
-      assertCurrent();return await request<T>(path,options,false);
+      assertCurrent();return await request<T>(path,options,false,decode);
     }
     if(!response.ok){
       if(response.status===401&&path!=='/auth/login'&&path!=='/auth/oidc/finish'&&path!=='/auth/refresh'&&path!=='/auth/logout'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID')expireSession();
@@ -205,6 +207,23 @@ export const api={
   oidcStatus(signal?:AbortSignal){return request<{enabled:boolean}>('/auth/oidc/status',{signal,cache:'no-store'},false)},
   startOidc(){return request<{redirect:string}>('/auth/oidc/start',{method:'POST',body:'{}',cache:'no-store'},false)},
   finishOidc(){return authenticate('/auth/oidc/finish',{})},
+  reportJobs(dataset:ReportDataset,signal?:AbortSignal){
+    return request<ReportJob[]>('/reports?'+new URLSearchParams({dataset}),{signal,cache:'no-store'});
+  },
+  previewReport(dataset:ReportDataset,filters:ReportFilters,signal?:AbortSignal){
+    return request<ReportPreview>('/reports/preview',{method:'POST',body:JSON.stringify({dataset,filters}),signal,cache:'no-store'});
+  },
+  createReport(dataset:ReportDataset,filters:ReportFilters,format:ReportFormat,requestKey:string){
+    return request<ReportJob>('/reports',{method:'POST',body:JSON.stringify({dataset,filters,format,requestKey}),cache:'no-store'});
+  },
+  cancelReport(id:string){return request<ReportJob>(`/reports/${encodeURIComponent(id)}/cancel`,{method:'POST',cache:'no-store'})},
+  reportFile(id:string,format:ReportFormat){
+    return request<Blob>(`/reports/${encodeURIComponent(id)}/file`,{cache:'no-store'},true,async response=>{
+      const type=response.headers.get('content-type')?.split(';')[0];
+      if(type!==(format==='CSV'?'text/csv':'application/pdf'))throw new ApiError('REPORT_FILE_INVALID','Định dạng tệp nhận được không hợp lệ.',502);
+      return response.blob();
+    });
+  },
   abandonMfa(){mfaAttempt=undefined},
   verifyMfa(challenge:string,totpCode:string){return completeMfa('/auth/mfa/verify',{challenge,totpCode})},
   async recoverMfa(challenge:string,recoveryCode:string){return bindMfaChallenge(await mfaRequest<MfaChallenge>('/auth/mfa/recover',{challenge,recoveryCode}))},
@@ -231,13 +250,13 @@ export const api={
   async changePassword(currentPassword:string,newPassword:string){const generation=sessionGeneration;const result=await withSessionCookieLock(()=>generation===sessionGeneration,()=>request('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false));if(generation!==sessionGeneration)throw new DOMException('Session changed','AbortError');beginSession();endedSession(true);sessionBoundary=announceCookieSessionBoundary();return result},
   async assets(signal?:AbortSignal){return(await request<AssetResponse[]>('/assets',{signal})).map(mapAsset)},
   async assetDetail(id:string,signal?:AbortSignal){return mapAsset(await request<AssetResponse>(`/assets/${id}`,{signal}))},
-  async assetPage(options:{page:number;pageSize:number;status?:string;search?:string;eligible?:boolean;ownedOnly?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);if(options.search)params.set('search',options.search);if(options.eligible)params.set('eligible','true');if(options.ownedOnly)params.set('ownedOnly','true');const result=await request<PageResponse<AssetResponse>>(`/assets?${params}`,{signal});return {...result,items:result.items.map(mapAsset)}},
+  async assetPage(options:{page:number;pageSize:number;status?:string;search?:string;eligible?:boolean;ownedOnly?:boolean;approvalScope?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);if(options.search)params.set('search',options.search);if(options.eligible)params.set('eligible','true');if(options.ownedOnly)params.set('ownedOnly','true');if(options.approvalScope)params.set('approvalScope','true');const result=await request<PageResponse<AssetResponse>>(`/assets?${params}`,{signal});return {...result,items:result.items.map(mapAsset)}},
   assetHistory(id:string){return request<AssetHistoryEvent[]>(`/assets/${id}/history`)},
   assetHistoryPage(id:string,page:number,signal?:AbortSignal){return request<AssetHistoryResponse>(`/assets/${id}/history?page=${page}&pageSize=10`,{signal})},
   async requests(signal?:AbortSignal){return(await request<RequestResponse[]>('/requests',{signal})).map(mapRequest)},
   async requestDetail(id:string,signal?:AbortSignal){return mapRequest(await request<RequestResponse>(`/requests/${id}`,{signal}))},
   requestSnapshot(id:string,signal?:AbortSignal){return request<RequestResponse>(`/requests/${encodeURIComponent(id)}`,{signal})},
-  async requestPage(options:{page:number;pageSize:number;status?:string;type?:string;search?:string;emergency?:boolean;excludePending?:boolean;createdByMe?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);if(options.type)params.set('type',options.type);if(options.search)params.set('search',options.search);if(options.emergency!==undefined)params.set('emergency',String(options.emergency));if(options.excludePending)params.set('excludePending','true');if(options.createdByMe)params.set('createdByMe','true');const result=await request<PageResponse<RequestResponse>>(`/requests?${params}`,{signal});return {...result,items:result.items.map(mapRequest)}},
+  async requestPage(options:{page:number;pageSize:number;status?:string;type?:string;search?:string;emergency?:boolean;excludePending?:boolean;createdByMe?:boolean;approvalScope?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);if(options.type)params.set('type',options.type);if(options.search)params.set('search',options.search);if(options.emergency!==undefined)params.set('emergency',String(options.emergency));if(options.excludePending)params.set('excludePending','true');if(options.createdByMe)params.set('createdByMe','true');if(options.approvalScope)params.set('approvalScope','true');const result=await request<PageResponse<RequestResponse>>(`/requests?${params}`,{signal});return {...result,items:result.items.map(mapRequest)}},
   notificationPage(options:{page:number;pageSize:number;read?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.read!==undefined)params.set('read',String(options.read));return request<PageResponse<NotificationResponse>>(`/notifications?${params}`,{signal})},
   async policies(signal?:AbortSignal){return request<PolicyResponse[]>('/policies',{signal})},
   adminPolicies(signal?: AbortSignal) { return request<AdminPolicy[]>('/policies/admin', { signal }); },

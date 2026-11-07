@@ -27,7 +27,8 @@ const pre018 = [...pre017, { version: '017_audit_search_trigram', checksum: '226
 const pre019 = [...pre018, { version: '018_key_asset_identity', checksum: 'a963f6062d80880206078880ec17c68adb1d50fbfd2668f734e2a6f1efa6c0a3' }];
 const pre020 = [...pre019, { version: '019_auth_mfa', checksum: 'd90bda2d3a7fab6fd187d60ed5833e6bff55080aacc73f3d1b47dc6ecf5c0643' }];
 const pre021 = [...pre020, { version: '020_two_stage_approval', checksum: '2b6b127ab5774d9412ff9148a9026aadf4bcce204f87b002d63820893f30f76f' }];
-const complete = [...pre021, { version: '021_auth_oidc', checksum: '534c0d57f3c3ab55f4e83525a9d23c433d3507ec54ecdc8ccddd655366048554' }];
+const pre022 = [...pre021, { version: '021_auth_oidc', checksum: '534c0d57f3c3ab55f4e83525a9d23c433d3507ec54ecdc8ccddd655366048554' }];
+const complete = [...pre022, { version: '022_report_exports', checksum: 'ec6352049f1d8e081821c9f3d495e01f0b5b37eae537f0fe77003d3ce9729481' }];
 
 function setup(rows: Array<{version:string;checksum:string|null}> = []) {
   const query = vi.fn(async (sql: string, _values?: unknown[]) => /^SELECT version,checksum FROM (public\.)?schema_migrations$/.test(sql) ? { rows } : { rows: [], rowCount: 1 });
@@ -74,11 +75,11 @@ describe('database migrations', () => {
     expect(query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
   });
 
-  it('adds 009–021 to an existing eight-version ledger without replaying previous migrations', async () => {
+  it('adds 009–022 to an existing eight-version ledger without replaying previous migrations', async () => {
     const { service, query, release } = setup(published);
     await service.applyPending();
     const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
-    expect(insertions).toHaveLength(13);
+    expect(insertions).toHaveLength(14);
     expect(insertions[0][1]?.[0]).toBe('009_request_drafts');
     expect(insertions[1][1]?.[0]).toBe('010_execution_notifications');
     expect(query.mock.calls.some(([sql]) => sql.includes('POLICY_VERSION_IMMUTABLE'))).toBe(false);
@@ -89,7 +90,7 @@ describe('database migrations', () => {
   it('upgrades a fourteen-version ledger through key identity protection', async () => {
     const { service, query } = setup(pre015);
     await service.applyPending();
-    expect(query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations')).map(([, values]) => values?.[0])).toEqual(['015_demo_asset_provider_scope', '016_demo_certificate_provider_scope', '017_audit_search_trigram', '018_key_asset_identity', '019_auth_mfa', '020_two_stage_approval', '021_auth_oidc']);
+    expect(query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations')).map(([, values]) => values?.[0])).toEqual(['015_demo_asset_provider_scope', '016_demo_certificate_provider_scope', '017_audit_search_trigram', '018_key_asset_identity', '019_auth_mfa', '020_two_stage_approval', '021_auth_oidc', '022_report_exports']);
     expect(query.mock.calls.some(([sql]) => sql.includes('ck_requests_submission'))).toBe(false);
     expect(query.mock.calls.some(([sql]) => sql.includes('AND a.provider_scope IS NULL'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => sql.includes('ADD COLUMN provider_scope'))).toBe(false);
@@ -99,7 +100,7 @@ describe('database migrations', () => {
     const { service, query } = setup(pre020);
     await service.applyPending();
     const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
-    expect(insertions.map(([, values]) => values?.[0])).toEqual(['020_two_stage_approval', '021_auth_oidc']);
+    expect(insertions.map(([, values]) => values?.[0])).toEqual(['020_two_stage_approval', '021_auth_oidc', '022_report_exports']);
     expect(query.mock.calls.some(([sql]) => sql.includes('TWO_APPROVALS_REQUIRED'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE schema_migrations'))).toBe(false);
     expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT');

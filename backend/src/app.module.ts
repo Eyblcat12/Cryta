@@ -12,6 +12,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { UsersModule } from './users/users.module';
 import { OperationsModule } from './operations/operations.module';
 import { DepartmentsModule } from './departments/departments.module';
+import { ReportsModule } from './reports/reports.module';
 
-@Module({ imports: [DatabaseModule, AuthModule, HealthModule, AssetsModule, PoliciesModule, RequestsModule, AuditModule, NotificationsModule, JobsModule, DashboardModule, UsersModule, OperationsModule, DepartmentsModule] })
+@Module({ imports: [DatabaseModule, AuthModule, HealthModule, AssetsModule, PoliciesModule, RequestsModule, AuditModule, NotificationsModule, JobsModule, DashboardModule, UsersModule, OperationsModule, DepartmentsModule, ReportsModule] })
 export class AppModule {}

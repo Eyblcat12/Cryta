@@ -8,16 +8,22 @@ import { listOrder } from '../common/list-order';
 @Injectable()
 export class AssetsService {
   constructor(@Inject(DATABASE_POOL) private readonly pool: Pool) {}
-  async list(user: AuthUser, query: Record<string, string> = {}) {
+  async list(user: AuthUser, query: Record<string, string> = {}, reader: Pick<Pool, 'query'> = this.pool, maxPageSize = 100) {
     if(query.ownedOnly!==undefined&&(typeof query.ownedOnly!=='string'||!['true','false'].includes(query.ownedOnly)))
       throw new BadRequestException({code:'INVALID_ASSET_FILTER',message:'Bộ lọc tài sản cá nhân không hợp lệ.'});
+    if (query.approvalScope !== undefined && !['true', 'false'].includes(query.approvalScope)) {
+      throw new BadRequestException({ code: 'INVALID_ASSET_FILTER', message: 'Bộ lọc phạm vi phê duyệt không hợp lệ.' });
+    }
+    if (query.approvalScope === 'true' && !user.roles.includes('APPROVER')) {
+      throw new ForbiddenException({ code: 'APPROVER_REQUIRED', message: 'Bạn cần quyền phê duyệt để dùng bộ lọc này.' });
+    }
     // Owner access already exists in detail(); this projection never accepts a caller-supplied owner ID.
     const scope = query.ownedOnly==='true' ? {sql:'WHERE a.owner_id = $1',values:[user.id]}
-      : user.roles.includes('ADMIN') ? { sql: '', values: [] as unknown[] }
+      : user.roles.includes('ADMIN') && query.approvalScope !== 'true' ? { sql: '', values: [] as unknown[] }
       : user.roles.includes('APPROVER') ? { sql: 'WHERE a.department_id = ANY($1::uuid[])', values: [user.approverDepartmentIds] }
       : { sql: 'WHERE a.owner_id = $1', values: [user.id] };
     if (!Object.keys(query).length) {
-      const rows = await this.pool.query(this.selectSql(scope.sql) + ' ORDER BY a.expires_at ASC, a.id ASC LIMIT 250', scope.values);
+      const rows = await reader.query(this.selectSql(scope.sql) + ' ORDER BY a.expires_at ASC, a.id ASC LIMIT 250', scope.values);
       return rows.rows.map(this.present);
     }
     const integer = (value: string | undefined, fallback: number, maximum: number, name: string) => {
@@ -27,7 +33,7 @@ export class AssetsService {
       return Number(value);
     };
     const page = integer(query.page, 1, 1_000_000, 'page');
-    const pageSize = integer(query.pageSize, 25, 100, 'pageSize');
+    const pageSize = integer(query.pageSize, 25, maxPageSize, 'pageSize');
     const order = listOrder(query, {
       expiresAt: 'a.expires_at', createdAt: 'a.created_at', code: 'a.asset_code', status: 'a.status', type: 'a.asset_type',
     }, 'a.id', 'a.expires_at ASC, a.id ASC');
@@ -57,11 +63,11 @@ export class AssetsService {
     if (search) { values.push(`%${search}%`); conditions.push(`(a.asset_code ILIKE $${values.length} OR a.purpose ILIKE $${values.length} OR u.display_name ILIKE $${values.length} OR d.name ILIKE $${values.length})`); }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const filterFrom = `FROM crypto_assets a${search ? ' JOIN departments d ON d.id=a.department_id JOIN users u ON u.id=a.owner_id' : ''}`;
-    const count = await this.pool.query(`SELECT COUNT(*)::int AS total ${filterFrom} ${where}`, values);
+    const count = await reader.query(`SELECT COUNT(*)::int AS total ${filterFrom} ${where}`, values);
     const listValues = [...values, pageSize, (page - 1) * pageSize];
     const pageIds = `SELECT a.id ${filterFrom} ${where} ORDER BY ${order} LIMIT $${listValues.length - 1} OFFSET $${listValues.length}`;
     const source = `(${pageIds}) page_ids JOIN crypto_assets a ON a.id=page_ids.id`;
-    const rows = await this.pool.query(this.selectSql('', source) + ` ORDER BY ${order}`, listValues);
+    const rows = await reader.query(this.selectSql('', source) + ` ORDER BY ${order}`, listValues);
     return { items: rows.rows.map(this.present), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
   }
   async detail(user: AuthUser, id: string) {

@@ -92,6 +92,18 @@ body { margin: 0; min-width: 320px; min-height: 100vh; overflow-x: clip; backgro
 .login-heading{margin-bottom:24px}.login-heading h1{margin:15px 0 7px;font-size:27px}.login-heading p{margin:0;color:var(--text-muted)}.login-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:11px;background:var(--brand-soft);color:var(--brand)}
 .login-card form{display:grid;gap:17px}.login-submit{width:100%;height:44px;margin-top:3px}.login-error{padding:10px 12px;border:1px solid color-mix(in srgb,var(--red) 35%,var(--border));border-radius:7px;background:var(--red-soft);color:var(--red);font-size:13px}.login-security{display:flex;align-items:center;gap:7px;margin:22px 0 0;color:var(--text-muted);font-size:12px}
 .login-sso-status{color:var(--text-muted)}.login-account-links{display:flex;flex-wrap:wrap;justify-content:space-between;gap:0 12px}.login-error+.login-submit{margin-top:14px}
+.report-dialog{width:min(540px,calc(100vw - 24px))}.report-dialog header p,.report-note{color:var(--text-soft);font-size:.88rem;line-height:1.5}
+.report-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;margin:0;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-soft)}
+.report-summary dt{color:var(--text-soft);font-size:.84rem}.report-summary dd{margin:4px 0 0;font-weight:650;overflow-wrap:anywhere}
+.report-formats{border:0;display:grid;gap:8px;padding:0;margin:0}.report-formats legend{font-weight:700;margin:0 0 8px}
+.report-formats label{display:flex;align-items:center;gap:10px;min-height:50px;border:1px solid var(--border-strong);border-radius:8px;padding:8px 11px;cursor:pointer}
+.report-formats label:has(input:checked){background:var(--brand-soft);border-color:var(--brand)}.report-formats input{margin:0;width:18px;height:18px;accent-color:var(--brand)}
+.report-formats strong,.report-formats small,.report-jobs small{display:block}.report-formats small,.report-jobs small{color:var(--text-soft)}
+.report-jobs{margin-top:16px;border:1px solid var(--border);border-radius:9px;padding:13px 15px;background:var(--surface)}
+.report-jobs h3,.report-jobs p{margin:0}.report-jobs h3{font-size:1rem}.report-jobs ul{list-style:none;margin:8px 0 0;padding:0}
+.report-jobs li{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--border)}
+.report-jobs li:last-child{padding-bottom:0}.report-jobs li>div:first-child{display:grid;gap:4px}
+@media(max-width:570px){.report-summary{grid-template-columns:1fr}.report-jobs li>div:first-child{width:100%}}
 .data-banner{display:flex;align-items:center;justify-content:center;gap:9px;margin-bottom:18px;padding:10px 13px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text-soft);font-size:13px}.data-banner-error{justify-content:space-between;border-color:color-mix(in srgb,var(--red) 35%,var(--border));background:var(--red-soft);color:var(--red)}.data-banner button{border:0;background:transparent;color:inherit;font-weight:700;text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.loading-spinner{animation-duration:1.6s}}

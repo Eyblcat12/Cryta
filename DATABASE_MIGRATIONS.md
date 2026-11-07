@@ -71,3 +71,5 @@ Migration `015_demo_asset_provider_scope` bổ sung liên kết MOCK cho ba UUID
 Migration `016_demo_certificate_provider_scope` sửa liên kết MOCK cho `CRT-FIN-ACTIVE` có UUID chính xác, loại `CERTIFICATE`, đúng reference mẫu và scope NULL. Giữ nguyên checksum 001–015. Tài sản nhập cũ chưa xác minh vẫn cần đối soát trước khi thao tác với provider.
 
 Migration `021_auth_oidc` thêm bảng liên kết định danh, challenge, phiên và thu hồi SSO. Phiên và challenge MFA cũ giữ giá trị liên kết SSO rỗng. Chạy migration rồi áp lại `runtime-grants.sql` trước khi nâng backend, kể cả khi SSO đang tắt. Runtime chỉ đọc liên kết. Thao tác cấp hoặc thu hồi do role DB vận hành thực hiện và ghi audit. [Cấu hình và kiểm thử X03](docs/X03_OIDC.md)
+
+Migration `022_report_exports` thêm hàng đợi và vùng lưu tạm tệp xuất báo cáo. Chạy migration rồi áp lại quyền runtime trước khi nâng backend. Tệp tải được trong một giờ, sau đó worker xóa nội dung và giữ trạng thái tác vụ trong một ngày để người dùng tra cứu. [Xuất báo cáo X04](docs/X04_REPORT_EXPORTS.md)

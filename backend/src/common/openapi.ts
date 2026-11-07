@@ -15,12 +15,12 @@ const pageNumber = (maximum: number) => ({ type: 'integer', minimum: 1, maximum 
 const pagination = (maximum = 100) => ({ page: pageNumber(1_000_000), pageSize: pageNumber(maximum) });
 const listQueries: Record<string, Record<string, SchemaObject>> = {
   '/api/v1/assets': {
-    ...pagination(), search, eligible: { ...binaryFilter, description: 'true: tài sản có thể gia hạn hoặc thu hồi với provider đang cấu hình.' },
+    ...pagination(), search, approvalScope: binaryFilter, eligible: { ...binaryFilter, description: 'true: tài sản có thể gia hạn hoặc thu hồi với provider đang cấu hình.' },
     status: { type: 'string', enum: ['REGISTERED', 'ACTIVE', 'EXPIRING_SOON', 'EXPIRED', 'REVOKED', 'SUPERSEDED'] },
   },
   '/api/v1/assets/{id}/history': pagination(50),
   '/api/v1/requests': {
-    ...pagination(), search, emergency: binaryFilter, excludePending: binaryFilter,
+    ...pagination(), search, emergency: binaryFilter, excludePending: binaryFilter, approvalScope: binaryFilter,
     status: { type: 'string', enum: ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'RECONCILIATION_REQUIRED'] },
     type: { type: 'string', enum: ['CREATE', 'RENEW', 'REVOKE'] },
   },

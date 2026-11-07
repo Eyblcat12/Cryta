@@ -17,12 +17,14 @@ const writeRoutes = new Set([
   '/departments/:id', '/departments/:id/status', '/policies', '/policies/:id/versions', '/policies/:id/deactivate',
   '/notifications/read-all', '/notifications/:id/read', '/notifications/test-email',
   '/operations/provider-issues/:id/actions',
+  '/reports', '/reports/preview', '/reports/:id/cancel',
 ]);
 const readRoutes = new Set([
   '/auth/me', '/auth/account-actions', '/auth/mfa/status', '/assets', '/assets/:id', '/assets/:id/history', '/requests', '/requests/:id', '/users', '/users/reference-data',
   '/departments', '/departments/:id', '/policies', '/policies/admin', '/policies/:id/versions',
   '/audit-logs', '/notifications', '/notifications/status', '/notifications/delivery-issues',
   '/dashboard', '/dashboard/summary', '/operations/metrics', '/operations/signals', '/operations/provider-issues', '/operations/provider-issues/:id',
+  '/reports', '/reports/:id/file',
 ]);
 
 @Injectable()

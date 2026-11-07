@@ -19,7 +19,12 @@ export class AuditController {
   @ApiQuery({ name: 'sortBy', required: false, enum: ['occurredAt','action','outcome','actor','entity'] })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['asc','desc'], description: 'Cần sortBy. Mặc định asc khi đã chọn cột.' })
   @ApiQuery({ name: 'correlationId', required: false, description: 'Mã req_UUID do máy chủ cấp trong x-request-id.' })
-  async list(@CurrentUser() user: AuthUser, @Query() query: Record<string, string> = {}) {
+  list(@CurrentUser() user: AuthUser, @Query() query: Record<string, string> = {}) {
+    return listAudit(this.pool, user, query);
+  }
+}
+
+export async function listAudit(reader: Pick<Pool, 'query'>, user: AuthUser, query: Record<string, string>, maxPageSize = 100) {
     if (!user.roles.includes('ADMIN')) throw new ForbiddenException({ code: 'ADMIN_REQUIRED', message: 'Chỉ Security Admin được tra cứu Audit Log.' });
     const parseNumber = (value: string | undefined, fallback: number, max: number) => {
       if (value === undefined) return fallback;
@@ -30,11 +35,11 @@ export class AuditController {
     const paged = Object.keys(query).some(key => key !== 'limit');
     if (!paged) {
       const limit = parseNumber(query.limit, 100, 200);
-      const result = await this.pool.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.outcome,a.metadata,a.occurred_at,u.display_name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.occurred_at DESC,a.id DESC LIMIT $1`, [limit]);
-      return result.rows.map(this.present);
+      const result = await reader.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.outcome,a.metadata,a.occurred_at,u.display_name AS actor_name FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.occurred_at DESC,a.id DESC LIMIT $1`, [limit]);
+      return result.rows.map(presentAudit);
     }
     const page = parseNumber(query.page, 1, 1_000_000);
-    const pageSize = parseNumber(query.pageSize, 25, 100);
+    const pageSize = parseNumber(query.pageSize, 25, maxPageSize);
     const order = listOrder(query, {
       occurredAt: 'a.occurred_at', action: 'a.action', outcome: 'a.outcome', actor: 'u.display_name', entity: 'a.entity_id',
     }, 'a.id', 'a.occurred_at DESC,a.id DESC');
@@ -82,19 +87,18 @@ export class AuditController {
       values.push(date.toISOString()); filters.push(`a.occurred_at ${op} $${values.length}::timestamptz`);
     }
     const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    const count = await this.pool.query(`SELECT COUNT(*)::int AS total FROM audit_logs a ${where}`, values);
+    const count = await reader.query(`SELECT COUNT(*)::int AS total FROM audit_logs a ${where}`, values);
     const args = [...values, pageSize, (page - 1) * pageSize];
     const actorJoin = 'LEFT JOIN users u ON u.id=a.actor_id';
     const pageQuery = `SELECT a.* FROM audit_logs a ${query.sortBy === 'actor' ? actorJoin : ''} ${where} ORDER BY ${order} LIMIT $${args.length - 1} OFFSET $${args.length}`;
-    const result = await this.pool.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.outcome,a.occurred_at,a.request_id,
+    const result = await reader.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.outcome,a.occurred_at,a.request_id,
       a.metadata->>'correlationId' AS correlation_id,u.display_name AS actor_name
       FROM (${pageQuery}) a ${actorJoin} ORDER BY ${order}`, args);
-    return { items: result.rows.map(this.present), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
-  }
+    return { items: result.rows.map(presentAudit), total: Number(count.rows[0]?.total ?? 0), page, pageSize };
+}
 
-  private present(row: Record<string, unknown>) {
+function presentAudit(row: Record<string, unknown>) {
     const correlation = row.correlation_id ?? (row.metadata as Record<string, unknown> | undefined)?.correlationId;
     const correlationId = typeof correlation === 'string' && /^req_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(correlation) ? correlation : undefined;
     return { id: row.id, action: row.action, entityType: row.entity_type, entityId: row.entity_id, outcome: row.outcome, metadata: redactAuditMetadata(row.metadata), occurredAt: row.occurred_at, actorName: row.actor_name ?? 'Hệ thống', requestId: row.request_id, correlationId };
-  }
 }

@@ -47,7 +47,7 @@ async function main(options){
   await test('Migrator LOGIN can SET ROLE to a NOLOGIN owner and apply all published migrations',async()=>{
    assert.equal((await sql("SELECT has_database_privilege($1,current_database(),'CREATE') AS allowed",[roles.owner])).rows[0].allowed,false);
    execFileSync(process.execPath,['/app/dist/database/migrate.js'],{env:{...process.env,DATABASE_URL:urlFor(roles.migrator,passwords.migrator),DATABASE_MIGRATION_OWNER_ROLE:roles.owner},stdio:['ignore','pipe','pipe'],timeout:45000});
-   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,21);
+   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,22);
    const index=(await sql("SELECT pg_get_indexdef('public.idx_audit_text_trgm'::regclass) AS definition")).rows[0].definition;
    assert.ok(index.includes('crypta_extension_test.gin_trgm_ops'));
    assert.equal((await sql("SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid='schema_migrations'::regclass")).rows[0].owner,roles.owner);return{versions:ledger.map(r=>r.version),ledgerOwner:roles.owner,extensionSchema:'crypta_extension_test'};

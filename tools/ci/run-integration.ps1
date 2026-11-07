@@ -34,6 +34,8 @@ $taskCiVerification = {
   }
   & node (Join-Path $taskCiRoot 'tools/test-real-integration.cjs') $ReportPath $taskCiTooling chromium
   if ($LASTEXITCODE -ne 0) { throw 'Real Chromium integration failed.' }
+  & node (Join-Path $taskCiRoot 'tools/test-real-reports.cjs') $ReportPath $taskCiTooling
+  if ($LASTEXITCODE -ne 0) { throw 'Real report export integration failed.' }
   # The signal rehearsal stops the isolated backend, so run it after browser tests.
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
 }
