@@ -6,7 +6,11 @@ X02 đã tích hợp hai cấp phê duyệt vào policy, hàng chờ, chi tiết
 
 X03 đã tích hợp Keycloak, liên kết danh tính theo issuer/subject, MFA và thu hồi phiên. GitHub Actions đạt 172/172 nhóm tích hợp, gồm 6 nhóm Keycloak với Chromium và 50 nhóm quyền runtime. Môi trường đích cần cấu hình realm HTTPS, tài khoản khẩn cấp và chạy UAT. [Chi tiết X03](docs/X03_OIDC.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42350581928)
 
-X04 đã tích hợp mẫu xuất CSV/PDF đã duyệt vào Tài sản, Yêu cầu và Audit Log. Local đạt build, OpenAPI, lint và 492/492 ca backend, 148/148 ca frontend. Đang kiểm trên PostgreSQL và Chromium. [Chi tiết X04](docs/X04_REPORT_EXPORTS.md)
+X04 đã tích hợp xuất CSV/PDF vào Tài sản, Yêu cầu và Audit Log. GitHub Actions đạt 6/6 nhóm X04, gồm tạo tệp, số dòng, phạm vi, hết hạn và Chromium. [Chi tiết X04](docs/X04_REPORT_EXPORTS.md)
+
+X05 đã có CLI ký và xác minh checkpoint audit. GitHub Actions đạt 5/5 nhóm X05, gồm sửa/xóa/chèn dòng, xoay khóa và phục hồi PostgreSQL. Cần kho và khóa ký độc lập cho môi trường đích. [Chi tiết X05](docs/X05_AUDIT_ANCHOR.md)
+
+X06 đã có adapter OpenBao Transit cho khóa ký. Sandbox native đạt 4/4 nhóm, gồm client HTTP Crypta, gia hạn, tra cứu, thu hồi và mất kết nối. [Chi tiết X06](docs/X06_OPENBAO_TRANSIT.md)
 
 X01 đã tích hợp TOTP 6 số và 10 mã khôi phục theo mẫu đã duyệt. GitHub Actions trên `b4d4dc7` đạt 4/4 nhóm MFA và 160/160 nhóm hồi quy. Backend 478/478, frontend 148/148. Còn xác nhận trên môi trường đích. [Chi tiết X01](docs/MFA_X01.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42345358091)
 

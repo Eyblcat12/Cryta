@@ -38,6 +38,10 @@ $taskCiVerification = {
   if ($LASTEXITCODE -ne 0) { throw 'Real report export integration failed.' }
   & node (Join-Path $taskCiRoot 'tools/test-real-audit-anchor.cjs') $ReportPath
   if ($LASTEXITCODE -ne 0) { throw 'Independent audit checkpoint integration failed.' }
+  & node (Join-Path $taskCiRoot 'tools/test-real-openbao.cjs') $ReportPath
+  if ($LASTEXITCODE -ne 0) { throw 'OpenBao provider contract integration failed.' }
+  & node (Join-Path $taskCiRoot 'tools/test-release-upgrade.cjs') $ReportPath
+  if ($LASTEXITCODE -ne 0) { throw 'Release upgrade and restore integration failed.' }
   # The signal rehearsal stops the isolated backend, so run it after browser tests.
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
 }

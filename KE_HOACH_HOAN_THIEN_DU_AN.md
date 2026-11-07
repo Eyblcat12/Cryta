@@ -896,27 +896,29 @@ Các mục dưới đây là backlog riêng, không mất khỏi kế hoạch ch
 
 #### X04 — Xuất báo cáo CSV/PDF có kiểm soát · P2
 
-- [ ] Chốt nội dung xuất, quyền, filter, timezone và giới hạn; loại trường nhạy cảm, xử lý dữ liệu gây công thức trong CSV.
-- [ ] Với báo cáo lớn, chạy nền và giới hạn thời gian tải; ghi audit người xuất và phạm vi dữ liệu.
+- [x] Chốt và tích hợp nội dung xuất, quyền, bộ lọc, múi giờ và giới hạn theo mẫu đã duyệt. CSV trung hòa nội dung công thức và báo cáo dùng cột cho phép.
+- [x] Chạy nền, tải trong một giờ và ghi audit người xuất/phạm vi. Đã kiểm 6 nhóm trên PostgreSQL và Chromium. [X04](docs/X04_REPORT_EXPORTS.md)
 - **Kết quả:** báo cáo khớp dữ liệu tra cứu, không tạo kênh lấy dữ liệu vượt quyền.
 - **Nghiệm thu:** tổng/số dòng đúng; dữ liệu ngoài scope bị loại; PDF đọc được và CSV an toàn khi mở bằng bảng tính.
 - **Phụ thuộc:** T17–T22, T39; dùng skill tài liệu phù hợp khi thực sự triển khai artifact.
 
 #### X05 — Audit chống sửa đổi có thể kiểm chứng · P2
 
-- [ ] Chốt mô hình đe dọa, retention và nơi lưu độc lập; chọn hash-chain/chữ ký và cách quản lý khóa.
-- [ ] Thêm checkpoint/anchor độc lập và công cụ verify; xử lý thứ tự nhiều writer, backup/restore và rotate key.
+- [x] Chốt mô hình kiểm chứng bằng chuỗi checkpoint Ed25519 và khóa tách khỏi quyền quản trị DB trong sandbox.
+- [x] Thêm CLI ký/xác minh. Đã kiểm nhiều writer, ghi đồng thời, phát hiện sửa/xóa/chèn, xoay khóa và phục hồi PostgreSQL. [X05](docs/X05_AUDIT_ANCHOR.md)
 - **Kết quả:** phát hiện thay đổi audit theo mô hình đã công bố, bổ sung cho trigger/quyền DB hiện có.
 - **Nghiệm thu:** sửa/xóa/chèn log giả trong fixture được phát hiện; không tuyên bố hash-chain cùng DB tự chống được mọi quyền quản trị DB.
 - **Phụ thuộc:** T21–T22, T42–T43; cần quyết định nơi lưu/khóa độc lập.
+- **Môi trường đích:** Chọn kho độc lập, chủ sở hữu khóa và thời hạn lưu trước khi bật lịch ký production.
 
 #### X06 — Mở rộng KMS/CA/HSM theo adapter · P2
 
-- [ ] Sau provider đầu tiên T16, ưu tiên thêm một nhà cung cấp theo nhu cầu; xác định capability không đồng nhất giữa key và certificate.
-- [ ] Dùng contract test chung cho idempotency, tra cứu, thời hạn và thu hồi; tài liệu giới hạn từng adapter.
+- [x] Thêm adapter OpenBao Transit dùng hợp đồng T16 cho khóa ký RSA/ECDSA trong sandbox. Capability chứng thư được tách riêng.
+- [x] Kiểm idempotency, tra cứu, thời hạn policy, gia hạn và thu hồi trên OpenBao 2.7.2 native. [X06](docs/X06_OPENBAO_TRANSIT.md)
 - **Kết quả:** hỗ trợ mở rộng có kiểm chứng, không phải chỉ một URL HTTP chung.
 - **Nghiệm thu:** mỗi adapter được công bố có test với sandbox thật; lỗi hãng không làm lệch trạng thái nội bộ; không bao gồm quản lý thiết bị HSM vật lý.
 - **Phụ thuộc:** T13–T16, T38–T39, T43; cần tài khoản/quyền/chi phí từng nhà cung cấp.
+- **Môi trường đích:** Chọn và cấu hình KMS/CA theo nhu cầu thực tế. Chạy contract test với tài khoản và phạm vi được cấp trước UAT.
 
 ## 4. Ma trận hoàn thiện 12 use case
 

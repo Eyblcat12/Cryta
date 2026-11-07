@@ -37,4 +37,4 @@ npm --prefix backend run audit:anchor -- verify
 
 Mỗi lần ký có tối đa 1.000 dòng và trả digest mới để lưu làm đầu chuỗi. Kho dạng thư mục cần hỗ trợ hard link nguyên tử để công cụ từ chối ghi đè checkpoint đã tồn tại. Nếu tiến trình mất kết nối sau khi đã ghi, đối chiếu chữ ký của checkpoint mới và cập nhật đầu chuỗi từ kho tin cậy trước khi chạy lại. Giữ bản sao checkpoint, khóa công khai và đầu chuỗi bên ngoài backup PostgreSQL.
 
-Job tích hợp tạo hai database cách ly để kiểm thứ tự commit, phát hành đồng thời, sửa/xóa/chèn dòng, mất checkpoint cuối, xoay khóa và khôi phục `pg_dump`. Môi trường production cần chốt kho lưu giữ, lịch ký, chủ sở hữu khóa và thời hạn theo môi trường triển khai.
+GitHub Actions đạt 5/5 nhóm X05 trên hai database PostgreSQL cách ly. Ca kiểm xác nhận thứ tự commit, phát hành đồng thời, sửa/xóa/chèn dòng, mất checkpoint cuối, xoay khóa và khôi phục `pg_dump` đối chiếu cùng đầu chuỗi. Hai database và khóa thử đã được dọn. Môi trường production cần chốt kho lưu giữ, lịch ký, chủ sở hữu khóa và thời hạn. [CI X05](https://github.com/Eyblcat12/Cryta/actions/runs/42367753777)

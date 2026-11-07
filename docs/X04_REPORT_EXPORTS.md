@@ -19,3 +19,5 @@ Báo cáo dùng các cột công bố trong bảng. Tham chiếu provider, token
 Migration 022 quản lý tác vụ với thời hạn nhận việc và mã xác nhận riêng cho từng lượt xử lý. Hai yêu cầu tạo dùng cùng mã được hợp nhất. Mỗi tài khoản có tối đa ba tác vụ đang chờ hoặc đang chạy. Worker kiểm lại số dòng và quyền trước khi lưu tệp. Phiên tải kiểm chủ sở hữu, phiên bản quyền, phạm vi và hạn tải.
 
 Backend nhúng Noto Sans Regular theo SIL Open Font License. Tệp ghim từ commit `ffebf8c1ee449e544955a7e813c54f9b73848eac`, SHA-256 `b85c38ecea8a7cfb39c24e395a4007474fa5a4fc864f6ee33309eb4948d232d5`. [Nguồn font](https://github.com/notofonts/noto-fonts/blob/ffebf8c1ee449e544955a7e813c54f9b73848eac/hinted/ttf/NotoSans/NotoSans-Regular.ttf) · [PDFKit](https://pdfkit.org/docs/text.html)
+
+GitHub Actions đạt 6/6 nhóm X04 trên PostgreSQL và Chromium, gồm tệp CSV đúng số dòng, PDF nhiều trang, giới hạn quyền tải, khôi phục trạng thái sau tải lại trang và chặn tệp cũ khi đổi quyền. Bản PDF fixture 54 dòng được render 4 trang để kiểm dấu tiếng Việt, tiêu đề lặp và số trang. [CI X04](https://github.com/Eyblcat12/Cryta/actions/runs/42367410004)
