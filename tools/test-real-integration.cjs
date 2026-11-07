@@ -428,7 +428,8 @@ async function main() {
       assert(releasedFrames >= 2, 'Both page focus callbacks must race the keyboard activation.');
       await reviewer.page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
-      assert(await reject.evaluate(element => element === document.activeElement));
+      await reviewer.page.waitForFunction(element => element === document.activeElement,
+        await reject.elementHandle(), { timeout: 5_000 });
       assert.equal(sql(`SELECT count(*) FROM request_decisions WHERE request_id='${request.id}'`), '0');
       assert.deepEqual(reviewer.errors, []);
       return { releasedFrames, rowOpened: true, decisionOpened: true, escapeRestoredFocus: true };
