@@ -69,3 +69,5 @@ Migration `014_asset_provider_scope` thêm liên kết phạm vi provider trên 
 Migration `015_demo_asset_provider_scope` bổ sung liên kết MOCK cho ba UUID khóa mẫu bị ghi sai ở danh sách của 014. Chỉ các dòng đúng cả ID và reference mẫu, có scope NULL mới được cập nhật. Checksum 001–014 được giữ nguyên. Các dòng asset được backfill ở 014/015 đi qua trigger cập nhật `updated_at`. Runtime LOGIN đã kiểm 015 trên PostgreSQL. [Hướng dẫn nâng cấp và phục hồi](RELEASE_RUNBOOK.md)
 
 Migration `016_demo_certificate_provider_scope` sửa liên kết MOCK cho `CRT-FIN-ACTIVE` có UUID chính xác, loại `CERTIFICATE`, đúng reference mẫu và scope NULL. Giữ nguyên checksum 001–015. Tài sản nhập cũ chưa xác minh vẫn cần đối soát trước khi thao tác với provider.
+
+Migration `021_auth_oidc` thêm bảng liên kết định danh, challenge, phiên và thu hồi SSO. Phiên và challenge MFA cũ giữ giá trị liên kết SSO rỗng. Chạy migration rồi áp lại `runtime-grants.sql` trước khi nâng backend, kể cả khi SSO đang tắt. Runtime chỉ đọc liên kết. Thao tác cấp hoặc thu hồi do role DB vận hành thực hiện và ghi audit. [Cấu hình và kiểm thử X03](docs/X03_OIDC.md)

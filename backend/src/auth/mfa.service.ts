@@ -29,6 +29,7 @@ export type MfaChallenge = {
   user_id: string;
   token_version: number;
   purpose: MfaPurpose;
+  oidc_session_id: string | null;
   pending_id: string | null;
   pending_secret: string | null;
   pending_step: string | null;
@@ -64,14 +65,14 @@ export class MfaService {
 
   /** Read again after locking users first so a password or access change invalidates the challenge. */
   async challenge(client: PoolClient, user: MfaUser, challenge: string, purposes: MfaPurpose[]) {
-    const row = (await client.query<MfaChallenge>(`SELECT user_id,token_version,purpose,pending_id,pending_secret,pending_step,pending_hashes
+    const row = (await client.query<MfaChallenge>(`SELECT user_id,token_version,purpose,oidc_session_id,pending_id,pending_secret,pending_step,pending_hashes
       FROM auth_mfa_challenges WHERE user_id=$1 AND token_hash=$2 AND token_version=$3
         AND expires_at>clock_timestamp()`, [user.id, challengeHash(challenge), user.tokenVersion])).rows[0];
     if (!row || !purposes.includes(row.purpose)) throw mfaChallengeExpired();
     return row;
   }
 
-  async start(client: PoolClient, user: MfaUser, purpose: MfaPurpose) {
+  async start(client: PoolClient, user: MfaUser, purpose: MfaPurpose, oidcSessionId?: string) {
     const key = readMfaEncryptionKey(process.env.MFA_ENCRYPTION_KEY);
     try {
       await client.query('INSERT INTO auth_mfa (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [user.id]);
@@ -80,12 +81,12 @@ export class MfaService {
       const credentialId = purpose === 'VERIFY' ? null : randomUUID();
       const enrollment = credentialId ? createTotpEnrollment(key, { userId: user.id, credentialId }, user.email) : null;
       await client.query(`INSERT INTO auth_mfa_challenges
-        (user_id,token_hash,token_version,purpose,expires_at,pending_id,pending_secret)
-        VALUES ($1,$2,$3,$4,clock_timestamp()+interval '5 minutes',$5,$6)
+        (user_id,token_hash,token_version,purpose,expires_at,pending_id,pending_secret,oidc_session_id)
+        VALUES ($1,$2,$3,$4,clock_timestamp()+interval '5 minutes',$5,$6,$7)
         ON CONFLICT (user_id) DO UPDATE SET token_hash=excluded.token_hash,token_version=excluded.token_version,
         purpose=excluded.purpose,expires_at=excluded.expires_at,pending_id=excluded.pending_id,
-        pending_secret=excluded.pending_secret,pending_step=NULL,pending_hashes=NULL`,
-      [user.id, challengeHash(challenge), user.tokenVersion, purpose, credentialId, enrollment?.sealedSecret ?? null]);
+        pending_secret=excluded.pending_secret,pending_step=NULL,pending_hashes=NULL,oidc_session_id=excluded.oidc_session_id`,
+      [user.id, challengeHash(challenge), user.tokenVersion, purpose, credentialId, enrollment?.sealedSecret ?? null, oidcSessionId ?? null]);
       return {
         mfa: purpose, challenge,
         ...(enrollment && { enrollment: { manualKey: enrollment.manualKey, uri: enrollment.uri } }),

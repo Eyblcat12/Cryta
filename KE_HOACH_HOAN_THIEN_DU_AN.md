@@ -887,11 +887,12 @@ Các mục dưới đây là backlog riêng, không mất khỏi kế hoạch ch
 
 #### X03 — SSO/OIDC · P2
 
-- [ ] Chọn IdP, mapping danh tính/đơn vị/role và quy trình cấp–thu hồi quyền; không tự tin role tùy ý do client gửi.
-- [ ] Triển khai đăng nhập/logout/session và tài khoản khẩn cấp được kiểm soát khi IdP không sẵn sàng.
+- [x] Chọn Keycloak cho kiểm thử cách ly, liên kết theo issuer/subject đã xác minh, lấy đơn vị và quyền từ Crypta, ghi audit khi cấp hoặc thu hồi liên kết.
+- [x] Tích hợp đăng nhập, đăng xuất, vòng đời phiên và đường đăng nhập Admin cục bộ dùng MFA khi IdP gián đoạn. Đã kiểm trên stack cách ly.
 - **Kết quả:** dùng danh tính tổ chức thay vì chỉ tài khoản cục bộ.
 - **Nghiệm thu:** user ngừng hoạt động bị thu hồi đúng; không chiếm nhầm tài khoản qua email trùng; test callback/session/scope.
 - **Phụ thuộc:** T05–T08, T39, T43; cần cấu hình và quyền với IdP.
+- **Môi trường đích:** Cần cấu hình IdP và callback HTTPS, liên kết tài khoản thật và chạy UAT. [Bằng chứng và hướng dẫn X03](docs/X03_OIDC.md)
 
 #### X04 — Xuất báo cáo CSV/PDF có kiểm soát · P2
 

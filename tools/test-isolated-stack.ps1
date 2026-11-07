@@ -4,6 +4,7 @@ param(
   [switch]$PrepareOnly,
   [switch]$KeepStack,
   [switch]$RequireMfa,
+  [ValidateRange(1024,65535)][int]$OidcPort,
   [scriptblock]$VerifyStack
 )
 
@@ -15,6 +16,9 @@ $taskArtifactPath = [IO.Path]::GetFullPath((Join-Path $taskArtifactRoot $taskPro
 if (-not $taskArtifactPath.StartsWith($taskArtifactRoot + [IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)) { throw 'Test artifact path escaped its root.' }
 if ($taskProject -notmatch '^crypta-t30-test-[a-f0-9]{12}$') { throw 'Invalid isolated project name.' }
 if (Test-Path -LiteralPath $taskArtifactPath) { throw 'Fresh test artifact directory already exists.' }
+if ($OidcPort -and (-not $RequireMfa -or $OidcPort -eq $Port -or $Port -eq 8080 -or $OidcPort -eq 8080)) {
+  throw 'The isolated OIDC stack needs MFA and two dedicated ports.'
+}
 
 function New-TestSecret {
   $bytes = New-Object byte[] 32
@@ -32,9 +36,24 @@ $taskEnvironment = @(
   "T30_TEST_ACCESS_TTL=$(if ($AccessTtlSeconds) { "$($AccessTtlSeconds)s" } else { '15m' })"
   "T30_TEST_MFA_REQUIRED=$($RequireMfa.ToString().ToLowerInvariant())"
   "T30_TEST_MFA_KEY=$(if ($RequireMfa) { New-TestSecret } else { '' })"
-) -join [Environment]::NewLine
-[IO.File]::WriteAllText($taskEnvironmentPath,$taskEnvironment,(New-Object Text.UTF8Encoding $false))
+)
 $taskComposeArgs = @('compose','--project-name',$taskProject,'--env-file',$taskEnvironmentPath,'--file',$taskComposePath)
+$taskRealmDirectory = $null
+if ($OidcPort) {
+  $taskRealmDirectory = Join-Path (Split-Path -Parent $taskArtifactRoot) ('keycloak-test-' + $taskProject.Substring($taskProject.Length - 12))
+  & node (Join-Path $PSScriptRoot 'testing/keycloak-realm.cjs') $taskRealmDirectory "http://app.crypta.test:$Port/api/v1/auth/oidc/callback" 'http://backend:3000/api/v1/auth/oidc/backchannel'
+  if ($LASTEXITCODE -ne 0) { throw 'Could not generate the isolated Keycloak realm.' }
+  $taskKeycloak = Get-Content -Raw -LiteralPath (Join-Path $taskRealmDirectory 'test-credentials.json') | ConvertFrom-Json
+  $taskEnvironment += @(
+    "CRYPTA_TEST_OIDC_PORT=$OidcPort"
+    "CRYPTA_TEST_OIDC_REALM=$(Join-Path $taskRealmDirectory 'crypta-oidc-test-realm.json')"
+    "CRYPTA_TEST_OIDC_SECRET=$($taskKeycloak.clientSecret)"
+    "CRYPTA_TEST_OIDC_ADMIN_SECRET=$($taskKeycloak.adminSecret)"
+    "CRYPTA_TEST_OIDC_KEY=$(New-TestSecret)"
+  )
+  $taskComposeArgs += @('--file',(Join-Path $PSScriptRoot 'testing/compose.oidc-test.yml'))
+}
+[IO.File]::WriteAllText($taskEnvironmentPath,($taskEnvironment -join [Environment]::NewLine),(New-Object Text.UTF8Encoding $false))
 $taskReportPath = Join-Path $taskArtifactPath 'report.json'
 $taskReport = [ordered]@{
   project = $taskProject
@@ -50,6 +69,10 @@ $taskReport = [ordered]@{
   started = $false
   cleanupCompleted = $false
   createdUtc = [DateTimeOffset]::UtcNow.ToString('o')
+}
+if ($OidcPort) {
+  $taskReport.browserOrigin = "http://app.crypta.test:$Port"
+  $taskReport.oidcIssuer = "http://oidc.crypta.test:$OidcPort/realms/crypta-oidc-test"
 }
 function Save-TestReport {
   [IO.File]::WriteAllText($taskReportPath,($taskReport | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding $false))
@@ -74,6 +97,9 @@ try {
   }
   if ($taskConfig.services.backend.environment.CRYPTO_PROVIDER_MODE -ne 'MOCK' -or [string]$taskConfig.services.backend.environment.SMTP_ENABLED -ne 'false') { throw 'Test configuration must disable real provider/email effects.' }
   foreach ($binding in $taskConfig.services.frontend.ports) { if ($binding.host_ip -ne '127.0.0.1') { throw 'Test port must bind only to loopback.' } }
+  if ($OidcPort) {
+    foreach ($binding in $taskConfig.services.keycloak.ports) { if ($binding.host_ip -ne '127.0.0.1') { throw 'Keycloak must bind only to loopback.' } }
+  }
   $taskStarted = $true
   $taskReport.started = $true
   $taskReport.status = 'STARTING'
@@ -125,6 +151,13 @@ try {
       if ($taskReport.status -eq 'PASSED') { $taskReport.status = 'PASSED_CLEANUP_FAILED'; $taskCleanupFailed = $true }
       Write-Warning $taskReport.cleanupError
     }
+  }
+  if ($taskRealmDirectory -and -not $KeepStack -and (-not $taskStarted -or $taskReport.cleanupCompleted)) {
+    foreach ($taskFixtureFile in @('test-credentials.json','crypta-oidc-test-realm.json')) {
+      Remove-Item -LiteralPath (Join-Path $taskRealmDirectory $taskFixtureFile) -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $taskRealmDirectory -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $taskEnvironmentPath -ErrorAction SilentlyContinue
   }
   $taskReport.keptStack = $taskStarted -and [bool]$KeepStack
   $taskReport.finishedUtc = [DateTimeOffset]::UtcNow.ToString('o')

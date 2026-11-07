@@ -46,7 +46,7 @@ export class AccountActionsService implements OnModuleInit {
       try {
         await client.query('BEGIN');
         const account = (await client.query<Account>(`SELECT id,status,token_version,invitation_pending FROM users
-          WHERE LOWER(email)=$1 FOR UPDATE`, [email])).rows[0];
+          WHERE LOWER(email)=$1 AND NOT EXISTS (SELECT 1 FROM auth_oidc_links l WHERE l.user_id=users.id) FOR UPDATE`, [email])).rows[0];
         if (account?.status === 'ACTIVE' && !account.invitation_pending && !await this.recentlyIssued(client, account.id, account.token_version)) {
           await this.issue(client, account.id, account.token_version, 'PASSWORD_RESET');
         }
@@ -108,7 +108,8 @@ export class AccountActionsService implements OnModuleInit {
       await client.query('BEGIN');
       const account = (await client.query<Account>(`SELECT u.id,u.status,u.token_version,u.invitation_pending,u.password_hash
         FROM users u JOIN departments d ON d.id=u.department_id
-        WHERE u.id=$1 AND d.is_active FOR UPDATE OF u FOR SHARE OF d`, [candidate.user_id])).rows[0];
+        WHERE u.id=$1 AND d.is_active AND NOT EXISTS (SELECT 1 FROM auth_oidc_links l WHERE l.user_id=u.id)
+        FOR UPDATE OF u FOR SHARE OF d`, [candidate.user_id])).rows[0];
       const invitation = purpose === 'INVITATION';
       if (!account || account.token_version !== candidate.token_version ||
           account.invitation_pending !== invitation || account.status !== (invitation ? 'INACTIVE' : 'ACTIVE')) throw invalid();

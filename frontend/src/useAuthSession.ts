@@ -45,8 +45,12 @@ export function useAuthSession(onClear:()=>void) {
         if(!event.user.mustChangePassword)navigate(destination.path,{replace:true,state:null});
       }else setUser(event.user);
     });
-    void api.restore().then(restored=>{
+    const oidc=new URLSearchParams(location.search).get('oidc');
+    const restoring=location.pathname==='/login'&&(oidc==='complete'||oidc==='denied')
+      ?Promise.resolve(null):api.restore();
+    void restoring.then(restored=>{
       if(!current)return;
+      if(!restored){setSessionState('GUEST');return}
       const destination=sessionDestination(restored.roles,requested());
       setUser(restored);setRole(destination.role);setSessionState('READY');
       if(!restored.mustChangePassword&&(location.pathname==='/'||location.pathname==='/login'))navigate(destination.path,{replace:true,state:null});
@@ -78,7 +82,8 @@ export function useAuthSession(onClear:()=>void) {
     const path=requested();
     const pending=api.logout();
     guest('',path,true);
-    try{await pending}catch{setAuthNotice('Phiên trên trình duyệt đã kết thúc; máy chủ chưa xác nhận đăng xuất. Đăng nhập lại khi kết nối ổn định.')}
+    try{const result=await pending;if(result?.redirect)window.location.assign(result.redirect)}
+    catch{setAuthNotice('Phiên trên trình duyệt đã kết thúc. Hãy thử lại khi kết nối ổn định nếu cần xác nhận đăng xuất.')}
     finally{setSessionState('GUEST')}
   };
   const changePassword=async(currentPassword:string,newPassword:string)=>{

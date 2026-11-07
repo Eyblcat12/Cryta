@@ -191,7 +191,7 @@ export function MfaSecurityPage({ user, onAuthenticated }: { user: AuthUser; onA
     event.preventDefault();
     if (!purpose) return;
     void task.run(async () => {
-      const result = await api.stepUpMfa(password, code, purpose);
+      const result = await api.stepUpMfa(user.signInMethod === 'SSO' ? undefined : password, code, purpose);
       if ('mfa' in result) setReplacement(result);
       else setCodes(result.recoveryCodes);
       choose(null);
@@ -205,7 +205,9 @@ export function MfaSecurityPage({ user, onAuthenticated }: { user: AuthUser; onA
       </MfaFrame> : purpose ? <MfaFrame embedded title={purpose === 'CODES' ? 'Xác nhận tạo bộ mã khôi phục mới' : 'Xác nhận thay ứng dụng xác thực'}>
         <p>{purpose === 'CODES' ? 'Sau khi tạo bộ mới, các mã khôi phục cũ sẽ hết hiệu lực.' : 'Sau khi kết nối ứng dụng mới, các phiên đăng nhập cũ sẽ được thu hồi.'}</p>
         <form onSubmit={stepUp}>
-          <label className="form-field"><span>Mật khẩu hiện tại</span><input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required minLength={8}/></label>
+          {user.signInMethod === 'SSO'
+            ? <p>Thao tác yêu cầu phiên SSO vừa xác thực. Dùng mã từ ứng dụng xác thực của bạn.</p>
+            : <label className="form-field"><span>Mật khẩu hiện tại</span><input type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" required minLength={8}/></label>}
           <label className="form-field"><span>Mã xác thực 6 số</span><input className="mfa-otp" value={code} onChange={event => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" required maxLength={6} pattern="[0-9]{6}"/></label>
           {task.error && <div className="login-error" role="alert">{task.error}</div>}
           <div className="mfa-actions"><button className="primary-button" disabled={task.busy}>{task.busy ? 'Đang xác thực…' : purpose === 'CODES' ? 'Xác nhận và tạo mã mới' : 'Xác nhận và thay ứng dụng'}</button>
@@ -217,7 +219,7 @@ export function MfaSecurityPage({ user, onAuthenticated }: { user: AuthUser; onA
           {status.error && <div className="login-error" role="alert">{status.error} <button className="text-button" onClick={status.retry}>Thử lại</button></div>}
           <div className="mfa-method"><div><strong>Mã khôi phục</strong><p>{status.data ? `Còn ${status.data.remaining} mã chưa dùng` : status.error ? 'Chưa xác nhận được số mã' : 'Đang kiểm tra số mã…'}</p></div>
             <button className="secondary-button" onClick={() => choose('CODES')}>Tạo bộ mã mới</button></div>
-          <div className="mfa-method"><div><strong>Thay ứng dụng xác thực</strong><p>Xác nhận bằng mật khẩu và mã hiện tại</p></div>
+          <div className="mfa-method"><div><strong>Thay ứng dụng xác thực</strong><p>{user.signInMethod === 'SSO' ? 'Xác nhận bằng phiên SSO vừa xác thực và mã hiện tại' : 'Xác nhận bằng mật khẩu và mã hiện tại'}</p></div>
             <button className="secondary-button" onClick={() => choose('REPLACE')}>Thay ứng dụng</button></div>
           {notice && <div className="inline-alert" role="status">{notice}</div>}
         </> : <p><KeyRound size={17} aria-hidden="true"/> Tài khoản của bạn chưa thiết lập xác thực hai bước.</p>}

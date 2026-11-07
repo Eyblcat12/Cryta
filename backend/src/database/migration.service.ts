@@ -293,6 +293,49 @@ ALTER TABLE public.notifications ADD CONSTRAINT ck_notification_type CHECK (type
   'ASSET_EXPIRING','ASSET_EXPIRED','ASSET_REVOKED','INVITATION','PASSWORD_RESET','PASSWORD_RESET_COMPLETED',
   'MFA_SECURITY_CHANGED','REQUEST_SECOND_APPROVAL'
 ));
+`},
+{version:'021_auth_oidc',sql:`
+CREATE TABLE auth_oidc_links (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE RESTRICT,
+  issuer varchar(2048) NOT NULL,
+  subject varchar(255) NOT NULL,
+  linked_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  revoked_at timestamptz,
+  UNIQUE (issuer,subject)
+);
+CREATE TABLE auth_oidc_flows (
+  ticket_hash char(64) PRIMARY KEY,
+  browser_hash char(64) NOT NULL,
+  phase text NOT NULL CHECK (phase IN ('AUTHORIZE','HANDOFF')),
+  sealed_payload text NOT NULL,
+  expires_at timestamptz NOT NULL
+);
+CREATE INDEX idx_auth_oidc_flows_expiry ON auth_oidc_flows(expires_at);
+CREATE TABLE auth_oidc_sessions (
+  id uuid PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES auth_oidc_links(user_id) ON DELETE RESTRICT,
+  issuer varchar(2048) NOT NULL,
+  subject varchar(255) NOT NULL,
+  sid varchar(255) NOT NULL,
+  sealed_tokens text,
+  access_expires_at timestamptz NOT NULL,
+  authenticated_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL DEFAULT (clock_timestamp()+interval '12 hours'),
+  revoked_at timestamptz,
+  UNIQUE (id,user_id)
+);
+CREATE INDEX idx_auth_oidc_sessions_user ON auth_oidc_sessions(user_id);
+CREATE INDEX idx_auth_oidc_sessions_sid ON auth_oidc_sessions(issuer,sid);
+CREATE TABLE auth_oidc_revocations (
+  issuer varchar(2048) NOT NULL,
+  sid varchar(255) NOT NULL,
+  revoked_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY (issuer,sid)
+);
+ALTER TABLE auth_sessions ADD COLUMN oidc_session_id uuid,
+  ADD FOREIGN KEY (oidc_session_id,user_id) REFERENCES auth_oidc_sessions(id,user_id) ON DELETE RESTRICT;
+ALTER TABLE auth_mfa_challenges ADD COLUMN oidc_session_id uuid,
+  ADD FOREIGN KEY (oidc_session_id,user_id) REFERENCES auth_oidc_sessions(id,user_id) ON DELETE RESTRICT;
 `}
 ];
 

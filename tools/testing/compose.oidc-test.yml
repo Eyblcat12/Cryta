@@ -1,11 +1,23 @@
 # Test overlay for compose.t30.yml only. Generate a realm with keycloak-realm.cjs.
 services:
+  backend:
+    environment:
+      APP_URL: "http://app.crypta.test:${T30_TEST_PORT:?Set an isolated app port}"
+      CORS_ORIGIN: "http://app.crypta.test:${T30_TEST_PORT:?Set an isolated app port}"
+      OIDC_ENABLED: "true"
+      OIDC_TEST_HTTP: "true"
+      OIDC_ISSUER: "http://oidc.crypta.test:${CRYPTA_TEST_OIDC_PORT:?Set an isolated Keycloak port}/realms/crypta-oidc-test"
+      OIDC_CLIENT_ID: "crypta-oidc-test"
+      OIDC_CLIENT_SECRET: "${CRYPTA_TEST_OIDC_SECRET:?Set the generated OIDC client secret}"
+      OIDC_STORAGE_KEY: "${CRYPTA_TEST_OIDC_KEY:?Set an isolated storage key}"
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
     command: ["start-dev", "--import-realm"]
     environment:
       KC_HTTP_PORT: "${CRYPTA_TEST_OIDC_PORT:?Set an isolated Keycloak port}"
       KC_HOSTNAME: "http://oidc.crypta.test:${CRYPTA_TEST_OIDC_PORT:?Set an isolated Keycloak port}"
+      KC_BOOTSTRAP_ADMIN_CLIENT_ID: "crypta-oidc-test-operator"
+      KC_BOOTSTRAP_ADMIN_CLIENT_SECRET: "${CRYPTA_TEST_OIDC_ADMIN_SECRET:?Set the isolated test operator secret}"
     ports:
       - "127.0.0.1:${CRYPTA_TEST_OIDC_PORT}:${CRYPTA_TEST_OIDC_PORT}"
     networks:

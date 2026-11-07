@@ -123,7 +123,8 @@ async function main(argument) {
   function fingerprint(database, projection = 'full') {
     const ignored = projection === 'full' ? {} : { crypto_assets: 'updated_at', ...(projection === 'candidate' && {
       departments: 'version', users: 'invitation_pending', crypto_assets: 'provider_scope,updated_at',
-      requests: 'cancellation_reason', notifications: 'claimed_at,account_action_id',
+      auth_sessions: 'mfa_token_version,oidc_session_id', requests: 'cancellation_reason',
+      request_decisions: 'approval_level', notifications: 'claimed_at,account_action_id',
     }) };
     return Object.fromEntries(legacyTables.map(table => {
       const fields = ignored[table] ? `to_jsonb(t)-ARRAY[${ignored[table].split(',').map(field => `'${field}'`).join(',')}]` : 'to_jsonb(t)';
@@ -277,7 +278,7 @@ async function main(argument) {
       return { originalLedgerPreserved: true, migration005RolledBack: true, legacyTablesPreserved: legacyTables.length };
     });
 
-    await check('Operator upgrade to migration 020 preserves historical rows and is idempotent', () => {
+    await check('Operator upgrade to migration 021 preserves historical rows and is idempotent', () => {
       const sourceKey = sql(upgradeDatabase, 'SELECT asset_id FROM cryptographic_keys ORDER BY asset_id LIMIT 1;');
       const destinationAsset = sql(upgradeDatabase, "SELECT id FROM crypto_assets WHERE asset_type='CERTIFICATE' ORDER BY id LIMIT 1;");
       for (const id of [sourceKey, destinationAsset]) assert.match(id, /^[a-f0-9-]{36}$/);
@@ -288,10 +289,11 @@ async function main(argument) {
       oneOff(name('migration'), upgradeDatabase, byService.backend.Image, ['node', 'dist/database/migrate.js'], 0);
       const migrationMs = Date.now() - started;
       const upgraded = ledger(upgradeDatabase, true);
-      assert.equal(upgraded.length, 20);
-      assert.equal(upgraded.at(-3).version, '018_key_asset_identity');
-      assert.equal(upgraded.at(-2).version, '019_auth_mfa');
-      assert.equal(upgraded.at(-1).version, '020_two_stage_approval');
+      assert.equal(upgraded.length, 21);
+      assert.equal(upgraded.at(-4).version, '018_key_asset_identity');
+      assert.equal(upgraded.at(-3).version, '019_auth_mfa');
+      assert.equal(upgraded.at(-2).version, '020_two_stage_approval');
+      assert.equal(upgraded.at(-1).version, '021_auth_oidc');
       assert.equal(sql(upgradeDatabase, "SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_audit_text_trgm'::regclass;"), 't');
       assert.equal(sql(upgradeDatabase, "SELECT tgenabled FROM pg_trigger WHERE tgrelid='public.cryptographic_keys'::regclass AND tgname='trg_key_asset_identity';"), 'O');
       sql(upgradeDatabase, `DO $identity_test$ BEGIN
@@ -305,6 +307,8 @@ async function main(argument) {
       assert(upgraded.every(entry => /^[a-f0-9]{64}$/.test(entry.checksum)));
       assert.deepEqual(upgraded.slice(0, legacyVersions.length).map(({ version, applied_at }) => ({ version, applied_at })), originalLedger);
       assert.deepEqual(fingerprint(upgradeDatabase, 'candidate'), originalProjected);
+      assert.equal(sql(upgradeDatabase, 'SELECT count(*) FROM auth_sessions WHERE mfa_token_version IS NOT NULL OR oidc_session_id IS NOT NULL;'), '0');
+      assert.equal(sql(upgradeDatabase, 'SELECT count(*) FROM request_decisions WHERE approval_level<>1;'), '0');
       assert.equal(sql(upgradeDatabase, 'SELECT last_value,is_called FROM audit_logs_id_seq;'), beforeSeq);
       assert.equal(sql(upgradeDatabase, "SELECT count(*) FROM crypto_assets WHERE provider_scope='MOCK' AND asset_code IN ('KEY-DEV-001','KEY-DEV-OLD','KEY-DEV-NEW');"), '3');
       const updatedAssets = JSON.parse(sql(upgradeDatabase, 'SELECT json_agg(row_to_json(a)) FROM (SELECT id,asset_code,provider_scope,updated_at FROM crypto_assets) a;'));

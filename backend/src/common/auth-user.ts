@@ -4,6 +4,7 @@ export interface AuthUser {
   accountActionsEnabled?: boolean;
   mfaRequired?: boolean;
   mfaEnrolled?: boolean;
+  signInMethod?: 'SSO';
   id: string;
   email: string;
   displayName: string;

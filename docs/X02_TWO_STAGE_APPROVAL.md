@@ -16,3 +16,5 @@ API khóa hàng yêu cầu và kiểm `version` trước khi ghi quyết định
 Ca nghiệm thu cần có hai Approver đúng phạm vi, một người ngoài phạm vi và một người gửi. Kiểm hai quyết định đồng thời cùng phiên bản, từ chối cấp hai, quá hạn, hủy sau cấp một và policy cũ một cấp. Đối chiếu log, thông báo, bản ghi provider và tài sản trước và sau khi đủ cấp.
 
 Lượt GitHub trên `204c735` xác nhận ca X02 đạt. Hai quyết định cùng phiên bản trả 201 và 409. PostgreSQL chặn cập nhật trạng thái trước cấp hai. Worker chỉ ghi một lần xử lý sau khi Approver thứ hai duyệt trên mobile. Từ chối, hủy và quá hạn không tạo tác vụ provider. Ba ca T49 chọn nhầm policy hai cấp được tạo trong ca X02. Bộ kiểm đã bổ sung ngừng áp dụng policy thử trong `finally` để giữ dữ liệu T49 độc lập. [Lượt CI đầu](https://github.com/Eyblcat12/Cryta/actions/runs/42346867675)
+
+GitHub Actions trên `dcfff1d` đạt cả năm job và 165/165 nhóm tích hợp, gồm 40/40 Chromium và 4/4 MFA. Ca X02 cùng ba ca T49 đều đạt. Cả hai stack đã được dọn. [Lượt CI sau sửa](https://github.com/Eyblcat12/Cryta/actions/runs/42347634913)

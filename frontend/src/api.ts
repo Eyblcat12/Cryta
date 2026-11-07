@@ -103,7 +103,7 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
     assertCurrent();
     const payload=await response.json().catch(()=>({}));
     assertCurrent();
-    if(response.status===401&&retry&&path!=='/auth/login'&&path!=='/auth/refresh'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID'){
+    if(response.status===401&&retry&&path!=='/auth/login'&&path!=='/auth/oidc/finish'&&path!=='/auth/refresh'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID'){
       try{await refresh()}catch(error){
         assertCurrent();
         if(error instanceof ApiError&&error.status===401){expireSession();throw new ApiError('SESSION_EXPIRED','Phiên đăng nhập đã hết hạn hoặc bị thu hồi.',401)}
@@ -114,7 +114,7 @@ async function request<T>(path:string,options:RequestInit={},retry=true):Promise
       assertCurrent();return await request<T>(path,options,false);
     }
     if(!response.ok){
-      if(response.status===401&&path!=='/auth/login'&&path!=='/auth/refresh'&&path!=='/auth/logout'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID')expireSession();
+      if(response.status===401&&path!=='/auth/login'&&path!=='/auth/oidc/finish'&&path!=='/auth/refresh'&&path!=='/auth/logout'&&!challengeRoutes.has(path)&&payload?.error?.code!=='MFA_CODE_INVALID')expireSession();
       throw new ApiError(payload?.error?.code??'REQUEST_FAILED',payload?.error?.message??'Yêu cầu không thành công.',response.status,payload?.requestId);
     }
     if(!payload||typeof payload!=='object'||!Object.prototype.hasOwnProperty.call(payload,'data'))throw new ApiError('INVALID_RESPONSE','Phản hồi máy chủ không hợp lệ. Hãy kiểm tra dữ liệu.',502,payload?.requestId);
@@ -189,36 +189,43 @@ async function completeMfa(path: string, body: { challenge: string } & Record<st
   return acceptSession(result);
 }
 
+async function authenticate(path: '/auth/login' | '/auth/oidc/finish', body: object) {
+  const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();
+  const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);
+  const result=await withSessionCookieLock(current,()=>request<AuthSession|MfaChallenge>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store'},false));
+  if(!current())throw new DOMException('Session changed','AbortError');
+  if('mfa' in result){endedSession(true);return bindMfaChallenge(result)}
+  return acceptSession(result);
+}
+
+type LogoutResponse = { loggedOut: boolean; redirect?: string };
+
 export const api={
-  async login(email:string,password:string){
-    const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();
-    const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);
-    const result=await withSessionCookieLock(current,()=>request<AuthSession|MfaChallenge>('/auth/login',{method:'POST',body:JSON.stringify({email,password}),cache:'no-store'},false));
-    if(!current())throw new DOMException('Session changed','AbortError');
-    if('mfa' in result){endedSession(true);return bindMfaChallenge(result)}
-    return acceptSession(result);
-  },
+  login(email:string,password:string){return authenticate('/auth/login',{email,password})},
+  oidcStatus(signal?:AbortSignal){return request<{enabled:boolean}>('/auth/oidc/status',{signal,cache:'no-store'},false)},
+  startOidc(){return request<{redirect:string}>('/auth/oidc/start',{method:'POST',body:'{}',cache:'no-store'},false)},
+  finishOidc(){return authenticate('/auth/oidc/finish',{})},
   abandonMfa(){mfaAttempt=undefined},
   verifyMfa(challenge:string,totpCode:string){return completeMfa('/auth/mfa/verify',{challenge,totpCode})},
   async recoverMfa(challenge:string,recoveryCode:string){return bindMfaChallenge(await mfaRequest<MfaChallenge>('/auth/mfa/recover',{challenge,recoveryCode}))},
   verifyMfaEnrollment(challenge:string,totpCode:string){return mfaRequest<MfaCodes>('/auth/mfa/enrollment/verify',{challenge,totpCode})},
   finishMfaEnrollment(challenge:string){return completeMfa('/auth/mfa/enrollment/finish',{challenge,savedRecoveryCodes:true})},
   mfaStatus(signal?:AbortSignal){return request<{remaining:number}>('/auth/mfa/status',{signal,cache:'no-store'})},
-  async stepUpMfa(currentPassword:string,totpCode:string,purpose:MfaStepUp){
+  async stepUpMfa(currentPassword:string|undefined,totpCode:string,purpose:MfaStepUp){
     const result=await request<MfaChallenge|MfaCodes>('/auth/mfa/step-up',{method:'POST',body:JSON.stringify({currentPassword,totpCode,purpose}),cache:'no-store'});
     return 'mfa' in result?bindMfaChallenge(result):result;
   },
   abandonWorkspaceRequests(){beginSession(true)},
   async restore(){if(sessionEnded())throw new ApiError('SESSION_ENDED','Hãy đăng nhập để bắt đầu phiên mới.',401);const session=await refresh();return session.user},
   async logout(){const token=accessToken;const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();endedSession(true);const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);const assertCurrent=()=>{if(!current())throw new DOMException('Session changed','AbortError')};try{return await withSessionCookieLock(current,async()=>{
-    try{return await request('/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:undefined},false)}catch(error){
+    try{return await request<LogoutResponse>('/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:undefined},false)}catch(error){
       if(!(error instanceof ApiError)||error.status!==401)throw error;
       assertCurrent();
       // The lock already covers this rotation. Do not reacquire it or restore
       // the temporary logout credential into an already-ended client session.
       const session=await request<AuthSession>('/auth/refresh',{method:'POST'},false);
       assertCurrent();
-      return request('/auth/logout',{method:'POST',headers:{Authorization:`Bearer ${session.accessToken}`}},false);
+      return request<LogoutResponse>('/auth/logout',{method:'POST',headers:{Authorization:`Bearer ${session.accessToken}`}},false);
     }
   })}finally{if(generation===sessionGeneration)beginSession()}},
   async changePassword(currentPassword:string,newPassword:string){const generation=sessionGeneration;const result=await withSessionCookieLock(()=>generation===sessionGeneration,()=>request('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false));if(generation!==sessionGeneration)throw new DOMException('Session changed','AbortError');beginSession();endedSession(true);sessionBoundary=announceCookieSessionBoundary();return result},

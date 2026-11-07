@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Header, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import type { AuthUser } from '../common/auth-user';
@@ -8,7 +8,7 @@ import { ChangePasswordDto, LoginDto } from './auth.dto';
 import { AuthService } from './auth.service';
 import { AccountActionsService } from './account-actions.service';
 import { CompleteAccountActionDto, RequestPasswordResetDto } from './account-actions.dto';
-import { AllowPasswordChange, JwtAuthGuard } from './jwt-auth.guard';
+import { AllowPasswordChange, JwtAuthGuard, type OidcRequest } from './jwt-auth.guard';
 import { MfaEnrollmentAckDto, MfaRecoveryDto, MfaStepUpDto, MfaTotpDto } from './mfa.dto';
 
 @ApiTags('Authentication') @Controller('auth')
@@ -68,19 +68,24 @@ export class AuthController {
 
   @Post('mfa/step-up') @HttpCode(200) @Header('Cache-Control', 'no-store') @UseGuards(JwtAuthGuard) @ApiBearerAuth()
   @ApiOperation({ summary: 'Xác nhận mật khẩu và TOTP trước khi thay yếu tố hoặc cấp lại mã' })
-  stepUpMfa(@CurrentUser() user: AuthUser, @Body() body: MfaStepUpDto) {
-    return this.auth.stepUpMfa(user, body.currentPassword, body.totpCode, body.purpose);
+  stepUpMfa(@CurrentUser() user: AuthUser, @Body() body: MfaStepUpDto, @Req() req: OidcRequest) {
+    return this.auth.stepUpMfa(user, body.currentPassword, body.totpCode, body.purpose, req.oidcSessionId);
   }
   @Post('refresh') @HttpCode(200) @ApiOperation({ summary: 'Xoay vòng refresh token và cấp access token mới' })
   @ApiCookieAuth('refreshCookie')
   async refresh(@Req() req: Request,@Res({passthrough:true}) res: Response) { const result=await this.auth.refresh(readRefreshCookie(req),{ipAddress:req.ip,userAgent:req.headers['user-agent']}); setRefreshCookie(res,result.refreshToken); const {refreshToken:_,...safe}=result; return safe; }
   @Post('logout') @HttpCode(200) @UseGuards(JwtAuthGuard) @ApiBearerAuth() @ApiOperation({ summary: 'Thu hồi phiên hiện tại' })
   @AllowPasswordChange()
-  async logout(@CurrentUser() user: AuthUser,@Req() req: Request,@Res({passthrough:true}) res: Response) { const result=await this.auth.logout(readRefreshCookie(req),user.id); clearRefreshCookie(res); return result; }
+  async logout(@CurrentUser() user: AuthUser,@Req() req: OidcRequest,@Res({passthrough:true}) res: Response) { const result=await this.auth.logout(readRefreshCookie(req),user.id,req.oidcSessionId); clearRefreshCookie(res); return result; }
   @Get('me') @AllowPasswordChange() @UseGuards(JwtAuthGuard) @ApiBearerAuth() @ApiOperation({ summary: 'Lấy danh tính, vai trò và phạm vi hiện tại' }) me(@CurrentUser() user: AuthUser) { return user; }
   @Post('change-password') @HttpCode(200) @UseGuards(JwtAuthGuard) @ApiBearerAuth() @ApiOperation({summary:'Đổi mật khẩu và thu hồi toàn bộ phiên'})
   @AllowPasswordChange()
-  async changePassword(@CurrentUser()user:AuthUser,@Body()body:ChangePasswordDto,@Res({passthrough:true})res:Response){const result=await this.auth.changePassword(user.id,body.currentPassword,body.newPassword);clearRefreshCookie(res);return result}
+  async changePassword(@CurrentUser() user: AuthUser, @Body() body: ChangePasswordDto, @Res({ passthrough: true }) res: Response) {
+    if (user.signInMethod === 'SSO') throw new ForbiddenException({ code: 'OIDC_PASSWORD_MANAGED', message: 'Hãy đổi mật khẩu trong hệ thống danh tính của tổ chức.' });
+    const result = await this.auth.changePassword(user.id, body.currentPassword, body.newPassword);
+    clearRefreshCookie(res);
+    return result;
+  }
 
   private sessionContext(req: Request) { return { ipAddress: req.ip, userAgent: req.headers['user-agent'] }; }
 

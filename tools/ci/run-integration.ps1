@@ -45,6 +45,11 @@ try {
     & node (Join-Path $taskCiRoot 'tools/test-real-mfa.cjs') $ReportPath $taskCiTooling
     if ($LASTEXITCODE -ne 0) { throw 'Real MFA integration failed.' }
   }
+  & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -Port 18081 -OidcPort 18082 -RequireMfa -VerifyStack {
+    param([string]$ReportPath)
+    & node (Join-Path $taskCiRoot 'tools/test-real-oidc.cjs') $ReportPath $taskCiTooling
+    if ($LASTEXITCODE -ne 0) { throw 'Real Keycloak OIDC integration failed.' }
+  }
   $taskCiState.verificationPassed = $true
 } finally {
   $taskCiAfter = @(Get-CryptaContainerInventory)

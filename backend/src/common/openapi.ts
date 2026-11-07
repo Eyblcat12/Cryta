@@ -52,6 +52,7 @@ const authUser = object({
   approverDepartmentIds: { type: 'array', items: uuid },
   mustChangePassword: boolean,
   accountActionsEnabled: boolean,
+  signInMethod: { type: 'string', enum: ['SSO'] },
 }, ['id', 'email', 'displayName', 'departmentId', 'tokenVersion', 'roles', 'approverDepartmentIds', 'mustChangePassword']);
 const userRef = { $ref: '#/components/schemas/CryptaAuthUser' };
 const accessSession = object({
@@ -68,6 +69,7 @@ const pageResult = object({ items, total: { type: 'integer', minimum: 0 }, page:
 const legacyListResult = { oneOf: [items, pageResult], description: 'Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang.' };
 const documentedReads: Record<string, SchemaObject | typeof userRef> = {
   '/api/v1/auth/account-actions': object({ enabled: boolean }),
+  '/api/v1/auth/oidc/status': object({ enabled: boolean }),
   '/api/v1/auth/me': userRef,
   '/api/v1/health/live': live,
   '/api/v1/health/ready': ready,
@@ -84,7 +86,9 @@ const documentedReads: Record<string, SchemaObject | typeof userRef> = {
 const documentedWrites: Record<string, SchemaObject> = {
   '/api/v1/auth/login': accessSession,
   '/api/v1/auth/refresh': accessSession,
-  '/api/v1/auth/logout': object({ loggedOut: boolean }),
+  '/api/v1/auth/logout': object({ loggedOut: boolean, redirect: { type: 'string', format: 'uri' } }, ['loggedOut']),
+  '/api/v1/auth/oidc/start': object({ redirect: { type: 'string', format: 'uri' } }),
+  '/api/v1/auth/oidc/backchannel': object({ loggedOut: boolean }),
   '/api/v1/auth/change-password': changedPassword,
   '/api/v1/auth/password-reset': object({ accepted: boolean }),
   '/api/v1/auth/password-reset/complete': changedPassword,

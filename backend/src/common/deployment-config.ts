@@ -4,7 +4,7 @@ import { readAccountActionKey } from '../auth/account-action-token';
 import { emailConfiguration } from '../notifications/email-template';
 
 type ProductionSecret = 'DATABASE_URL' | 'JWT_ACCESS_SECRET' | 'CRYPTO_PROVIDER_TOKEN' | 'SMTP_PASSWORD' |
-  'ACCOUNT_ACTION_KEY' | 'BOOTSTRAP_ADMIN_PASSWORD' | 'MFA_ENCRYPTION_KEY';
+  'ACCOUNT_ACTION_KEY' | 'BOOTSTRAP_ADMIN_PASSWORD' | 'MFA_ENCRYPTION_KEY' | 'OIDC_CLIENT_SECRET' | 'OIDC_STORAGE_KEY';
 
 export function productionSecret(env: NodeJS.ProcessEnv, name: ProductionSecret) {
   if (env[name] !== undefined) throw new Error(`PRODUCTION_${name}_USE_FILE`);
@@ -68,6 +68,10 @@ export function prepareDeploymentEnvironment(env: NodeJS.ProcessEnv = process.en
     ACCOUNT_ACTION_KEY: productionSecret(env, 'ACCOUNT_ACTION_KEY'),
     ...((env.MFA_REQUIRED === 'true' || env.MFA_ENCRYPTION_KEY_FILE !== undefined || env.MFA_ENCRYPTION_KEY !== undefined) &&
       { MFA_ENCRYPTION_KEY: productionSecret(env, 'MFA_ENCRYPTION_KEY') }),
+    ...(env.OIDC_ENABLED === 'true' && {
+      OIDC_CLIENT_SECRET: productionSecret(env, 'OIDC_CLIENT_SECRET'),
+      OIDC_STORAGE_KEY: productionSecret(env, 'OIDC_STORAGE_KEY'),
+    }),
   };
   assertVerifiedDatabaseUrl(secrets.DATABASE_URL);
   if (!/^[A-Za-z0-9_-]{43,}$/.test(secrets.JWT_ACCESS_SECRET)) {
