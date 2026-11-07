@@ -1229,6 +1229,106 @@ async function main() {
       await Promise.all([mobile.context.close(), desktop.context.close(), administration.context.close()]);
     }
   });
+  await test('UC11–UC12: expiry job catches up after downtime and reaches the correct users', async () => {
+    const owner = await createUser();
+    const outside = await createUser(['APPROVER'], [finance.user.departmentId]);
+    const prefix = `EXP-${randomUUID()}`;
+    const expiryPolicy = randomUUID();
+    const expiryVersion = randomUUID();
+    const fixtures = [
+      { id: randomUUID(), code: `${prefix}-soon`, status: 'ACTIVE', delay: '12 hours' },
+      { id: randomUUID(), code: `${prefix}-past`, status: 'ACTIVE', delay: '2 seconds' },
+      { id: randomUUID(), code: `${prefix}-revoked`, status: 'REVOKED', delay: '2 seconds' },
+      { id: randomUUID(), code: `${prefix}-superseded`, status: 'SUPERSEDED', delay: '2 seconds' },
+    ];
+    const [soon, past] = fixtures;
+    const ids = fixtures.map(({ id }) => `'${id}'`).join(',');
+    const effects = () => JSON.parse(sql(`SELECT json_build_object(
+      'statuses', (SELECT json_object_agg(id,status) FROM crypto_assets WHERE id IN (${ids})),
+      'audit', (SELECT COALESCE(json_agg(json_build_array(entity_id,action) ORDER BY id),'[]')
+        FROM audit_logs WHERE entity_type='CRYPTO_ASSET' AND entity_id IN (${ids})),
+      'notices', (SELECT COALESCE(json_agg(json_build_array(asset_id,recipient_id,channel,type,delivery_status) ORDER BY deduplication_key),'[]')
+        FROM notifications WHERE asset_id IN (${ids})));`));
+    async function waitForScan(previousProcess) {
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        const metrics = await fetch(new URL('/api/v1/operations/metrics', origin), {
+          headers: { Authorization: `Bearer ${admin.accessToken}` }, signal: AbortSignal.timeout(3_000),
+        })
+          .then(response => response.ok && response.json()).catch(() => null);
+        const process = metrics?.data?.process;
+        if (process?.since && process.since !== previousProcess && process.jobs.expiryScan) {
+          assert.equal(process.jobs.expiryScan.outcome, 'completed');
+          return process.since;
+        }
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+      throw new Error('The isolated backend did not catch up on expiry during startup.');
+    }
+
+    docker([...compose, 'stop', 'backend']);
+    try {
+      sql(`INSERT INTO policies(id,code,name) VALUES('${expiryPolicy}','${prefix}','Expiry E2E');
+        INSERT INTO policy_versions(id,policy_id,version,configuration)
+          SELECT '${expiryVersion}','${expiryPolicy}',1,configuration || '{"warning_days":[30,7,1]}'::jsonb
+          FROM policy_versions WHERE id='${policy.id}';
+        INSERT INTO crypto_assets(id,asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,status,valid_from,expires_at)
+          VALUES ${fixtures.map(({ id, code, status, delay }) =>
+            `('${id}','${code}','KEY','${owner.user.id}','${it}','${expiryVersion}','Expiry E2E','${status}',NOW()-INTERVAL '1 day',NOW()+INTERVAL '${delay}')`).join(',')};
+        SELECT pg_sleep(2.1);`);
+      assert.equal(sql(`SELECT status='ACTIVE' AND expires_at<=clock_timestamp() FROM crypto_assets WHERE id='${past.id}'`), 't');
+      assert.deepEqual(effects().notices, []);
+    } finally {
+      docker([...compose, 'start', 'backend']);
+    }
+    const firstProcess = await waitForScan();
+    const first = effects();
+    assert.deepEqual(first.statuses, Object.fromEntries(fixtures.map(({ id, status }) => [id,
+      id === soon.id ? 'EXPIRING_SOON' : id === past.id ? 'EXPIRED' : status])));
+    assert.deepEqual(first.audit, [[past.id, 'ASSET_MARKED_EXPIRED'], [soon.id, 'ASSET_MARKED_EXPIRING_SOON']]);
+    for (const [asset, type] of [[soon, 'ASSET_EXPIRING'], [past, 'ASSET_EXPIRED']]) {
+      const rows = first.notices.filter(([assetId]) => assetId === asset.id);
+      for (const actor of [owner, approver, admin]) {
+        assert.deepEqual(rows.filter(([, recipient]) => recipient === actor.user.id).map(([, , ...delivery]) => delivery),
+          [['EMAIL', type, 'PENDING'], ['IN_APP', type, 'SENT']]);
+      }
+      assert.ok(!rows.some(([, recipient]) => recipient === outside.user.id));
+      assert.equal(new Set(rows.map(row => row.slice(1, 3).join(':'))).size, rows.length);
+    }
+    assert.ok(first.notices.every(([assetId]) => assetId === soon.id || assetId === past.id));
+
+    docker([...compose, 'restart', 'backend']);
+    await waitForScan(firstProcess);
+    assert.deepEqual(effects(), first);
+
+    for (const [actor, password, allowed] of [[owner, changedPassword, true], [approver, undefined, true],
+      [admin, undefined, true], [outside, changedPassword, false]]) {
+      const { context, page, errors } = await newPage();
+      try {
+        await page.goto(new URL('/notifications', origin).href);
+        await uiLogin(page, actor.user.email, password);
+        if (allowed) {
+          const warning = page.getByRole('article').filter({ hasText: soon.code });
+          const expired = page.getByRole('article').filter({ hasText: past.code });
+          await warning.getByText('Tài sản sắp hết hạn', { exact: true }).waitFor();
+          await expired.getByText('Tài sản đã hết hạn', { exact: true }).waitFor();
+          if (actor === owner) {
+            await expired.getByRole('button', { name: 'Xem chi tiết' }).press('Enter');
+            await page.waitForURL(new URL(`/assets/${past.id}`, origin).href);
+            await page.locator('.drawer-status').getByText('Đã hết hạn', { exact: true }).waitFor();
+          }
+        } else {
+          await page.locator('#notifications .activity-list[aria-busy="false"]').waitFor();
+          assert.equal(await page.getByRole('article').filter({ hasText: prefix }).count(), 0);
+          const outsidePage = expectStatus(await call('GET', `/notifications?search=${prefix}`, undefined, actor.accessToken), 200);
+          assert.equal(outsidePage.total, 0);
+        }
+        assert.deepEqual(errors, []);
+      } finally { await context.close(); }
+    }
+    return { crossedExpiryWhileStopped: true, auditEvents: 2, notifications: first.notices.length,
+      rolesWithNotifications: 3, outsideScopeExcluded: true, duplicateFreeAfterRestart: true, emailDelivered: false };
+  });
   await test('M API/DB: concurrent removal preserves the last active Admin', async () => {
     const second = await createUser(['ADMIN']);
     const cisoId = '04444444-6666-6666-6666-666666666666';

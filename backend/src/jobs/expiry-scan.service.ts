@@ -70,6 +70,7 @@ export class ExpiryScanService implements OnModuleInit, OnModuleDestroy, BeforeA
       });
       // Choose the nearest due threshold. After downtime this sends one useful
       // catch-up reminder, while the notification key prevents hourly duplicates.
+      // Policy days are elapsed 24-hour periods, independent of the database time zone.
       const due = await client.query<DueWarning>(`WITH warning_policies AS (
           SELECT * FROM jsonb_to_recordset($1::jsonb) AS input(policy_version_id uuid,warning_days jsonb)
         ) SELECT a.id, thresholds.warning_day
@@ -77,7 +78,7 @@ export class ExpiryScanService implements OnModuleInit, OnModuleDestroy, BeforeA
         CROSS JOIN LATERAL (
           SELECT MIN(value::int) AS warning_day
           FROM jsonb_array_elements_text(wp.warning_days) AS days(value)
-          WHERE value::int > 0 AND a.expires_at <= NOW() + make_interval(days => value::int)
+          WHERE value::int > 0 AND a.expires_at <= NOW() + make_interval(hours => value::int * 24)
         ) thresholds
         WHERE a.status IN ('ACTIVE','EXPIRING_SOON') AND a.expires_at > NOW()
           AND thresholds.warning_day IS NOT NULL ORDER BY a.id FOR UPDATE OF a`, [JSON.stringify(warningPolicies)]);

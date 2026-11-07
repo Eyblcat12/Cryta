@@ -27,9 +27,9 @@ async function main(options) {
   const results = [];
   const report = {
     database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    clockMethod: 'Schema-local now() with explicit search_path and per-session UTC test clock; service SQL is unchanged.',
+    clockMethod: 'Schema-local now() with explicit search_path and per-session test time and zone; service SQL is unchanged.',
     actualServiceInstances: ['ExpiryScanService', 'NotificationsService', 'MigrationService'],
-    plannedTotal: 19,
+    plannedTotal: 20,
     compiledServiceHashes: Object.fromEntries(['jobs/expiry-scan.service.js', 'jobs/expiry-warning-policy.js', 'audit/audit-context.js', 'notifications/asset-alert-recipient.js',
       'notifications/notifications.service.js', 'database/migration.service.js'].map(relative => [relative,
       crypto.createHash('sha256').update(fs.readFileSync(`/app/dist/${relative}`)).digest('hex')])),
@@ -38,6 +38,7 @@ async function main(options) {
   const base = Date.parse('2032-01-01T12:00:00.000Z');
   const day = 24 * 60 * 60 * 1000;
   let now = base;
+  let sessionZone = 'UTC';
   let connectCount = 0;
   const locks = [];
   let pauseAfterLock;
@@ -78,7 +79,7 @@ async function main(options) {
       connectCount += 1;
       const client = await pool.connect();
       try {
-        await client.query("SELECT set_config('TimeZone','UTC',false), set_config('search_path','expiry_test_clock,public,pg_catalog',false), set_config('crypta.expiry_test_now',$1,false)", [new Date(now).toISOString()]);
+        await client.query("SELECT set_config('TimeZone',$2,false), set_config('search_path','expiry_test_clock,public,pg_catalog',false), set_config('crypta.expiry_test_now',$1,false)", [new Date(now).toISOString(), sessionZone]);
         assert.equal((await client.query('SELECT current_database() AS name')).rows[0].name, options.database);
       } catch (error) { client.release(); throw error; }
       return {
@@ -116,6 +117,7 @@ async function main(options) {
     assert.equal((await pool.query('SELECT current_database() AS name')).rows[0].name, options.database);
     await pool.query('TRUNCATE public.notifications,public.audit_logs,public.crypto_assets CASCADE');
     now = base;
+    sessionZone = 'UTC';
     locks.length = 0;
   }
   async function state(assetId) {
@@ -190,6 +192,34 @@ async function main(options) {
       assert.deepEqual(await state(current), { status: 'ACTIVE', version: 1 });
       assert.equal((await notices(current)).length, 0);
       return { attachedWarningDays: [30, 7, 1], newerPolicyWarningDays: [14, 2] };
+    });
+    await test('One-day warning is 24 hours across both daylight-saving transitions in the database session', async () => {
+      const transitions = [
+        ['2032-03-13T17:00:00Z', 23],
+        ['2032-11-06T16:00:00Z', 25],
+      ];
+      for (const [boundary, calendarDayHours] of transitions) {
+        await reset();
+        sessionZone = 'America/New_York';
+        const boundaryTime = Date.parse(boundary);
+        const target = await asset('DST_BOUNDARY', boundaryTime + day);
+        now = boundaryTime;
+        const client = await scannerPool.connect();
+        try {
+          const { rows: [duration] } = await client.query(`SELECT
+            EXTRACT(EPOCH FROM ((now()+INTERVAL '1 day')-now()))::int AS seconds`);
+          assert.equal(duration.seconds, calendarDayHours * 3600);
+        } finally { client.release(); }
+        now = boundaryTime - 1;
+        await scanner.run();
+        await pair(target, '7-days');
+        assert.equal((await notices(target)).length, 6, `One-day reminder was early across a ${calendarDayHours}-hour calendar day.`);
+        now = boundaryTime;
+        await scanner.run();
+        await pair(target, '1-days');
+        assert.equal((await notices(target)).length, 12);
+      }
+      return { databaseZone: sessionZone, calendarDayHours: [23, 25], warningHours: 24 };
     });
     await reset();
     const lifecycle = await asset('UTC_BOUNDARIES', base + 30 * day + 1);
