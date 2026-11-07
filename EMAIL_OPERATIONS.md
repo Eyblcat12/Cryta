@@ -52,6 +52,8 @@ ORDER BY created_at DESC;
 Không đổi trạng thái bằng SQL khi chưa xác minh với nhà cung cấp và người nhận. API/UI xử lý có kiểm toán cho quyết định gửi lại vẫn nằm trong backlog T23/T28. Dù dùng Message-ID ổn định và deduplication trong database, SMTP không bảo đảm gửi chính xác một lần trong mọi tình huống; trường hợp kết quả chưa rõ phải được đối soát.
 
 Security Admin có thể xem danh sách chỉ đọc tại mục **Email cần xử lý** trên dashboard. API `GET /api/v1/notifications/delivery-issues` chỉ trả metadata vận hành cần thiết (không trả thông báo lỗi SMTP thô) và yêu cầu quyền Admin.
+
+`GET /api/v1/notifications/delivery-issues/{id}` trả lần gửi gần nhất, số lượt, trạng thái và chẩn đoán đã lọc cho Security Admin. Mã `messageIdPrefix` dùng để tìm trong nhật ký SMTP. Khi danh tính gửi đã đổi, tra theo tên miền gửi ở thời điểm đó. Mã SMTP số chỉ lấy từ mẫu từ chối chuẩn do worker ghi.
 ## Email mời và phục hồi tài khoản
 
 Để bật T07, chạy migration `012_account_actions`, áp lại quyền runtime, rồi cấu hình `SMTP_ENABLED=true`, `APP_URL`, `ACCOUNT_ACTIONS_ENABLED=true` và `ACCOUNT_ACTION_KEY`. Dùng một khóa ngẫu nhiên 32 byte ở dạng 64 ký tự hex và lưu riêng trong secret của môi trường. Mọi instance API và email worker của cùng môi trường cần dùng chung khóa. Với môi trường thật, đặt `APP_URL` về origin HTTPS người dùng truy cập.

@@ -28,3 +28,9 @@ T28 còn trang chi tiết lần thử, xử lý từng email lỗi có audit, ba
 Lượt CI remote và nghiệm thu hộp thư bên ngoài vẫn còn mở.
 
 [Service](backend/src/notifications/email-test.service.ts), [unit](backend/test/email-test.spec.ts), [SMTP protocol](backend/test/email-test-smtp.integration.ts), [runner T28](tools/testing/email-test-operations-runner.cjs), [snapshot nguồn/build](tools/test-artifacts/email-test-operations-20261106/source-snapshot.json).
+
+## Lượt 08/11/2026
+
+API chi tiết lần gửi trả mốc tạo, nhận việc, gửi và thất bại, mã đối chiếu Message-ID cùng nhóm chẩn đoán đã lọc. Ca API qua Nginx/PostgreSQL xác nhận chỉ Security Admin có quyền đọc, bản ghi IN_APP bị loại, phản hồi có `Cache-Control: no-store` và lỗi SMTP thô được ẩn. [Kết quả](tools/test-artifacts/integration/crypta-t30-test-23338ffb1a7d/real-chromium-1794088525532/results.json)
+
+Bản xem trước kiểm Chromium ở 1440 px sáng và 390 px tối, gồm mở bằng bàn phím, Escape, thử tải lại và giữ mã phiếu khi có xung đột. Luồng đề xuất ghi nhận SMTP đã chấp nhận hoặc xác minh chưa chấp nhận, có mã phiếu đối soát. Mẫu đang chờ duyệt trước khi tích hợp vào giao diện ứng dụng. [Bản xem trước](tools/design-previews/email-recovery/index.html)

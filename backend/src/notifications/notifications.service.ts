@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DATABASE_POOL } from '../database/database.constants';
 import { listOrder } from '../common/list-order';
@@ -109,6 +109,20 @@ export class NotificationsService {
     const args=[...values,pageSize,(page-1)*pageSize];
     const result=await this.pool.query(`SELECT n.id,n.type,n.delivery_status,n.attempt_count,n.created_at,n.claimed_at,n.failed_at,u.email recipient_email,u.display_name recipient_name ${from} ${where} ORDER BY n.created_at DESC,n.id DESC LIMIT $${args.length-1} OFFSET $${args.length}`,args);
     return{items:result.rows.map(row=>({id:row.id,type:row.type,status:row.delivery_status,attemptCount:row.attempt_count,createdAt:row.created_at,claimedAt:row.claimed_at,failedAt:row.failed_at,recipientEmail:row.recipient_email,recipientName:row.recipient_name})),total:Number(count.rows[0]?.total??0),page,pageSize};
+  }
+  async deliveryDetail(id: string) {
+    const { rows: [email] } = await this.pool.query(`SELECT n.id,n.type,n.delivery_status AS status,n.attempt_count AS "attemptCount",
+      n.created_at AS "createdAt",n.claimed_at AS "claimedAt",n.failed_at AS "failedAt",n.sent_at AS "sentAt",
+      n.error_message,u.email AS "recipientEmail",u.display_name AS "recipientName"
+      FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1 AND n.channel='EMAIL'`, [id]);
+    if (!email) throw new NotFoundException({ code: 'EMAIL_DELIVERY_NOT_FOUND', message: 'Không tìm thấy lần gửi email.' });
+    const { error_message: diagnostic, ...detail } = email;
+    const rejection = typeof diagnostic === 'string' ? /^SMTP rejected delivery \(([45]\d{2})\)$/.exec(diagnostic) : null;
+    const smtpStatus = rejection ? Number(rejection[1]) : null;
+    const failure = detail.status === 'RECONCILIATION_REQUIRED' ? 'OUTCOME_UNKNOWN'
+      : smtpStatus !== null ? (smtpStatus >= 500 ? 'SMTP_PERMANENT_REJECTION' : 'SMTP_TEMPORARY_REJECTION')
+      : diagnostic === 'Email content could not be prepared' ? 'PREPARATION_FAILED' : null;
+    return { ...detail, smtpStatus, failure, messageIdPrefix: `notification-${detail.id}` };
   }
   async stats() { const result=await this.pool.query(`SELECT delivery_status,COUNT(*)::int AS count FROM notifications WHERE channel='EMAIL' GROUP BY delivery_status`); return Object.fromEntries(result.rows.map(r=>[r.delivery_status,r.count])); }
 }

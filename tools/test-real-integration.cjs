@@ -453,6 +453,45 @@ async function main() {
     }
     return { emailChannelOnly: true, ownerMonth: true, approverSevenDays: true, decisionsThirtyDays: true };
   });
+  await test('T28: only Admin can read redacted SMTP delivery detail', async () => {
+    const rejected = randomUUID(), unknown = randomUUID(), inApp = randomUUID();
+    sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key,delivery_status,
+      attempt_count,claimed_at,failed_at,sent_at,error_message)
+      VALUES ('${rejected}','${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL','${rejected}',
+        'FAILED',1,NOW(),NOW(),NULL,'SMTP rejected delivery (550)'),
+      ('${unknown}','${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL','${unknown}',
+        'RECONCILIATION_REQUIRED',2,NOW(),NULL,NULL,'raw diagnostic: relay.example.invalid'),
+      ('${inApp}','${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','IN_APP','${inApp}',
+        'SENT',0,NULL,NULL,NOW(),NULL);`);
+    try {
+      const route = id => `/notifications/delivery-issues/${id}`;
+      for (const actor of [account, approver]) {
+        expectStatus(await call('GET', route(unknown), undefined, actor.accessToken), 403, 'ADMIN_REQUIRED');
+      }
+      for (const id of [inApp, randomUUID()]) {
+        expectStatus(await call('GET', route(id), undefined, admin.accessToken), 404, 'EMAIL_DELIVERY_NOT_FOUND');
+      }
+      const details = await Promise.all([rejected, unknown].map(async id => {
+        const response = await fetch(new URL(`/api/v1${route(id)}`, origin), {
+          headers: { Authorization: `Bearer ${admin.accessToken}` }, signal: AbortSignal.timeout(15_000),
+        });
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('cache-control'), 'no-store');
+        const { data } = await response.json();
+        assert.equal(data.messageIdPrefix, `notification-${id}`);
+        assert.ok(!JSON.stringify(data).includes('relay.example.invalid'));
+        assert.ok(!Object.hasOwn(data, 'error_message'));
+        assert.ok(data.claimedAt);
+        return data;
+      }));
+      assert.deepEqual(details.map(({ status, attemptCount, smtpStatus, failure }) => [status, attemptCount, smtpStatus, failure]), [
+        ['FAILED', 1, 550, 'SMTP_PERMANENT_REJECTION'], ['RECONCILIATION_REQUIRED', 2, null, 'OUTCOME_UNKNOWN'],
+      ]);
+      return { adminOnly: true, emailChannelOnly: true, noStore: true, diagnosticRedacted: true, messageIdLookupPrefix: true };
+    } finally {
+      sql(`DELETE FROM notifications WHERE id IN ('${rejected}','${unknown}','${inApp}');`);
+    }
+  });
   await test('T22: audit search, redacted event detail and export use the same scope and filters', async () => {
     const user = await createUser(['USER'], [], false);
     const disabled = await call('PATCH', `/users/${user.id}/status`, { status: 'INACTIVE' }, admin.accessToken);
