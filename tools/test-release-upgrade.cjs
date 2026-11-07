@@ -311,7 +311,7 @@ async function main(argument) {
       return { originalLedgerPreserved: true, migration005RolledBack: true, legacyTablesPreserved: legacyTables.length };
     });
 
-    await check('Operator upgrade to migration 025 preserves historical rows and is idempotent', () => {
+    await check('Operator upgrade to migration 026 preserves historical rows and is idempotent', () => {
       const sourceKey = sql(upgradeDatabase, 'SELECT asset_id FROM cryptographic_keys ORDER BY asset_id LIMIT 1;');
       const destinationAsset = sql(upgradeDatabase, "SELECT id FROM crypto_assets WHERE asset_type='CERTIFICATE' ORDER BY id LIMIT 1;");
       for (const id of [sourceKey, destinationAsset]) assert.match(id, /^[a-f0-9-]{36}$/);
@@ -322,11 +322,13 @@ async function main(argument) {
       oneOff(name('migration'), upgradeDatabase, byService.backend.Image, ['node', 'dist/database/migrate.js'], 0);
       const migrationMs = Date.now() - started;
       const upgraded = ledger(upgradeDatabase, true);
-      assert.equal(upgraded.length, 25);
+      assert.equal(upgraded.length, 26);
       const recentVersions = ['018_key_asset_identity', '019_auth_mfa', '020_two_stage_approval',
-        '021_auth_oidc', '022_report_exports', '023_audit_anchor_source', '024_asset_expiry_page_index', '025_expiry_scan_status'];
+        '021_auth_oidc', '022_report_exports', '023_audit_anchor_source', '024_asset_expiry_page_index', '025_expiry_scan_status',
+        '026_audit_correlation_index'];
       assert.deepEqual(upgraded.slice(-recentVersions.length).map(item => item.version), recentVersions);
       assert.equal(sql(upgradeDatabase, "SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_audit_text_trgm'::regclass;"), 't');
+      assert.equal(sql(upgradeDatabase, "SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_audit_correlation_time'::regclass;"), 't');
       assert.equal(sql(upgradeDatabase, "SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_assets_expiry_page'::regclass;"), 't');
       assert.equal(sql(upgradeDatabase, "SELECT tgenabled FROM pg_trigger WHERE tgrelid='public.cryptographic_keys'::regclass AND tgname='trg_key_asset_identity';"), 'O');
       sql(upgradeDatabase, `DO $identity_test$ BEGIN

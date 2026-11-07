@@ -47,8 +47,8 @@ async function main(options){
   await test('Migrator LOGIN can SET ROLE to a NOLOGIN owner and apply all published migrations',async()=>{
    assert.equal((await sql("SELECT has_database_privilege($1,current_database(),'CREATE') AS allowed",[roles.owner])).rows[0].allowed,false);
    execFileSync(process.execPath,['/app/dist/database/migrate.js'],{env:{...process.env,DATABASE_URL:urlFor(roles.migrator,passwords.migrator),DATABASE_MIGRATION_OWNER_ROLE:roles.owner},stdio:['ignore','pipe','pipe'],timeout:45000});
-   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,25);
-   assert.equal(ledger.at(-1)?.version,'025_expiry_scan_status');
+   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,26);
+   assert.equal(ledger.at(-1)?.version,'026_audit_correlation_index');
    const index=(await sql("SELECT pg_get_indexdef('public.idx_audit_text_trgm'::regclass) AS definition")).rows[0].definition;
    assert.ok(index.includes('crypta_extension_test.gin_trgm_ops'));
    assert.equal((await sql("SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid='schema_migrations'::regclass")).rows[0].owner,roles.owner);return{versions:ledger.map(r=>r.version),ledgerOwner:roles.owner,extensionSchema:'crypta_extension_test'};
@@ -700,6 +700,63 @@ async function main(options){
    assert.equal(plans.length,10);
    return {fixturesPerList:600,foreignRowsPerScopedList:120,orderedPages:evidence,filterWithoutPageWorks:true,queryPlans:plans};
   });
+  await test('T22 exact correlation uses the partial index for count and ordered pages', async () => {
+   const rowCount = 75000;
+   const correlationId = 'req_' + crypto.randomUUID();
+   await sql(`INSERT INTO audit_logs(actor_type,action,entity_type,entity_id,outcome,occurred_at,metadata)
+     SELECT 'SYSTEM','T22_LOAD','HTTP_REQUEST','t22-load-'||n,'SUCCESS',clock_timestamp()-n*INTERVAL '1 second',
+       CASE WHEN n=1 THEN jsonb_build_object('correlationId',repeat('legacy-',8000))
+            WHEN n%2=0 THEN jsonb_build_object('correlationId','req_'||gen_random_uuid()::text) ELSE '{}'::jsonb END
+     FROM generate_series(1,$1::int) n`, [rowCount]);
+   const targets = (await sql(`INSERT INTO audit_logs(actor_type,action,entity_type,entity_id,outcome,occurred_at,metadata)
+     SELECT 'SYSTEM','T22_TARGET','HTTP_REQUEST','t22-target-'||n,'SUCCESS',statement_timestamp(),jsonb_build_object('correlationId',$1::text)
+     FROM generate_series(1,12) n RETURNING id::text`, [correlationId])).rows.map(row => row.id)
+    .sort((left, right) => Number(BigInt(right) - BigInt(left)));
+   await sql('ANALYZE audit_logs');
+
+   const query = { correlationId, page: '2', pageSize: '5' };
+   const route = '/audit-logs?' + new URLSearchParams(query);
+   const reply = (await api('GET', route, null, sessions.admin, 200)).data;
+   assert.equal(reply.total, targets.length);
+   assert.deepEqual(reply.items.map(item => String(item.id)), targets.slice(5, 10));
+   assert.ok(reply.items.every(item => item.correlationId === correlationId));
+   await api('GET', route, null, sessions.user, 403);
+
+   const statements = [];
+   const { AuditController } = require('/app/dist/audit/audit.controller.js');
+   const reader = { query: async (text, values) => { statements.push({ text, values }); return runtime.query(text, values); } };
+   await new AuditController(reader).list(sessions.admin.user, query);
+   assert.equal(statements.length, 2);
+   const explain = async client => {
+    const plans = [];
+    for (const { text, values } of statements) {
+     plans.push((await client.query('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ' + text, values)).rows[0]['QUERY PLAN'][0]);
+    }
+    return plans;
+   };
+   const indexed = await explain(runtime);
+   const client = await admin.connect();
+   let baseline;
+   try {
+    assert.equal((await client.query('SELECT current_database() AS name')).rows[0].name, options.database);
+    await client.query('BEGIN');
+    await client.query('DROP INDEX public.idx_audit_correlation_time');
+    await client.query(`SET LOCAL ROLE "${roles.runtime}"`);
+    baseline = await explain(client);
+   } finally {
+    try { await client.query('ROLLBACK'); } finally { client.release(); }
+   }
+   const usesCorrelationIndex = node => node['Index Name'] === 'idx_audit_correlation_time' || (node.Plans ?? []).some(usesCorrelationIndex);
+   const buffers = plan => plan.Plan['Shared Hit Blocks'] + plan.Plan['Shared Read Blocks'];
+   assert.ok(indexed.every(plan => usesCorrelationIndex(plan.Plan)));
+   assert.ok(baseline.every(plan => !usesCorrelationIndex(plan.Plan)));
+   assert.ok(indexed.every((plan, index) => buffers(plan) < buffers(baseline[index])));
+   assert.equal((await sql("SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_audit_correlation_time'::regclass")).rows[0].indisvalid, true);
+   return { bulkAuditRows: rowCount, exactMatches: targets.length, legacyOversizedValueAccepted: true,
+     plans: statements.map((_, index) => ({ query: index ? 'page' : 'count',
+       baselineMs: baseline[index]['Execution Time'], indexedMs: indexed[index]['Execution Time'],
+       baselineBuffers: buffers(baseline[index]), indexedBuffers: buffers(indexed[index]) })) };
+  });
   await test('Two Admin actors concurrently disabling each other preserve one active Admin under restricted grants',async()=>{
    const other=await login('ciso@congty.com');const count=async()=>Number((await sql("SELECT count(*)::int AS n FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id WHERE r.code='ADMIN' AND u.status='ACTIVE'")).rows[0].n);
    assert.equal(await count(),2);
@@ -723,5 +780,5 @@ async function main(options){
   report.roleRemaining=(await sql('SELECT count(*)::int AS n FROM pg_roles WHERE rolname=ANY($1::text[])',[Object.values(roles)])).rows[0].n;
   await admin.end();
  }
- report.success=results.length===50&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
+ report.success=results.length===51&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
 }

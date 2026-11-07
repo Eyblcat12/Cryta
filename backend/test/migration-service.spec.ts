@@ -31,7 +31,8 @@ const pre022 = [...pre021, { version: '021_auth_oidc', checksum: '534c0d57f3c3ab
 const pre023 = [...pre022, { version: '022_report_exports', checksum: 'ec6352049f1d8e081821c9f3d495e01f0b5b37eae537f0fe77003d3ce9729481' }];
 const pre024 = [...pre023, { version: '023_audit_anchor_source', checksum: '179dcec60c3c3010325e444a488df32b8a293149dc2f5aa0252cc518056f47cb' }];
 const pre025 = [...pre024, { version: '024_asset_expiry_page_index', checksum: '539d36d038d4832d9930d4aaed803c209a7a6a97d7c317fe0264c7d75a921ee8' }];
-const complete = [...pre025, { version: '025_expiry_scan_status', checksum: 'a8ae15d0b70f078b210c68a59584ecefbeadcbaa2a1cc8c63020c99422dd76a0' }];
+const pre026 = [...pre025, { version: '025_expiry_scan_status', checksum: 'a8ae15d0b70f078b210c68a59584ecefbeadcbaa2a1cc8c63020c99422dd76a0' }];
+const complete = [...pre026, { version: '026_audit_correlation_index', checksum: 'ab837edf0ee731f28b1f5dcb50da8f0052252f34552f0071754beb3b330bdb9f' }];
 
 function setup(rows: Array<{version:string;checksum:string|null}> = []) {
   const query = vi.fn(async (sql: string, _values?: unknown[]) => /^SELECT version,checksum FROM (public\.)?schema_migrations$/.test(sql) ? { rows } : { rows: [], rowCount: 1 });
@@ -78,11 +79,11 @@ describe('database migrations', () => {
     expect(query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
   });
 
-  it('adds 009–025 to an existing eight-version ledger without replaying previous migrations', async () => {
+  it('adds 009–026 to an existing eight-version ledger without replaying previous migrations', async () => {
     const { service, query, release } = setup(published);
     await service.applyPending();
     const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
-    expect(insertions).toHaveLength(17);
+    expect(insertions).toHaveLength(18);
     expect(insertions[0][1]?.[0]).toBe('009_request_drafts');
     expect(insertions[1][1]?.[0]).toBe('010_execution_notifications');
     expect(query.mock.calls.some(([sql]) => sql.includes('POLICY_VERSION_IMMUTABLE'))).toBe(false);
@@ -113,7 +114,7 @@ describe('database migrations', () => {
     const { service, query } = setup(pre025);
     await service.applyPending();
     const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
-    expect(insertions.map(([, values]) => values?.[0])).toEqual(['025_expiry_scan_status']);
+    expect(insertions.map(([, values]) => values?.[0])).toEqual(['025_expiry_scan_status', '026_audit_correlation_index']);
     expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO public.expiry_scan_status DEFAULT VALUES'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => sql.includes('CREATE INDEX idx_assets_expiry_page'))).toBe(false);
   });

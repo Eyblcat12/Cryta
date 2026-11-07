@@ -411,6 +411,16 @@ CREATE TABLE public.expiry_scan_status (
   last_failed boolean NOT NULL DEFAULT false
 );
 INSERT INTO public.expiry_scan_status DEFAULT VALUES;
+`},
+{version:'026_audit_correlation_index',sql:`
+DO $$
+DECLARE previous_lock_timeout text := current_setting('lock_timeout');
+BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
+  CREATE INDEX idx_audit_correlation_time ON public.audit_logs ((metadata->>'correlationId'), occurred_at DESC, id DESC)
+    WHERE octet_length(metadata->>'correlationId') = 40;
+  PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END $$;
 `}
 ];
 

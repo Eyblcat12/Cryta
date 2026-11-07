@@ -135,7 +135,9 @@ export async function listAudit(reader: Pick<Pool, 'query'>, user: AuthUser, que
     if (query.correlationId !== undefined) {
       if (!/^req_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(query.correlationId))
         throw new BadRequestException({ code: 'INVALID_CORRELATION_ID', message: 'Mã truy vết không hợp lệ.' });
-      values.push(query.correlationId); filters.push(`a.metadata->>'correlationId' = $${values.length}`);
+      values.push(query.correlationId);
+      // Match the partial index predicate for valid req_UUID values.
+      filters.push(`octet_length(a.metadata->>'correlationId') = 40 AND a.metadata->>'correlationId' = $${values.length}`);
     }
     let lowerBound: number | undefined;
     for (const [key, op] of [['from', '>='], ['to', '<=']] as const) {
