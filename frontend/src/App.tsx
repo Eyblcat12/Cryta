@@ -135,7 +135,7 @@ function App() {
 
   if(sessionState==='LOADING') return <main className="session-loading" role="status"><span className="loading-spinner"/><strong>Đang khôi phục phiên an toàn…</strong></main>;
   if(sessionState==='UNAVAILABLE')return <main className="session-loading"><div role="alert"><strong>Chưa thể xác minh phiên đăng nhập</strong><p>{session.restoreError}</p></div><button className="secondary-button" onClick={session.retryRestore}>Thử khôi phục phiên</button></main>;
-  if(sessionState==='GUEST'||!user) return <LoginScreen notice={authNotice} onLogin={session.acceptUser}/>;
+  if(sessionState==='GUEST'||!user) return <LoginScreen key={session.revision} notice={authNotice} onLogin={session.acceptUser}/>;
   if(user.mustChangePassword)return <PasswordChangeDialog onLogout={session.logout} onSuccess={session.changePassword}/>;
   const context:WorkspacePageContext={view,role,user,routeAllowed,scope:`${user.id}:${role}:${session.revision}`,revisions,onCloseDetail:closeDetail,openRequest,onReload:revalidateData,onNotify:setToast,onCreateUser:()=>setCreateUserModal(true),onSessionAccepted:session.acceptUser,onDecision:(action,requestId,version)=>setDecisionModal({action,requestId,version})};
   return <AppShell key={context.scope} context={context} theme={theme} setTheme={setTheme} mobileNav={mobileNav} setMobileNav={setMobileNav} roleMenu={roleMenu} setRoleMenu={setRoleMenu} globalQuery={globalQuery} setGlobalQuery={setGlobalQuery} globalSearchRef={globalSearchRef} mainMotionRef={mainMotionRef} submitGlobalSearch={submitGlobalSearch} changeRole={changeRole} setHelpOpen={setHelpOpen} onLogout={session.logout}>

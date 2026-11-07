@@ -10,7 +10,7 @@ Chủ dự án chọn TOTP 6 số và mã khôi phục cho Admin/Approver, rồi
 
 Migration `019_auth_mfa` lưu khóa đăng ký đã mã hóa, bước TOTP đã dùng, hash mã khôi phục và challenge có hạn. Xác thực mật khẩu chưa cấp phiên khi MFA là bắt buộc. Khi đăng ký, máy chủ xác minh TOTP, cấp 10 mã khôi phục rồi đợi người dùng xác nhận đã lưu trước khi kích hoạt yếu tố và cấp phiên. Các lần khôi phục và thay ứng dụng thu hồi phiên cũ. Người dùng phải nhập lại mật khẩu và TOTP hiện tại để tạo bộ mã mới hoặc đổi ứng dụng. Khi SMTP được cấu hình, hàng chờ email nhận thông báo thay đổi bảo mật trong cùng giao dịch.
 
-Kiểm trên Windows đạt 55/55 ca credential, bộ backend 478/478 và frontend 147/147. Bộ tích hợp `tools/test-real-mfa.cjs` kiểm trên stack PostgreSQL, Nginx và Chromium được bật MFA riêng. Workflow chạy bộ này sau stack hồi quy mặc định.
+Kiểm trên Windows đạt 55/55 ca credential, backend 478/478 và frontend 148/148. Chromium với API fixture đạt bốn tổ hợp desktop/mobile và sáng/tối, gồm tạo QR, sửa mã nhập sai, lưu mã và xác nhận lại trước khi cấp bộ mới. Bộ tích hợp `tools/test-real-mfa.cjs` kiểm trên stack PostgreSQL, Nginx và Chromium được bật MFA riêng. Workflow chạy bộ này sau stack hồi quy mặc định.
 
 ## Cấu hình và vận hành
 

@@ -8,6 +8,29 @@ beforeEach(()=>{vi.resetModules();const storage=new Map<string,string>();vi.stub
 afterEach(()=>vi.unstubAllGlobals());
 
 describe('API session boundaries',()=>{
+  it('keeps the MFA attempt after a wrong code and accepts the verified session after releasing the cookie lock',async()=>{
+    const {api,subscribeSession}=await import('./api');
+    const events=vi.fn();subscribeSession(events);
+    const challenge='a'.repeat(43), mfaUser={...user,roles:['APPROVER'],mfaEnrolled:true};
+    let verifyAttempts=0;
+    const fetchMock=vi.fn(async(url:string,options:RequestInit)=>{
+      if(url.endsWith('/auth/login'))return ok({mfa:'VERIFY',challenge});
+      if(url.endsWith('/auth/mfa/verify')){
+        verifyAttempts++;
+        if(verifyAttempts===1)return new Response(JSON.stringify({error:{code:'MFA_CODE_INVALID',message:'Test denial'}}),{status:401});
+        return ok({accessToken:'verified-mfa-token',user:mfaUser});
+      }
+      expect(new Headers(options.headers).get('Authorization')).toBe('Bearer verified-mfa-token');
+      return ok({metrics:{total:4}});
+    });
+    vi.stubGlobal('fetch',fetchMock);
+    await expect(api.login(user.email,'fixture-password')).resolves.toMatchObject({mfa:'VERIFY'});
+    await expect(api.verifyMfa(challenge,'123456')).rejects.toMatchObject({code:'MFA_CODE_INVALID'});
+    await expect(api.verifyMfa(challenge,'654321')).resolves.toEqual(mfaUser);
+    expect((await api.dashboard()).metrics.total).toBe(4);
+    expect(fetchMock.mock.calls.some(([url])=>url.endsWith('/auth/refresh'))).toBe(false);
+    expect(events).not.toHaveBeenCalled();
+  });
   it('shares one refresh across simultaneous 401 responses and retries with the new token',async()=>{
     const {api}=await import('./api');
     const fetchMock=vi.fn(async(url:string,options:RequestInit)=>{

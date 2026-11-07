@@ -179,12 +179,13 @@ async function mfaRequest<T>(path: string, body: { challenge: string } & Record<
 
 async function completeMfa(path: string, body: { challenge: string } & Record<string, string | boolean>) {
   const current=currentMfaAttempt(body.challenge);
-  return withSessionCookieLock(current,async()=>{
-    const result=await mfaRequest<AuthSession>(path,body);
-    beginSession();
-    sessionBoundary=announceCookieSessionBoundary();
-    return acceptSession(result);
-  });
+  const result=await withSessionCookieLock(current,()=>mfaRequest<AuthSession>(path,body));
+  // The lock validates the previous boundary after fetch has installed the cookie.
+  // Change the boundary only after that check so this response can enter the workspace.
+  if(!current())throw new DOMException('Session changed','AbortError');
+  beginSession();
+  sessionBoundary=announceCookieSessionBoundary();
+  return acceptSession(result);
 }
 
 export const api={
