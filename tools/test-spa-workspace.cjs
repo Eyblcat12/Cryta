@@ -552,7 +552,7 @@ if(require.main===module)(async()=>{
       const frames=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
       await page.setViewportSize({width:1440,height:800});
       await page.goto(origin+'/users?pageSize=10');await page.getByRole('table').getByText('person1@example.test',{exact:true}).waitFor();
-      await page.evaluate(()=>window.scrollTo(0,900));await frames();
+      await page.evaluate(()=>window.scrollTo({top:900,behavior:'instant'}));await frames();
       const saved=await page.evaluate(()=>scrollY);await page.getByRole('link',{name:'Chính sách',exact:true}).click();await visible(page,'Chính sách mật mã');await frames();assert.equal(await page.evaluate(()=>scrollY),0);
       let releaseBack,releaseQuery;state.userReadGate=new Promise(resolve=>{releaseBack=resolve});
       try{

@@ -684,27 +684,61 @@ async function main() {
     await reviewer.page.goto(new URL('/approvals', origin).href);
     await uiLogin(reviewer.page, approver.user.email);
     const results = [];
-    for (const type of ['CREATE', 'RENEW', 'REVOKE']) {
-      const target = results.at(-1)?.resultAssetId;
+    const steps = [
+      { type: 'CREATE', draft: true }, { type: 'RENEW' }, { type: 'REVOKE', emergency: true },
+      { type: 'CREATE' }, { type: 'REVOKE' },
+    ];
+    for (const [index, { type, draft = false, emergency = false }] of steps.entries()) {
+      const target = type === 'CREATE' ? null : results.at(-1).resultAssetId;
       if (target) {
         await owner.page.goto(new URL(`/assets/${target}`, origin).href);
         await owner.page.getByRole('button', { name: type === 'RENEW' ? 'Yêu cầu gia hạn' : 'Thu hồi', exact: true }).click();
+      } else if (index > 0) {
+        await owner.page.goto(new URL('/requests/new', origin).href);
       }
-      const subject = `Nghiệp vụ kiểm thử ${type} ${stamp}`;
+      const subject = `Nghiệp vụ kiểm thử ${type} ${index + 1} ${stamp}`;
       const requestForm = owner.page.getByRole('dialog');
+      let draftPath;
+      if (draft) {
+        const incompleteReason = 'Nháp';
+        await requestForm.getByLabel('Lý do nghiệp vụ').fill(incompleteReason);
+        await requestForm.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
+        await owner.page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
+        draftPath = new URL(owner.page.url()).pathname;
+        const draftId = draftPath.split('/').at(-1);
+        const saved = expectStatus(await call('GET', draftPath, undefined, account.accessToken), 200);
+        assert.equal(saved.status, 'DRAFT');
+        expectStatus(await call('GET', draftPath, undefined, approver.accessToken), 404);
+        assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id='${draftId}'`), '0');
+        await owner.page.reload();
+        await owner.page.getByRole('button', { name: 'Sửa bản nháp', exact: true }).click();
+        assert.equal(await requestForm.getByLabel('Lý do nghiệp vụ').inputValue(), incompleteReason);
+      }
       await requestForm.getByLabel('Lý do nghiệp vụ').fill(subject);
       if (type === 'REVOKE') {
-        await requestForm.getByRole('checkbox', { name: /Đánh dấu khẩn cấp/ }).check();
+        const urgent = requestForm.getByRole('checkbox', { name: /Đánh dấu khẩn cấp/ });
+        if (emergency) await urgent.check();
+        assert.equal(await urgent.isChecked(), emergency);
         await requestForm.getByRole('button', { name: 'Tiếp tục thu hồi', exact: true }).click();
       }
       await requestForm.getByRole('button', { name: type === 'REVOKE' ? 'Xác nhận thu hồi' : 'Gửi yêu cầu', exact: true }).click();
-      await owner.page.getByRole('button', { name: new RegExp(subject) }).click();
-      await owner.page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
+      if (draftPath) {
+        await owner.page.waitForURL(url => url.pathname === draftPath);
+        await owner.page.getByText('Chờ duyệt', { exact: true }).waitFor();
+      } else {
+        await owner.page.getByRole('button', { name: new RegExp(subject) }).click();
+        await owner.page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
+      }
       const requestPath = new URL(owner.page.url()).pathname;
       const id = requestPath.split('/').at(-1);
+      assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE request_id='${id}' AND action='REQUEST_SUBMITTED'`), '1');
+      assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id='${id}'`), '0');
 
       await reviewer.page.goto(new URL(`/approvals?q=${encodeURIComponent(subject)}`, origin).href);
-      await reviewer.page.getByRole('button', { name: id, exact: true }).click();
+      const entry = reviewer.page.getByRole('button', { name: id, exact: true });
+      const queueRow = reviewer.page.getByRole('row').filter({ has: entry });
+      await queueRow.getByText(emergency ? 'Khẩn cấp' : 'Bình thường', { exact: true }).waitFor();
+      await entry.click();
       await reviewer.page.getByRole('button', { name: 'Phê duyệt', exact: true }).click();
       const decision = reviewer.page.getByRole('dialog');
       await decision.getByRole('button', { name: 'Xác nhận phê duyệt', exact: true }).click();
@@ -721,22 +755,25 @@ async function main() {
       assert.equal(completed.status, 'COMPLETED', type);
       assert.equal(completed.type, type);
       assert.equal(completed.targetAssetId, target ?? null);
-      assert.equal(completed.emergency, type === 'REVOKE');
+      assert.equal(completed.emergency, emergency);
+      assert.equal(sql(`SELECT count(*) FROM request_decisions WHERE request_id='${id}'`), '1');
       const operation = JSON.parse(sql(`SELECT json_build_object('attempts',attempt_count,'status',status,'receipt',receipt_at IS NOT NULL) FROM provider_operations WHERE request_id='${id}';`));
       assert.deepEqual(operation, { attempts: 1, status: 'COMPLETED', receipt: true });
       await owner.page.getByRole('button', { name: 'Làm mới chi tiết', exact: true }).click();
       await owner.page.getByText('Đã hoàn tất', { exact: true }).waitFor();
-      results.push({ type, requestId: id, resultAssetId: completed.resultAssetId, operation });
+      results.push({ type, draft, emergency, requestId: id, resultAssetId: completed.resultAssetId, operation });
     }
-    const [issued, renewed] = results;
+    const [issued, renewed, , regularAsset] = results;
     const detail = async id => expectStatus(await call('GET', `/assets/${id}`, undefined, account.accessToken), 200);
     assert.equal((await detail(issued.resultAssetId)).status, 'SUPERSEDED');
     assert.equal((await detail(renewed.resultAssetId)).status, 'REVOKED');
+    assert.equal((await detail(regularAsset.resultAssetId)).status, 'REVOKED');
     assert.equal(sql(`SELECT replaces_asset_id FROM crypto_assets WHERE id='${renewed.resultAssetId}';`), issued.resultAssetId);
     await owner.page.goto(new URL(`/assets/${renewed.resultAssetId}`, origin).href);
     await owner.page.getByText('Đã thu hồi', { exact: true }).first().waitFor();
+    assert.equal(await owner.page.getByRole('button', { name: 'Yêu cầu gia hạn', exact: true }).count(), 0);
     assert.equal(owner.errors.length + reviewer.errors.length, 0);
-    return { lifecycle: results, firstAsset: 'SUPERSEDED', replacementAsset: 'REVOKED' };
+    return { lifecycle: results, firstAsset: 'SUPERSEDED', replacementAsset: 'REVOKED', regularAsset: 'REVOKED' };
   });
   await test('T15 real UI: recovery actions preserve reason on conflict and commit once', async () => {
     const mobile = channel === 'chrome';
