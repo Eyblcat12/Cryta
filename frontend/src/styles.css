@@ -881,7 +881,7 @@ form.help-content > .mutation-fields > .form-row{display:grid;gap:12px}
 .asset-mobile-card:disabled { cursor: default; }
 .asset-mobile-card:disabled:hover { background: var(--surface); }
 
-.request-list, .activity-list, .timeline-items { position: relative; }
+.list-read-region, .timeline-items { position: relative; }
 .list-pending { top: 8px; }
 .request-item:disabled:hover { background: transparent; }
 .activity-list article > div { min-width: 0; overflow-wrap: anywhere; }

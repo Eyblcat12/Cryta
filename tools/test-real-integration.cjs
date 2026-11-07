@@ -861,8 +861,19 @@ async function main() {
     await owner.page.goto(new URL(`/assets/${renewed.resultAssetId}`, origin).href);
     await owner.page.getByText('Đã thu hồi', { exact: true }).first().waitFor();
     assert.equal(await owner.page.getByRole('button', { name: 'Yêu cầu gia hạn', exact: true }).count(), 0);
+    for (const [pageRoute, endpoint, label] of [
+      ['/requests', '/requests?createdByMe=true&page=1&pageSize=10', 'yêu cầu'],
+      ['/notifications', '/notifications?page=1&pageSize=10', 'thông báo'],
+    ]) {
+      const { total } = expectStatus(await call('GET', endpoint, undefined, account.accessToken), 200);
+      assert.ok(total > 0);
+      await owner.page.goto(new URL(pageRoute, origin).href);
+      const status = owner.page.locator(`#${pageRoute.slice(1)}`).getByRole('status').filter({ hasText: `Có ${total} ${label}.` });
+      await status.waitFor();
+      assert.equal(await status.evaluate(element => !!element.closest('[aria-busy="true"]')), false);
+    }
     assert.equal(owner.errors.length + reviewer.errors.length, 0);
-    return { lifecycle: results, firstAsset: 'SUPERSEDED', replacementAsset: 'REVOKED', regularAsset: 'REVOKED' };
+    return { lifecycle: results, firstAsset: 'SUPERSEDED', replacementAsset: 'REVOKED', regularAsset: 'REVOKED', listStatusMatchesApi: true };
   });
   await test('T15 real UI: recovery actions preserve reason on conflict and commit once', async () => {
     const mobile = channel === 'chrome';

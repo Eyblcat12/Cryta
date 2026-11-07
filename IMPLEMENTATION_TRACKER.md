@@ -2,6 +2,16 @@
 
 ## Cập nhật ngày 08/11/2026
 
+### T30 · Kiểm trực tiếp với NVDA
+
+NVDA 2026.3 chạy portable trên Windows với Chromium ở 390 px, tắt fade, dùng dữ liệu mô phỏng và bộ tổng hợp im lặng. Lượt đầu trên `41a749f` ghi nhận bốn chuỗi NVDA gửi cho bộ tổng hợp: tên hộp điều hướng, số kết quả Audit Log, trạng thái tải chi tiết và thông báo đã tải chi tiết. Hai câu cho nút mở sau Escape và lúc tải danh sách chưa được xác nhận. Lượt kế tiếp không ghi nhận câu nào từ Crypta. Lượt dùng công cụ desktop dừng ở bước kích hoạt cửa sổ thử do báo sai chủ sở hữu cửa sổ. Báo cáo chỉ giữ các chuỗi của Crypta. [NVDA 2026.3](https://github.com/nvaccess/nvda/releases/tag/release-2026.3) · [Kết quả lọc](tools/test-artifacts/t30-nvda-2026.3/results.json)
+
+### T30 · Trạng thái đọc Yêu cầu và Thông báo
+
+Yêu cầu cá nhân, lịch sử Approver và Thông báo dùng vùng thông báo cố định bên ngoài danh sách đang `aria-busy`. Vùng này báo tải chậm, tổng kết quả hoặc danh sách rỗng. Hồi quy N4 đạt 24/24 trên mỗi Chromium và Firefox với API mô phỏng, gồm kiểm vùng thông báo, kích thước 1440 và 390 px, thử lại và đổi trang. Bản trước tái hiện trạng thái tải bị lồng trong vùng bận. [Đối chứng](tools/test-artifacts/mobile-nav-a11y-final/request-loading-before/results-filtered.json) · [Chromium](tools/test-artifacts/list-read-status/chromium-list-status/results-filtered.json) · [Firefox](tools/test-artifacts/list-read-status/firefox-list-status/results-filtered.json)
+
+Lượt T49 qua Nginx/PostgreSQL chạy lại năm yêu cầu nghiệp vụ và đối chiếu hai số tổng trong cây trợ năng với API trên cùng tài khoản. [Báo cáo](tools/test-artifacts/integration/crypta-t30-test-b782848ea4fb/real-chromium-1794076455284/results.json)
+
 ### T30 · Điều hướng mobile và focus trong hộp xác nhận
 
 Menu mobile mở dưới dạng hộp thoại có tên, có nút Đóng, và đưa nội dung phía sau ra khỏi cây trợ năng khi đang mở. Escape, nút Đóng và thao tác ngoài menu trả focus về nút mở. Khi chọn trang hoặc dùng Back, tiêu đề trang nhận focus. Chromium và Firefox kiểm cây trợ năng và các thao tác trên bản tắt fade. Phần đọc thành tiếng vẫn cần nghiệm thu bằng trình đọc màn hình. [Hướng dẫn hộp thoại W3C](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/) · [Chromium](tools/test-artifacts/mobile-nav-a11y-final/chromium-mobile-nav-final/results-filtered.json) · [Firefox](tools/test-artifacts/mobile-nav-a11y-final/firefox-mobile-nav-final/results-filtered.json)

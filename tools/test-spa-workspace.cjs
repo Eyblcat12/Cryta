@@ -199,8 +199,20 @@ if(require.main===module)(async()=>{
         const footer=()=>section.locator('.admin-asset-pagination').evaluate(element=>element.getBoundingClientRect().top+scrollY);
         const before=await footer();assert.equal(await section.locator(item.rows).count(),0);
         assert.equal(await section.locator('.loading-outline button:not([disabled]),.loading-outline a').count(),0);
+        if(item.prefix!=='history'){
+          const status=section.getByRole('status').filter({hasText:`Đang tải ${item.label}…`});
+          await status.waitFor();
+          assert.equal(await status.evaluate(element=>!!element.closest('[aria-busy="true"]')),false);
+          await status.evaluate(element=>element.dataset.testListStatus='persistent');
+        }
         state.tableReadGate=null;release();await section.locator(item.rows).first().waitFor();
         assert.equal(await section.locator(item.rows).count(),10);
+        if(item.prefix!=='history'){
+          const status=section.getByRole('status').filter({hasText:new RegExp(`^Có \\d+ ${item.label}\\.$`)});
+          await status.waitFor();
+          assert.equal(await status.getAttribute('data-test-list-status'),'persistent');
+          assert.match(await status.ariaSnapshot(),/status:/);
+        }
         const after=await footer();assert(Math.abs(after-before)<=2,`pagination moved by ${(after-before).toFixed(1)}px`);
         if(item.prefix==='notificationList')assert.equal(await section.getByRole('button',{name:item.refresh,exact:true}).evaluate(element=>element.getBoundingClientRect().width>=36),true,'Refresh must keep its 36px target at narrow widths.');
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
@@ -866,6 +878,9 @@ if(require.main===module)(async()=>{
       await page.goto(origin+'/requests?status=COMPLETED&pageSize=25&page=2');await page.locator('.request-item').nth(24).waitFor();const assetReads=calls.filter(call=>call.startsWith('GET /assets')).length;
       const input=page.locator('.global-search input');assert.equal(await input.getAttribute('aria-label'),'Tìm yêu cầu');await input.fill('Yêu cầu kiểm thử 74');await input.press('Enter');await page.locator('.request-item').filter({hasText:'request-74'}).waitFor();
       const params=new URL(page.url()).searchParams;assert.equal(params.get('page'),null);assert.equal(params.get('pageSize'),'25');assert.equal(params.get('status'),'COMPLETED');assert.equal(calls.filter(call=>call.startsWith('GET /assets')).length,assetReads);
+      await input.fill('không-khớp-yêu-cầu');await input.press('Enter');
+      await page.locator('#requests').getByRole('status').filter({hasText:'Không có kết quả yêu cầu.'}).waitFor();
+      assert.equal(calls.filter(call=>call.startsWith('GET /assets')).length,assetReads);
     }));
     await test(browser,'Approver history search preserves its non-pending scope',()=>withFixture(browser,'APPROVER',async({page,calls})=>{
       await page.goto(origin+'/approvals/history?status=COMPLETED&pageSize=25&page=2');await page.locator('.request-item').nth(24).waitFor();const input=page.locator('.global-search input');assert.equal(await input.getAttribute('aria-label'),'Tìm lịch sử xử lý');await input.fill('Yêu cầu kiểm thử 74');await input.press('Enter');await page.locator('.request-item').filter({hasText:'request-74'}).waitFor();
@@ -878,6 +893,7 @@ if(require.main===module)(async()=>{
     },{userCount:31}));
     for(const [role,route,endpoint,title] of [['USER','/notifications','/notifications','Chưa có thông báo'],['ADMIN','/audit','/audit-logs','Không tìm thấy nhật ký'],['ADMIN','/operations/email','/notifications/delivery-issues','Không có email cần xử lý']])await test(browser,`${route} applies pageSize even with a verified empty result`,()=>withFixture(browser,role,async({page,calls})=>{
       await page.goto(origin+route+'?pageSize=50');await page.getByText(title,{exact:true}).waitFor();assert.equal(await page.getByLabel('Số dòng mỗi trang').inputValue(),'50');assert(calls.some(call=>call.startsWith('GET '+endpoint+'?')&&call.includes('pageSize=50')));
+      if(route==='/notifications')await page.locator('#notifications').getByRole('status').filter({hasText:'Danh sách thông báo trống.'}).waitFor();
       await page.getByLabel('Số dòng mỗi trang').selectOption('20');await page.waitForFunction(()=>new URL(location.href).searchParams.get('pageSize')==='20'||new URL(location.href).searchParams.get('pageSize')===null);await page.getByText(title,{exact:true}).waitFor();assert(calls.some(call=>call.startsWith('GET '+endpoint+'?')&&call.includes('pageSize=20')));
     }));
     await test(browser,'Personal projections remain owner/creator scoped with multiple granted roles',()=>withFixture(browser,'USER',async({page,calls})=>{
