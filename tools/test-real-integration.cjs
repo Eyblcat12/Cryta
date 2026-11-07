@@ -1130,6 +1130,105 @@ async function main() {
     await page.locator('a[href="/approvals"]').first().waitFor();
     const me = await login(user.email, changedPassword); assert.deepEqual(me.user.roles, ['APPROVER']); assert.deepEqual(me.user.approverDepartmentIds, [it]);
   });
+  await test('T26: notification target scope, paging, read state and deleted links', async () => {
+    const owner = await createUser();
+    const watcher = await createUser(['APPROVER'], [it]);
+    const request = await createRequest(owner, 'notification target');
+    const asset = randomUUID();
+    const deletedAsset = randomUUID();
+    const olderNotice = randomUUID();
+    const deletedNotice = randomUUID();
+    const assetCode = `T26-ASSET-${asset}`;
+    const deletedCode = `T26-DELETED-${deletedAsset}`;
+    sql(`INSERT INTO crypto_assets(id,asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,valid_from,expires_at)
+      VALUES ('${asset}','${assetCode}','KEY','${owner.user.id}','${it}','${policy.id}','T26 fixture',NOW(),NOW()+INTERVAL '30 days'),
+        ('${deletedAsset}','${deletedCode}','KEY','${owner.user.id}','${it}','${policy.id}','T26 fixture',NOW(),NOW()+INTERVAL '30 days');
+      INSERT INTO notifications(id,recipient_id,asset_id,type,channel,deduplication_key,delivery_status,sent_at,created_at)
+      VALUES ('${olderNotice}','${owner.user.id}','${asset}','ASSET_EXPIRING','IN_APP','${stamp}:t26:old','SENT',NOW(),NOW()-INTERVAL '1 hour'),
+        ('${deletedNotice}','${owner.user.id}','${deletedAsset}','ASSET_EXPIRING','IN_APP','${stamp}:t26:delete','SENT',NOW(),NOW()+INTERVAL '1 second'),
+        (gen_random_uuid(),'${owner.user.id}','${asset}','ASSET_EXPIRING','EMAIL','${stamp}:t26:email','PENDING',NULL,NOW()),
+        (gen_random_uuid(),'${watcher.user.id}','${asset}','ASSET_EXPIRING','IN_APP','${stamp}:t26:watch','SENT',NOW(),NOW()),
+        (gen_random_uuid(),'${admin.user.id}','${asset}','ASSET_EXPIRING','IN_APP','${stamp}:t26:admin','SENT',NOW(),NOW());
+      INSERT INTO notifications(recipient_id,asset_id,type,channel,deduplication_key,delivery_status,sent_at)
+      SELECT '${owner.user.id}','${asset}','ASSET_EXPIRING','IN_APP','${stamp}:t26:page:'||n,'SENT',NOW() FROM generate_series(1,9) AS n;`);
+
+    const list = async (actor, query = '?page=1&pageSize=10') =>
+      expectStatus(await call('GET', `/notifications${query}`, undefined, actor.accessToken), 200);
+    const scoped = (await list(watcher)).items;
+    assert.equal(scoped.find(item => item.type === 'REQUEST_SUBMITTED')?.requestId, request.id);
+    assert.equal(scoped.find(item => item.type === 'ASSET_EXPIRING')?.assetId, asset);
+    assert.equal((await list(admin, `?search=${assetCode}`)).items[0]?.assetId, asset);
+    assert.equal((await list(watcher)).items.some(item => item.id === olderNotice), false);
+    const forbiddenWrite = await call('PATCH', `/notifications/${olderNotice}/read`, undefined, watcher.accessToken);
+    assert.equal(expectStatus(forbiddenWrite, 200).updated, 0);
+
+    expectStatus(await call('PUT', `/users/${watcher.user.id}/access`, {
+      roles: ['APPROVER'], approverDepartmentIds: [finance.user.departmentId],
+    }, admin.accessToken), 200);
+    const reauthenticated = await login(watcher.email, changedPassword);
+    for (const items of [(await list(reauthenticated)).items, await list(reauthenticated, '')]) {
+      assert.equal(items.length, 2);
+      for (const item of items) {
+        assert.equal(item.requestId, null);
+        assert.equal(item.assetId, null);
+        assert.equal(item.description, null);
+        assert.equal(item.assetCode, null);
+      }
+    }
+    assert.equal((await list(reauthenticated, `?search=${assetCode}`)).total, 0);
+
+    const mobile = await newPage({ width: 390, height: 844 });
+    const desktop = await newPage();
+    const administration = await newPage();
+    try {
+      await mobile.page.goto(new URL('/notifications', origin).href);
+      await uiLogin(mobile.page, watcher.email, changedPassword);
+      const hiddenRequest = mobile.page.getByRole('article').filter({ hasText: 'Yêu cầu mới' });
+      await hiddenRequest.getByRole('button', { name: 'Xem chi tiết' }).press('Enter');
+      await hiddenRequest.getByRole('alert').getByText(/quyền xem đã thay đổi/i).waitFor();
+      assert.ok(!(await hiddenRequest.textContent()).includes(request.id));
+      assert.ok(!mobile.calls.includes(`GET /requests/${request.id}`));
+
+      await administration.page.goto(new URL('/notifications', origin).href);
+      await uiLogin(administration.page, admin.user.email);
+      const adminNotice = administration.page.getByRole('article').filter({ hasText: assetCode });
+      await adminNotice.getByRole('button', { name: 'Xem chi tiết' }).press('Enter');
+      await administration.page.waitForURL(new URL(`/assets/${asset}`, origin).href);
+
+      const secondPage = (await list(owner, '?page=2&pageSize=10')).items;
+      assert.deepEqual(secondPage.map(item => item.id), [olderNotice]);
+      await desktop.page.goto(new URL('/notifications?page=2', origin).href);
+      await uiLogin(desktop.page, owner.email, changedPassword);
+      const oldItem = desktop.page.getByRole('article');
+      await oldItem.getByRole('button', { name: 'Đánh dấu đã đọc' }).press('Enter');
+      const readButton = oldItem.getByRole('button', { name: 'Đánh dấu đã đọc' });
+      await readButton.waitFor({ state: 'hidden' });
+      assert.equal((await list(owner, '?read=false')).total, 10);
+      await desktop.page.reload();
+      await oldItem.getByText(assetCode, { exact: true }).waitFor();
+      await desktop.page.locator('[aria-label="10 thông báo chưa đọc"]').first().waitFor({ state: 'attached' });
+      assert.equal(await readButton.count(), 0);
+      await desktop.page.getByRole('button', { name: 'Trước', exact: true }).press('Enter');
+      const stale = desktop.page.getByRole('article').filter({ hasText: deletedCode });
+      await stale.getByText(deletedCode, { exact: true }).waitFor();
+      sql(`DELETE FROM crypto_assets WHERE id='${deletedAsset}'`);
+      await stale.getByRole('button', { name: 'Xem chi tiết' }).press('Enter');
+      await stale.getByRole('alert').getByText('Không tìm thấy tài sản.').waitFor();
+      assert.equal(new URL(desktop.page.url()).pathname, '/notifications');
+      assert.ok(!desktop.calls.includes(`PATCH /notifications/${deletedNotice}/read`));
+
+      await desktop.page.locator('.notification-heading').getByRole('button', { name: 'Đánh dấu đã đọc' }).press('Enter');
+      await desktop.page.locator('[aria-label$=" thông báo chưa đọc"]').first().waitFor({ state: 'detached' });
+      assert.equal((await list(owner, '?read=false')).total, 0);
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE deduplication_key='${stamp}:t26:email'
+        AND delivery_status='PENDING' AND read_at IS NULL`), '1');
+      assert.deepEqual([...mobile.errors, ...desktop.errors, ...administration.errors], []);
+      return { pagedTotal: 11, unreadAfterReload: 10, unreadAfterMarkAll: 0, roles: 3, deletedTargetStayedOnList: true,
+        hiddenTargetRedacted: true, foreignReadDenied: true, emailUntouched: true };
+    } finally {
+      await Promise.all([mobile.context.close(), desktop.context.close(), administration.context.close()]);
+    }
+  });
   await test('M API/DB: concurrent removal preserves the last active Admin', async () => {
     const second = await createUser(['ADMIN']);
     const cisoId = '04444444-6666-6666-6666-666666666666';

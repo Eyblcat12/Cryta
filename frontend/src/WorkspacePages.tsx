@@ -103,7 +103,7 @@ export function NotificationPanel({refreshKey,unreadCount,onNotify,onOpenAsset,o
     try{
       if(item.assetId)onOpenAsset(await api.assetDetail(item.assetId));
       else if(item.requestId)onOpenRequest(await api.requestDetail(item.requestId));
-      else throw new ApiError('MISSING_TARGET','Thông báo này không còn liên kết tới tài sản hoặc yêu cầu.',404);
+      else throw new ApiError('MISSING_TARGET','Không thể mở nội dung thông báo. Có thể quyền xem đã thay đổi.',404);
     }catch(reason){setOpenError({id:item.id,message:reason instanceof ApiError?reason.message:'Không thể mở nội dung thông báo. Có thể quyền xem đã thay đổi.'});setOpening('');return}
     if(!item.readAt&&!operation){try{await api.markNotificationRead(item.id)}catch(reason){onNotify(reason instanceof ApiError?`Đã mở nội dung, nhưng chưa đánh dấu đã đọc: ${reason.message}`:'Đã mở nội dung, nhưng chưa đánh dấu đã đọc.')}}
     setOpening('');

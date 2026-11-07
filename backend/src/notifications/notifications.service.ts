@@ -65,7 +65,7 @@ export class NotificationsService {
           SELECT 1 FROM approver_scopes scope WHERE scope.user_id=ur.user_id AND scope.department_id=r.department_id
         )))
     )))`;
-    const select=`SELECT n.id,n.type,n.asset_id,n.request_id,n.created_at,n.read_at,a.asset_code,r.reason ${from}`;
+    const select=`SELECT n.id,n.type,a.id AS asset_id,r.id AS request_id,n.created_at,n.read_at,a.asset_code,r.reason ${from}`;
     const present=(r:Record<string,unknown>)=>({id:r.id,type:r.type,assetId:r.asset_id,requestId:r.request_id,assetCode:r.asset_code,description:r.reason,createdAt:r.created_at,readAt:r.read_at});
     if(!Object.keys(query).length){const result=await this.pool.query(`${select} WHERE n.recipient_id=$1 AND n.channel='IN_APP' ORDER BY n.created_at DESC,n.id DESC LIMIT 100`,[userId]);return result.rows.map(present)}
     const number=(value:string|undefined,fallback:number,max:number)=>{if(value===undefined)return fallback;if(typeof value!=='string'||!/^[1-9]\d*$/.test(value)||!Number.isSafeInteger(Number(value))||Number(value)>max)throw new BadRequestException({code:'INVALID_PAGINATION',message:'Tham số phân trang không hợp lệ.'});return Number(value)};
