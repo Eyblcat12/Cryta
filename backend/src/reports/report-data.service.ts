@@ -16,7 +16,7 @@ export const reportLimits: Record<ReportFormat, number> = { CSV: 10_000, PDF: 1_
 const orderFilters = ['sortBy', 'sortOrder'];
 const filterKeys: Record<ReportDataset, ReadonlySet<string>> = {
   ASSETS: new Set(['status', 'search', 'ownedOnly', 'eligible', 'approvalScope', ...orderFilters]),
-  REQUESTS: new Set(['status', 'type', 'emergency', 'search', 'excludePending', 'createdByMe', 'approvalScope', ...orderFilters]),
+  REQUESTS: new Set(['status', 'type', 'emergency', 'search', 'excludePending', 'createdByMe', 'approvalScope', 'departmentId', 'from', 'to', ...orderFilters]),
   AUDIT: new Set(['search', 'actor', 'action', 'entity', 'outcome', 'requestId', 'correlationId', 'from', 'to', ...orderFilters]),
 };
 const titles: Record<ReportDataset, string> = {

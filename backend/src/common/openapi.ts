@@ -21,6 +21,9 @@ const listQueries: Record<string, Record<string, SchemaObject>> = {
   '/api/v1/assets/{id}/history': pagination(50),
   '/api/v1/requests': {
     ...pagination(), search, emergency: binaryFilter, excludePending: binaryFilter, approvalScope: binaryFilter,
+    departmentId: { ...uuid, description: 'Lọc theo đơn vị trong phạm vi người dùng được phép xem.' },
+    from: { ...timestamp, description: 'Thời điểm gửi từ mốc này, bao gồm mốc. Dùng múi giờ rõ ràng, tối đa ba chữ số phần giây.' },
+    to: { ...timestamp, description: 'Thời điểm gửi đến mốc này, bao gồm mốc. Dùng múi giờ rõ ràng, tối đa ba chữ số phần giây.' },
     status: { type: 'string', enum: ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'RECONCILIATION_REQUIRED'] },
     type: { type: 'string', enum: ['CREATE', 'RENEW', 'REVOKE'] },
   },

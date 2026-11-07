@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { isISO8601 } from 'class-validator';
 import type { Pool, PoolClient } from 'pg';
 import type { AuthUser } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
@@ -8,6 +9,7 @@ import { auditMetadata } from '../audit/audit-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import { cryptoProviderConfig } from '../jobs/crypto-provider-config';
 import { listOrder } from '../common/list-order';
+import { UUID_LIKE } from '../common/uuid-like.pipe';
 import type { CancelRequestDto, CreateRequestDto, DecideRequestDto, SaveDraftDto } from './request.dto';
 import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy, normalizeRequestParameters } from './request-policy';
 import { presentRequest, type RequestRow } from './request.presenter';
@@ -69,7 +71,7 @@ export class RequestsService {
     };
     const page = parseNumber(query.page, 1, 1_000_000);
     const pageSize = parseNumber(query.pageSize, 25, maxPageSize);
-    for (const field of ['status', 'type', 'emergency', 'search', 'excludePending'])
+    for (const field of ['status', 'type', 'emergency', 'search', 'excludePending', 'departmentId', 'from', 'to'])
       if (query[field] !== undefined && typeof query[field] !== 'string')
         throw new BadRequestException({ code: 'INVALID_FILTER', message: 'Bộ lọc yêu cầu không hợp lệ.' });
     if (query.excludePending !== undefined) {
@@ -90,6 +92,24 @@ export class RequestsService {
     if (query.emergency) {
       if (!['true', 'false'].includes(query.emergency)) throw new BadRequestException({ code: 'INVALID_EMERGENCY', message: 'Bộ lọc khẩn cấp không hợp lệ.' });
       values.push(query.emergency === 'true'); conditions.push(`r.emergency = $${values.length}`);
+    }
+    if (query.departmentId !== undefined) {
+      if (!UUID_LIKE.test(query.departmentId)) throw new BadRequestException({ code: 'INVALID_DEPARTMENT_ID', message: 'Mã đơn vị không hợp lệ.' });
+      values.push(query.departmentId); conditions.push(`r.department_id = $${values.length}::uuid`);
+    }
+    let lowerBound: number | undefined;
+    for (const [key, operator] of [['from', '>='], ['to', '<=']] as const) {
+      const input = query[key];
+      if (input === undefined) continue;
+      const date = new Date(input);
+      const timestamp = date.getTime();
+      if (!/^(?!0000)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(input) ||
+          !isISO8601(input, { strict: true }) || !Number.isFinite(timestamp) || date.getUTCFullYear() < 1 || date.getUTCFullYear() > 9999 ||
+          (lowerBound !== undefined && timestamp < lowerBound))
+        throw new BadRequestException({ code: 'INVALID_DATE', message: 'Khoảng thời gian gửi không hợp lệ.' });
+      if (key === 'from') lowerBound = timestamp;
+      values.push(date.toISOString());
+      conditions.push(`r.submitted_at ${operator} $${values.length}::timestamptz`);
     }
     const search = query.search?.trim();
     if (search) {

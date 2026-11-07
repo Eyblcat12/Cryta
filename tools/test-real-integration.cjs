@@ -90,8 +90,8 @@ async function main() {
     expectStatus(await call('POST', '/auth/change-password', { currentPassword: temporaryPassword, newPassword: changedPassword }, first.accessToken), 200);
     return { ...created, ...await login(email, changedPassword), email };
   }
-  async function createRequest(session, suffix = '') {
-    return expectStatus(await call('POST', '/requests', { type: 'CREATE', policyVersionId: policy.id, reason: `Integration ${stamp} ${suffix}`, emergency: false, parameters: { assetType: 'KEY', algorithm: 'RSA', keySize: 2048, validityDays: 90 } }, session.accessToken), 201);
+  async function createRequest(session, suffix = '', emergency = false) {
+    return expectStatus(await call('POST', '/requests', { type: 'CREATE', policyVersionId: policy.id, reason: `Integration ${stamp} ${suffix}`, emergency, parameters: { assetType: 'KEY', algorithm: 'RSA', keySize: 2048, validityDays: 90 } }, session.accessToken), 201);
   }
   const account = await createUser();
   const ownerRequest = await createRequest(account, 'owner');
@@ -271,6 +271,66 @@ async function main() {
     await page.locator('.login-card input[type=password]').fill(password);
     await page.locator('.login-card button[type=submit], .login-card button.login-submit').click();
   }
+  await test('UC5 approval queue: scope, priority, search and pagination agree across UI and API', async () => {
+    const search = `UC5-${randomUUID()}`;
+    const normal = [];
+    for (let index = 0; index < 10; index++) normal.push(await createRequest(account, `${search} in-${index}`));
+    const urgent = await createRequest(account, `${search} urgent`, true);
+    const foreign = await createRequest(finance, `${search} foreign`, true);
+    assert.equal(urgent.departmentId, it);
+    assert.notEqual(foreign.departmentId, it);
+    const list = async (filters, actor = approver) => {
+      const params = new URLSearchParams({ search, status: 'PENDING', pageSize: '10', ...filters });
+      return expectStatus(await call('GET', `/requests?${params}`, undefined, actor.accessToken), 200);
+    };
+    const scope = { approvalScope: 'true' };
+    const day = 86_400_000;
+    const firstSubmission = Date.parse(normal[0].submittedAt);
+    const from = new Date(firstSubmission - day).toISOString();
+    const to = new Date(firstSubmission + day).toISOString();
+    const selected = { ...scope, departmentId: it, type: 'CREATE', from, to };
+    const pageOne = await list(selected);
+    assert.equal(pageOne.total, 11);
+    assert.deepEqual(pageOne.items.map(row => row.id), [urgent, ...normal.slice(0, 9)].map(row => row.id));
+    assert.deepEqual((await list({ ...scope, page: '2' })).items.map(row => row.id), [normal.at(-1).id]);
+    assert.equal((await list({ ...scope, departmentId: foreign.departmentId })).total, 0);
+    assert.equal((await list({ ...scope, to: from })).total, 0);
+    assert.equal((await list({ ...scope, from: to })).total, 0);
+    assert.equal((await list({ ...scope, type: 'REVOKE' })).total, 0);
+    assert.deepEqual((await list({ departmentId: foreign.departmentId, emergency: 'true', from, to }, admin)).items.map(row => row.id), [foreign.id]);
+    const report = expectStatus(await call('POST', '/reports/preview', {
+      dataset: 'REQUESTS', filters: { ...selected, search, status: 'PENDING' },
+    }, approver.accessToken), 200);
+    assert.equal(report.total, pageOne.total);
+    assert.deepEqual(report.scope, { mode: 'DEPARTMENTS', departments: [it] });
+    for (const [filter, code] of [
+      ['departmentId=invalid', 'INVALID_DEPARTMENT_ID'], ['from=2026-02-30T10%3A00%3A00Z', 'INVALID_DATE'],
+      [`from=${encodeURIComponent(to)}&to=${encodeURIComponent(from)}`, 'INVALID_DATE'],
+      ['from=2026-11-07T10%3A00%3A00', 'INVALID_DATE'], ['to=2026-11-07T10%3A00%3A00Z&to=2026-11-08T10%3A00%3A00Z', 'INVALID_FILTER'],
+    ]) expectStatus(await call('GET', `/requests?${filter}`, undefined, approver.accessToken), 400, code);
+
+    const { context, page, errors } = await newPage();
+    try {
+      await page.goto(new URL('/approvals?pageSize=10', origin).href);
+      await uiLogin(page, approver.user.email);
+      const queue = page.getByRole('region', { name: 'Hàng chờ phê duyệt', exact: true });
+      await queue.getByLabel('Tìm yêu cầu', { exact: true }).fill(search);
+      await queue.getByRole('button', { name: 'Tìm', exact: true }).click();
+      await page.getByText('Trang 1/2 · 11 yêu cầu', { exact: true }).waitFor();
+      const ids = page.locator('table tbody button.table-link');
+      assert.deepEqual(await ids.allTextContents(), pageOne.items.map(row => row.id));
+      await page.getByRole('button', { name: 'Sau', exact: true }).click();
+      await page.getByText('Trang 2/2 · 11 yêu cầu', { exact: true }).waitFor();
+      assert.deepEqual(await ids.allTextContents(), [normal.at(-1).id]);
+      const filters = page.getByRole('group', { name: 'Lọc hàng chờ' });
+      await filters.getByRole('button', { name: /^Khẩn cấp/ }).click();
+      await page.getByText('Trang 1/1 · 1 yêu cầu', { exact: true }).waitFor();
+      assert.deepEqual(await ids.allTextContents(), [urgent.id]);
+      assert.equal(new URL(page.url()).searchParams.get('q'), search);
+      assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    return { inScope: 11, foreignExcluded: true, urgentOnFirstPage: true, pageTwo: 1, urgentFilter: 1, departmentAndTimeFilters: true, reportPreviewMatches: true };
+  });
   await test('NAV-22 Nginx: static assets, API and SPA deep links use separate fallbacks', async () => {
     const read = route => fetch(new URL(route, origin), { signal: AbortSignal.timeout(15000) });
     const shell = '<div id="root"></div>';
