@@ -167,9 +167,9 @@ async function main() {
       await page.getByLabel('Email', { exact: true }).fill(email);
       await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
       await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
-      const open = page.getByRole('button', { name: 'Xuất báo cáo' });
-      await open.focus();
-      await page.keyboard.press('Enter');
+      const open = page.getByRole('button', { name: 'Xuất báo cáo', exact: true });
+      await page.waitForFunction(button => !button.disabled, await open.elementHandle());
+      await open.press('Enter');
       const dialog = page.getByRole('dialog', { name: 'Xuất báo cáo' });
       await dialog.getByText('Dữ liệu của tôi', { exact: true }).waitFor();
       await page.screenshot({ path: path.join(output, 'desktop.png'), animations: 'disabled' });
