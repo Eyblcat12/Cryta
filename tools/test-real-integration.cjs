@@ -276,94 +276,99 @@ async function main() {
     const policyBody = { code:`X02_${stamp.slice(0,8)}`, name:'Chính sách thử duyệt hai cấp', algorithm:'RSA',
       minimumKeySize:2048, maximumValidityDays:365, warningDays:[30], approvalLevels:2 };
     const approvalPolicy = expectStatus(await call('POST','/policies',policyBody,admin.accessToken),201);
-    assert.equal(approvalPolicy.latest.configuration.approval_deadline_hours,48);
-    const request = expectStatus(await call('POST','/requests',{
-      type:'CREATE', policyVersionId:approvalPolicy.latest.id, reason:`Yêu cầu X02 ${stamp}`,
-      parameters:{assetType:'KEY',algorithm:'RSA',keySize:2048,validityDays:90},
-    },account.accessToken),201);
-    const route = `/requests/${request.id}`;
-    const decide = (actor, version, decision = 'APPROVED', comment) => call('POST',route+'/decision',{ decision,version:String(version),comment },actor.accessToken);
-    const detail = () => call('GET',route,undefined,account.accessToken).then(response=>expectStatus(response,200));
-    expectStatus(await decide(foreign,request.version),403,'OUT_OF_SCOPE');
-    const concurrent = await Promise.all([decide(approver,request.version),decide(second,request.version)]);
-    assert.deepEqual(concurrent.map(r=>r.status).sort(),[201,409]);
-    const firstActor = concurrent[0].status===201?approver:second;
-    const nextActor = firstActor===approver?second:approver;
-    const partial = concurrent.find(r=>r.status===201).data;
-    assert.equal(partial.status,'PENDING');
-    assert.equal(partial.approval.approved,1);
-    assert.equal(partial.approval.firstApproverId,firstActor.user.id);
-    const ownerAfterFirst = await detail();
-    assert.equal(ownerAfterFirst.decision,null);
-    assert.equal(ownerAfterFirst.approvalHistory.length,1);
-    expectStatus(await decide(firstActor,partial.version),403,'SECOND_APPROVER_REQUIRED');
-    expectStatus(await decide(foreign,partial.version),403,'OUT_OF_SCOPE');
-    assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id='${request.id}'`),'0');
-    assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_APPROVED'`),'0');
-    assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_SECOND_APPROVAL' AND recipient_id='${nextActor.user.id}'`),'2');
-    assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_SECOND_APPROVAL' AND recipient_id IN ('${firstActor.user.id}','${foreign.user.id}','${account.user.id}')`),'0');
-    sql(`DO $test$ BEGIN
-      BEGIN UPDATE requests SET status='APPROVED' WHERE id='${request.id}'; RAISE EXCEPTION 'unsafe direct update';
-      EXCEPTION WHEN check_violation THEN IF SQLERRM<>'TWO_APPROVALS_REQUIRED' THEN RAISE; END IF; END;
-    END $test$;`);
-
-    const reviewer = await newPage({width:390,height:850});
     try {
-      await reviewer.page.goto(new URL(`/approvals?q=${request.id}`,origin).href);
-      await uiLogin(reviewer.page,nextActor.user.email,nextActor===second?changedPassword:undefined);
-      await reviewer.page.getByText('Chờ cấp 2 · 1/2',{exact:true}).waitFor();
-      await reviewer.page.getByRole('button',{name:request.id,exact:true}).press('Enter');
-      await reviewer.page.waitForURL(new URL(route,origin).href);
-      await reviewer.page.getByText('Cấp 1 · Đã duyệt',{exact:true}).waitFor();
-      await reviewer.page.getByRole('button',{name:'Duyệt cấp 2',exact:true}).press('Enter');
-      const confirmation = reviewer.page.getByRole('dialog');
-      await confirmation.getByRole('button',{name:'Xác nhận duyệt cấp 2',exact:true}).press('Enter');
-      await confirmation.waitFor({state:'hidden'});
-      await reviewer.page.getByText('Cấp 2 · Đã duyệt',{exact:true}).waitFor();
-      assert.deepEqual(reviewer.errors,[]);
-      await reviewer.page.screenshot({path:path.join(output,'x02-two-stage-mobile.png')});
-    } finally { await reviewer.context.close(); }
-    let completed;
-    const until=Date.now()+25_000;
-    do {
-      completed=await detail();
-      if(completed.status==='COMPLETED')break;
-      assert.ok(['APPROVED','PROCESSING'].includes(completed.status));
-      await new Promise(resolve=>setTimeout(resolve,250));
-    } while(Date.now()<until);
-    assert.equal(completed.status,'COMPLETED');
-    assert.deepEqual(completed.approvalHistory.map(item=>[item.level,item.approverId]),[[1,firstActor.user.id],[2,nextActor.user.id]]);
-    assert.equal(sql(`SELECT attempt_count FROM provider_operations WHERE request_id='${request.id}'`),'1');
-    assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_APPROVED' AND recipient_id='${account.user.id}'`),'2');
-
-    async function createPending() {
-      return expectStatus(await call('POST','/requests',{
-        type:'CREATE',policyVersionId:approvalPolicy.latest.id,reason:`X02 kiểm hủy và từ chối ${randomUUID()}`,
+      assert.equal(approvalPolicy.latest.configuration.approval_deadline_hours,48);
+      const request = expectStatus(await call('POST','/requests',{
+        type:'CREATE', policyVersionId:approvalPolicy.latest.id, reason:`Yêu cầu X02 ${stamp}`,
         parameters:{assetType:'KEY',algorithm:'RSA',keySize:2048,validityDays:90},
       },account.accessToken),201);
+      const route = `/requests/${request.id}`;
+      const decide = (actor, version, decision = 'APPROVED', comment) => call('POST',route+'/decision',{ decision,version:String(version),comment },actor.accessToken);
+      const detail = () => call('GET',route,undefined,account.accessToken).then(response=>expectStatus(response,200));
+      expectStatus(await decide(foreign,request.version),403,'OUT_OF_SCOPE');
+      const concurrent = await Promise.all([decide(approver,request.version),decide(second,request.version)]);
+      assert.deepEqual(concurrent.map(r=>r.status).sort(),[201,409]);
+      const firstActor = concurrent[0].status===201?approver:second;
+      const nextActor = firstActor===approver?second:approver;
+      const partial = concurrent.find(r=>r.status===201).data;
+      assert.equal(partial.status,'PENDING');
+      assert.equal(partial.approval.approved,1);
+      assert.equal(partial.approval.firstApproverId,firstActor.user.id);
+      const ownerAfterFirst = await detail();
+      assert.equal(ownerAfterFirst.decision,null);
+      assert.equal(ownerAfterFirst.approvalHistory.length,1);
+      expectStatus(await decide(firstActor,partial.version),403,'SECOND_APPROVER_REQUIRED');
+      expectStatus(await decide(foreign,partial.version),403,'OUT_OF_SCOPE');
+      assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id='${request.id}'`),'0');
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_APPROVED'`),'0');
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_SECOND_APPROVAL' AND recipient_id='${nextActor.user.id}'`),'2');
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_SECOND_APPROVAL' AND recipient_id IN ('${firstActor.user.id}','${foreign.user.id}','${account.user.id}')`),'0');
+      sql(`DO $test$ BEGIN
+        BEGIN UPDATE requests SET status='APPROVED' WHERE id='${request.id}'; RAISE EXCEPTION 'unsafe direct update';
+        EXCEPTION WHEN check_violation THEN IF SQLERRM<>'TWO_APPROVALS_REQUIRED' THEN RAISE; END IF; END;
+      END $test$;`);
+
+      const reviewer = await newPage({width:390,height:850});
+      try {
+        await reviewer.page.goto(new URL(`/approvals?q=${request.id}`,origin).href);
+        await uiLogin(reviewer.page,nextActor.user.email,nextActor===second?changedPassword:undefined);
+        await reviewer.page.getByText('Chờ cấp 2 · 1/2',{exact:true}).waitFor();
+        await reviewer.page.getByRole('button',{name:request.id,exact:true}).press('Enter');
+        await reviewer.page.waitForURL(new URL(route,origin).href);
+        await reviewer.page.getByText('Cấp 1 · Đã duyệt',{exact:true}).waitFor();
+        await reviewer.page.getByRole('button',{name:'Duyệt cấp 2',exact:true}).press('Enter');
+        const confirmation = reviewer.page.getByRole('dialog');
+        await confirmation.getByRole('button',{name:'Xác nhận duyệt cấp 2',exact:true}).press('Enter');
+        await confirmation.waitFor({state:'hidden'});
+        await reviewer.page.getByText('Cấp 2 · Đã duyệt',{exact:true}).waitFor();
+        assert.deepEqual(reviewer.errors,[]);
+        await reviewer.page.screenshot({path:path.join(output,'x02-two-stage-mobile.png')});
+      } finally { await reviewer.context.close(); }
+      let completed;
+      const until=Date.now()+25_000;
+      do {
+        completed=await detail();
+        if(completed.status==='COMPLETED')break;
+        assert.ok(['APPROVED','PROCESSING'].includes(completed.status));
+        await new Promise(resolve=>setTimeout(resolve,250));
+      } while(Date.now()<until);
+      assert.equal(completed.status,'COMPLETED');
+      assert.deepEqual(completed.approvalHistory.map(item=>[item.level,item.approverId]),[[1,firstActor.user.id],[2,nextActor.user.id]]);
+      assert.equal(sql(`SELECT attempt_count FROM provider_operations WHERE request_id='${request.id}'`),'1');
+      assert.equal(sql(`SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_APPROVED' AND recipient_id='${account.user.id}'`),'2');
+
+      async function createPending() {
+        return expectStatus(await call('POST','/requests',{
+          type:'CREATE',policyVersionId:approvalPolicy.latest.id,reason:`X02 kiểm hủy và từ chối ${randomUUID()}`,
+          parameters:{assetType:'KEY',algorithm:'RSA',keySize:2048,validityDays:90},
+        },account.accessToken),201);
+      }
+      const rejectTarget = await createPending();
+      const rejectPath = `/requests/${rejectTarget.id}`;
+      const first = expectStatus(await call('POST',rejectPath+'/decision',{decision:'APPROVED',version:String(rejectTarget.version)},approver.accessToken),201);
+      expectStatus(await call('POST',rejectPath+'/decision',{decision:'REJECTED',version:String(first.version),comment:'Thiếu bằng chứng theo chính sách.'},second.accessToken),201);
+      const rejected = expectStatus(await call('GET',rejectPath,undefined,account.accessToken),200);
+      assert.deepEqual(rejected.approvalHistory.map(item=>item.decision),['APPROVED','REJECTED']);
+      assert.equal(rejected.status,'REJECTED');
+      const cancelTarget = await createPending();
+      const cancelPath = `/requests/${cancelTarget.id}`;
+      const cancellable = expectStatus(await call('POST',cancelPath+'/decision',{decision:'APPROVED',version:String(cancelTarget.version)},approver.accessToken),201);
+      expectStatus(await call('POST',cancelPath+'/cancel',{version:cancellable.version},account.accessToken),201);
+      const cancelled = expectStatus(await call('GET',cancelPath,undefined,account.accessToken),200);
+      assert.equal(cancelled.status,'CANCELLED');
+      assert.equal(cancelled.approvalHistory.length,1);
+      const expired = randomUUID();
+      sql(`INSERT INTO requests(id,request_type,creator_id,department_id,policy_version_id,status,reason,submitted_at)
+        VALUES('${expired}','CREATE','${account.user.id}','${it}','${approvalPolicy.latest.id}','PENDING','X02 expired fixture',now()-interval '49 hours')`);
+      expectStatus(await call('POST',`/requests/${expired}/decision`,{decision:'APPROVED',version:'1'},approver.accessToken),409,'APPROVAL_DEADLINE_EXPIRED');
+      expectStatus(await call('POST',`/requests/${expired}/cancel`,{version:1},account.accessToken),201);
+      assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id IN ('${expired}','${cancelTarget.id}','${rejectTarget.id}')`),'0');
+      return { concurrentStatuses:concurrent.map(r=>r.status), partialRetained:true, directBypassDenied:true, completedWithTwoActors:true,
+        workerAttempts:1, secondScopeNotified:true, secondRejected:true, cancelledAfterFirst:true, expiredDenied:true };
+    } finally {
+      expectStatus(await call('PATCH', `/policies/${approvalPolicy.id}/deactivate`,
+        {expectedVersion:approvalPolicy.latest.version},admin.accessToken),200);
     }
-    const rejectTarget = await createPending();
-    const rejectPath = `/requests/${rejectTarget.id}`;
-    const first = expectStatus(await call('POST',rejectPath+'/decision',{decision:'APPROVED',version:String(rejectTarget.version)},approver.accessToken),201);
-    expectStatus(await call('POST',rejectPath+'/decision',{decision:'REJECTED',version:String(first.version),comment:'Thiếu bằng chứng theo chính sách.'},second.accessToken),201);
-    const rejected = expectStatus(await call('GET',rejectPath,undefined,account.accessToken),200);
-    assert.deepEqual(rejected.approvalHistory.map(item=>item.decision),['APPROVED','REJECTED']);
-    assert.equal(rejected.status,'REJECTED');
-    const cancelTarget = await createPending();
-    const cancelPath = `/requests/${cancelTarget.id}`;
-    const cancellable = expectStatus(await call('POST',cancelPath+'/decision',{decision:'APPROVED',version:String(cancelTarget.version)},approver.accessToken),201);
-    expectStatus(await call('POST',cancelPath+'/cancel',{version:cancellable.version},account.accessToken),201);
-    const cancelled = expectStatus(await call('GET',cancelPath,undefined,account.accessToken),200);
-    assert.equal(cancelled.status,'CANCELLED');
-    assert.equal(cancelled.approvalHistory.length,1);
-    const expired = randomUUID();
-    sql(`INSERT INTO requests(id,request_type,creator_id,department_id,policy_version_id,status,reason,submitted_at)
-      VALUES('${expired}','CREATE','${account.user.id}','${it}','${approvalPolicy.latest.id}','PENDING','X02 expired fixture',now()-interval '49 hours')`);
-    expectStatus(await call('POST',`/requests/${expired}/decision`,{decision:'APPROVED',version:'1'},approver.accessToken),409,'APPROVAL_DEADLINE_EXPIRED');
-    expectStatus(await call('POST',`/requests/${expired}/cancel`,{version:1},account.accessToken),201);
-    assert.equal(sql(`SELECT count(*) FROM provider_operations WHERE request_id IN ('${expired}','${cancelTarget.id}','${rejectTarget.id}')`),'0');
-    return { concurrentStatuses:concurrent.map(r=>r.status), partialRetained:true, directBypassDenied:true, completedWithTwoActors:true,
-      workerAttempts:1, secondScopeNotified:true, secondRejected:true, cancelledAfterFirst:true, expiredDenied:true };
   });
   await test('M keyboard: deferred page focus preserves row and decision activation', async () => {
     const request = await createRequest(account, 'deferred keyboard focus');
