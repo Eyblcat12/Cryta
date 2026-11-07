@@ -47,7 +47,7 @@ async function main(options){
   await test('Migrator LOGIN can SET ROLE to a NOLOGIN owner and apply all published migrations',async()=>{
    assert.equal((await sql("SELECT has_database_privilege($1,current_database(),'CREATE') AS allowed",[roles.owner])).rows[0].allowed,false);
    execFileSync(process.execPath,['/app/dist/database/migrate.js'],{env:{...process.env,DATABASE_URL:urlFor(roles.migrator,passwords.migrator),DATABASE_MIGRATION_OWNER_ROLE:roles.owner},stdio:['ignore','pipe','pipe'],timeout:45000});
-   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,17);
+   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,18);
    const index=(await sql("SELECT pg_get_indexdef('public.idx_audit_text_trgm'::regclass) AS definition")).rows[0].definition;
    assert.ok(index.includes('crypta_extension_test.gin_trgm_ops'));
    assert.equal((await sql("SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid='schema_migrations'::regclass")).rows[0].owner,roles.owner);return{versions:ledger.map(r=>r.version),ledgerOwner:roles.owner,extensionSchema:'crypta_extension_test'};
@@ -66,7 +66,31 @@ async function main(options){
    }
    for(const [grant,revoke]of [['GRANT UPDATE ON audit_logs TO PUBLIC','REVOKE UPDATE ON audit_logs FROM PUBLIC'],['GRANT UPDATE(algorithm) ON cryptographic_keys TO PUBLIC','REVOKE UPDATE(algorithm) ON cryptographic_keys FROM PUBLIC'],['GRANT USAGE ON SEQUENCE audit_logs_id_seq TO PUBLIC','REVOKE USAGE ON SEQUENCE audit_logs_id_seq FROM PUBLIC'],[`GRANT CREATE ON DATABASE "${options.database}" TO PUBLIC`,`REVOKE CREATE ON DATABASE "${options.database}" FROM PUBLIC`]]){
     await sql(grant);try{const before=await aclSnapshot();await assert.rejects(()=>applyGrants(grantScript(roles.runtime,options.database)),e=>{codes.push(e.code);return e.code==='22023'&&e.message==='UNSAFE_PUBLIC_GRANTS';});assert.equal(await aclSnapshot(),before);}finally{await sql(revoke);}
-   }return{rejectedConfigurations:codes.length,sqlstates:codes,aclUnchangedForEveryRejection:true};
+   }
+   await sql("CREATE FUNCTION public.runtime_owned_function_fixture() RETURNS integer LANGUAGE sql AS 'SELECT 1'");
+   try{
+    await executeFormatted('GRANT CREATE ON SCHEMA public TO %I',[roles.runtime]);
+    await executeFormatted('ALTER FUNCTION public.runtime_owned_function_fixture() OWNER TO %I',[roles.runtime]);
+    await executeFormatted('REVOKE CREATE ON SCHEMA public FROM %I',[roles.runtime]);
+    const before=await aclSnapshot();
+    await assert.rejects(()=>applyGrants(grantScript(roles.runtime,options.database)),e=>{codes.push(e.code);return e.code==='22023'&&e.message==='UNSAFE_RUNTIME_ROLE';});
+    assert.equal(await aclSnapshot(),before);
+   }finally{
+    await sql('DROP FUNCTION public.runtime_owned_function_fixture()');
+   }
+   const triggerSql=(await sql("SELECT pg_get_triggerdef(oid) AS definition FROM pg_trigger WHERE tgrelid='cryptographic_keys'::regclass AND tgname='trg_key_asset_identity'")).rows[0].definition;
+   for(const [remove,restore]of [
+    ['ALTER TABLE cryptographic_keys DISABLE TRIGGER trg_key_asset_identity','ALTER TABLE cryptographic_keys ENABLE TRIGGER trg_key_asset_identity'],
+    ['DROP TRIGGER trg_key_asset_identity ON cryptographic_keys',triggerSql],
+   ]){
+    await sql(remove);
+    try{
+     const before=await aclSnapshot();
+     await assert.rejects(()=>applyGrants(grantScript(roles.runtime,options.database)),e=>{codes.push(e.code);return e.code==='22023'&&e.message==='KEY_IDENTITY_GUARD_REQUIRED';});
+     assert.equal(await aclSnapshot(),before);
+    }finally{await sql(restore);}
+   }
+   return{rejectedConfigurations:codes.length,sqlstates:codes,aclUnchangedForEveryRejection:true};
   });
   const grants=grantScript(roles.runtime,options.database);assert(!/:(?:"(?:runtime_role|database)"|'(?:runtime_role|database)')/.test(grants));await applyGrants(grants);
   runtime=new Pool({connectionString:urlFor(roles.runtime,passwords.runtime),max:4,statement_timeout:10000});
@@ -76,8 +100,8 @@ async function main(options){
    const membership=(await runtime.query('SELECT pg_has_role(current_user,$1,\'MEMBER\') AS owner,pg_has_role(current_user,$2,\'MEMBER\') AS migrator',[roles.owner,roles.migrator])).rows[0];assert.deepEqual(membership,{owner:false,migrator:false});return{identity,attributes,membership};
   });
   await test('Reapplying runtime grants removes preexisting database, schema, table, column and sequence privileges',async()=>{
-   await sql(`GRANT ALL ON DATABASE "${options.database}" TO "${roles.runtime}"; GRANT ALL ON SCHEMA public TO "${roles.runtime}"; GRANT ALL ON audit_logs TO "${roles.runtime}"; GRANT UPDATE(algorithm) ON cryptographic_keys TO "${roles.runtime}"; GRANT ALL ON SEQUENCE audit_logs_id_seq TO "${roles.runtime}"`);
-   const privileges=async()=> (await runtime.query("SELECT has_database_privilege(current_user,current_database(),'CREATE') AS database_create,has_schema_privilege(current_user,'public','CREATE') AS schema_create,has_table_privilege(current_user,'audit_logs','TRUNCATE') AS audit_truncate,has_column_privilege(current_user,'cryptographic_keys','algorithm','UPDATE') AS key_algorithm_update,has_sequence_privilege(current_user,'audit_logs_id_seq','UPDATE') AS sequence_update")).rows[0];
+   await sql(`GRANT ALL ON DATABASE "${options.database}" TO "${roles.runtime}"; GRANT ALL ON SCHEMA public TO "${roles.runtime}"; GRANT ALL ON audit_logs TO "${roles.runtime}"; GRANT UPDATE(algorithm) ON cryptographic_keys TO "${roles.runtime}"; GRANT UPDATE(id) ON policy_versions TO "${roles.runtime}"; GRANT ALL ON SEQUENCE audit_logs_id_seq TO "${roles.runtime}"`);
+   const privileges=async()=> (await runtime.query("SELECT has_database_privilege(current_user,current_database(),'CREATE') AS database_create,has_schema_privilege(current_user,'public','CREATE') AS schema_create,has_table_privilege(current_user,'audit_logs','TRUNCATE') AS audit_truncate,has_column_privilege(current_user,'cryptographic_keys','algorithm','UPDATE') AS key_algorithm_update,has_column_privilege(current_user,'policy_versions','id','UPDATE') AS policy_id_update,has_sequence_privilege(current_user,'audit_logs_id_seq','UPDATE') AS sequence_update")).rows[0];
    const before=await privileges();assert(Object.values(before).every(v=>v===true));
    await applyGrants(grants);const after=await privileges();assert(Object.values(after).every(v=>v===false));
    const statements=['UPDATE audit_logs SET metadata=metadata WHERE FALSE','TRUNCATE audit_logs','UPDATE cryptographic_keys SET algorithm=algorithm WHERE FALSE','CREATE TABLE public.runtime_regrant_forbidden(id int)','CREATE TEMP TABLE runtime_regrant_forbidden(id int)',"SELECT setval('audit_logs_id_seq',1,false)"];
@@ -91,7 +115,28 @@ async function main(options){
     'UPDATE policies SET name=name WHERE FALSE','DELETE FROM policies WHERE FALSE','UPDATE crypto_assets SET provider_scope=provider_scope WHERE FALSE',
     'UPDATE schema_migrations SET checksum=checksum','DELETE FROM schema_migrations',"INSERT INTO schema_migrations(version,checksum) VALUES('999_forbidden',repeat('a',64))",'TRUNCATE schema_migrations',"SELECT setval('audit_logs_id_seq',1,false)",`SET ROLE "${roles.owner}"`,`SET ROLE "${roles.migrator}"`,"SET session_replication_role='replica'"];
    const codes=[];for(const statement of statements)await assert.rejects(()=>runtime.query(statement),e=>{codes.push(e.code);return e.code==='42501';});
-   await assert.rejects(()=>runtime.query('UPDATE policy_versions SET id=id'),e=>e.code==='23514');return{privilegeDenials:codes.length,sqlstates:codes,policyIdUpdateBlockedByTrigger:'23514',keyAssetIdUpdateIsNarrowRowLockException:true};
+   await assert.rejects(()=>runtime.query('UPDATE policy_versions SET id=id'),e=>e.code==='42501');return{privilegeDenials:codes.length,sqlstates:codes,policyIdUpdateDenied:'42501'};
+  });
+  await test('Runtime can lock key metadata but cannot reassign its asset identity',async()=>{
+   const original=(await sql('SELECT * FROM cryptographic_keys ORDER BY asset_id')).rows;
+   const source=original[0];assert(source);
+   const destination=(await sql("SELECT id FROM crypto_assets WHERE asset_type='CERTIFICATE' ORDER BY id LIMIT 1")).rows[0];assert(destination);
+   await assert.rejects(()=>runtime.query('UPDATE cryptographic_keys SET asset_id=$2 WHERE asset_id=$1',[source.asset_id,destination.id]),
+    e=>e.code==='23514'&&e.message==='KEY_ASSET_LINK_IMMUTABLE');
+   assert.deepEqual((await sql('SELECT * FROM cryptographic_keys ORDER BY asset_id')).rows,original);
+   const reader=await runtime.connect(),writer=await admin.connect();
+   try{
+    await reader.query('BEGIN');
+    const locked=await reader.query('SELECT algorithm,key_size,usage FROM cryptographic_keys WHERE asset_id=$1 FOR SHARE',[source.asset_id]);
+    assert.equal(locked.rowCount,1);
+    await writer.query('BEGIN');await writer.query("SET LOCAL lock_timeout='100ms'");
+    await assert.rejects(()=>writer.query('UPDATE cryptographic_keys SET key_size=key_size WHERE asset_id=$1',[source.asset_id]),e=>e.code==='55P03');
+   }finally{
+    await writer.query('ROLLBACK');writer.release();
+    await reader.query('ROLLBACK');reader.release();
+   }
+   assert.deepEqual((await sql('SELECT * FROM cryptographic_keys ORDER BY asset_id')).rows,original);
+   return{identityMutationDenied:'23514',concurrentMetadataWriteBlocked:'55P03',metadataPreserved:true};
   });
   await test('An occupied child API port is refused before spawning or sending credentials',async()=>{
    let connections=0;const occupied=net.createServer(socket=>{connections++;socket.destroy();});
@@ -663,5 +708,5 @@ async function main(options){
   report.roleRemaining=(await sql('SELECT count(*)::int AS n FROM pg_roles WHERE rolname=ANY($1::text[])',[Object.values(roles)])).rows[0].n;
   await admin.end();
  }
- report.success=results.length===48&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
+ report.success=results.length===49&&results.every(r=>r.passed)&&report.roleRemaining===3&&report.credentialsAbsentFromApiLog&&report.permissionDenialsInApiLog.length===0;return report;
 }

@@ -16,6 +16,7 @@ BEGIN
     OR target.rolreplication OR target.rolbypassrls OR target.rolinherit
     OR EXISTS(SELECT 1 FROM pg_auth_members WHERE member=target.oid)
     OR EXISTS(SELECT 1 FROM pg_class WHERE relowner=target.oid)
+    OR EXISTS(SELECT 1 FROM pg_proc WHERE proowner=target.oid)
     OR EXISTS(SELECT 1 FROM pg_namespace WHERE nspowner=target.oid)
     OR EXISTS(SELECT 1 FROM pg_database WHERE datdba=target.oid) THEN
     RAISE EXCEPTION 'UNSAFE_RUNTIME_ROLE' USING ERRCODE='22023';
@@ -38,6 +39,13 @@ BEGIN
     WHERE d.datname=current_database() AND acl.grantee=0 AND acl.privilege_type='CREATE'
   ) THEN
     RAISE EXCEPTION 'UNSAFE_PUBLIC_GRANTS' USING ERRCODE='22023';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgrelid=to_regclass('public.cryptographic_keys')
+      AND tgname='trg_key_asset_identity' AND NOT tgisinternal AND tgenabled IN ('O','A')
+      AND tgfoid=to_regprocedure('public.reject_key_asset_reassignment()')
+  ) THEN
+    RAISE EXCEPTION 'KEY_IDENTITY_GUARD_REQUIRED' USING ERRCODE='22023';
   END IF;
 END;
 $guard$;
@@ -87,10 +95,8 @@ GRANT UPDATE(status,attempt_count,provider_reference,last_error_code,updated_at,
   retry_after,failure_class,sent_at,receipt_at,input_digest,receipt) ON provider_operations TO :"runtime_role";
 GRANT UPDATE(read_at,delivery_status,attempt_count,claimed_at,failed_at,scheduled_for,error_message,sent_at) ON notifications TO :"runtime_role";
 -- PostgreSQL row locks require UPDATE privilege on a column, even without a data UPDATE.
--- Published-version UPDATE is still blocked by the immutable trigger (23514).
--- Key asset_id UPDATE is a narrow privilege exception; no key algorithm/size/usage UPDATE is granted.
+-- Key identity changes are blocked by migration 018 while SELECT FOR SHARE can lock metadata.
 GRANT UPDATE(is_active) ON policies TO :"runtime_role";
-GRANT UPDATE(id) ON policy_versions TO :"runtime_role";
 GRANT UPDATE(asset_id) ON cryptographic_keys TO :"runtime_role";
 GRANT USAGE ON SEQUENCE audit_logs_id_seq TO :"runtime_role";
 COMMIT;

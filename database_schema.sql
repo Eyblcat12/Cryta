@@ -186,6 +186,17 @@ CREATE TABLE cryptographic_keys (
   CONSTRAINT ck_keys_usage CHECK (BTRIM(usage) <> '')
 );
 
+CREATE FUNCTION public.reject_key_asset_reassignment()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'KEY_ASSET_LINK_IMMUTABLE' USING ERRCODE = '23514';
+END;
+$$;
+CREATE TRIGGER trg_key_asset_identity
+BEFORE UPDATE OF asset_id ON public.cryptographic_keys
+FOR EACH ROW WHEN (OLD.asset_id IS DISTINCT FROM NEW.asset_id)
+EXECUTE FUNCTION public.reject_key_asset_reassignment();
+
 CREATE TABLE certificates (
   asset_id UUID PRIMARY KEY REFERENCES crypto_assets(id) ON DELETE CASCADE,
   serial_number VARCHAR(100) NOT NULL UNIQUE,

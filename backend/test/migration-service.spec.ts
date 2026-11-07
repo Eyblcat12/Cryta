@@ -23,7 +23,8 @@ const pre015 = [...pre014, { version: '014_asset_provider_scope', checksum: '725
 const pre016 = [...pre015, { version: '015_demo_asset_provider_scope', checksum: '2ad3c0908f9f93c9d0e6deb6b9652ed4cd4995401331eb9ac33095b1828d5496' }];
 
 const pre017 = [...pre016, { version: '016_demo_certificate_provider_scope', checksum: '823418af9c276262fc31b68d05f2c3acbff4dfcc41c0dd88e17bc7acec81113f' }];
-const complete = [...pre017, { version: '017_audit_search_trigram', checksum: '226133eb4396b03db7d555aedee04bbc9a0c490048639d8b71afc1347c6e8418' }];
+const pre018 = [...pre017, { version: '017_audit_search_trigram', checksum: '226133eb4396b03db7d555aedee04bbc9a0c490048639d8b71afc1347c6e8418' }];
+const complete = [...pre018, { version: '018_key_asset_identity', checksum: 'a963f6062d80880206078880ec17c68adb1d50fbfd2668f734e2a6f1efa6c0a3' }];
 
 function setup(rows: Array<{version:string;checksum:string|null}> = []) {
   const query = vi.fn(async (sql: string, _values?: unknown[]) => /^SELECT version,checksum FROM (public\.)?schema_migrations$/.test(sql) ? { rows } : { rows: [], rowCount: 1 });
@@ -70,11 +71,11 @@ describe('database migrations', () => {
     expect(query.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
   });
 
-  it('adds 009–017 to an existing eight-version ledger without replaying previous migrations', async () => {
+  it('adds 009–018 to an existing eight-version ledger without replaying previous migrations', async () => {
     const { service, query, release } = setup(published);
     await service.applyPending();
     const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
-    expect(insertions).toHaveLength(9);
+    expect(insertions).toHaveLength(10);
     expect(insertions[0][1]?.[0]).toBe('009_request_drafts');
     expect(insertions[1][1]?.[0]).toBe('010_execution_notifications');
     expect(query.mock.calls.some(([sql]) => sql.includes('POLICY_VERSION_IMMUTABLE'))).toBe(false);
@@ -82,13 +83,23 @@ describe('database migrations', () => {
     expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT');
     expect(release).toHaveBeenCalledOnce();
   });
-  it('upgrades a fourteen-version ledger with the two demo repairs and audit search index', async () => {
+  it('upgrades a fourteen-version ledger through key identity protection', async () => {
     const { service, query } = setup(pre015);
     await service.applyPending();
-    expect(query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations')).map(([, values]) => values?.[0])).toEqual(['015_demo_asset_provider_scope', '016_demo_certificate_provider_scope', '017_audit_search_trigram']);
+    expect(query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations')).map(([, values]) => values?.[0])).toEqual(['015_demo_asset_provider_scope', '016_demo_certificate_provider_scope', '017_audit_search_trigram', '018_key_asset_identity']);
     expect(query.mock.calls.some(([sql]) => sql.includes('ck_requests_submission'))).toBe(false);
     expect(query.mock.calls.some(([sql]) => sql.includes('AND a.provider_scope IS NULL'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => sql.includes('ADD COLUMN provider_scope'))).toBe(false);
+  });
+
+  it('adds only the identity guard when upgrading an existing seventeen-version ledger', async () => {
+    const { service, query } = setup(pre018);
+    await service.applyPending();
+    const insertions = query.mock.calls.filter(([sql]) => sql.startsWith('INSERT INTO schema_migrations'));
+    expect(insertions.map(([, values]) => values?.[0])).toEqual(['018_key_asset_identity']);
+    expect(query.mock.calls.some(([sql]) => sql.includes('KEY_ASSET_LINK_IMMUTABLE'))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE schema_migrations'))).toBe(false);
+    expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT');
   });
 
   it('rejects a changed applied 008 before replacing its immutability guard', async () => {
@@ -115,6 +126,13 @@ describe('runtime migration validation', () => {
   it('rejects a pending migration rather than applying it', async () => {
     const { service, query } = setup(published);
     await expect(service.validateApplied()).rejects.toThrow('DATABASE_MIGRATION_PENDING:009_request_drafts');
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SELECT version,checksum FROM public.schema_migrations', 'ROLLBACK',
+    ]);
+  });
+  it('requires the identity guard before accepting an existing seventeen-version database', async () => {
+    const { service, query } = setup(pre018);
+    await expect(service.validateApplied()).rejects.toThrow('DATABASE_MIGRATION_PENDING:018_key_asset_identity');
     expect(query.mock.calls.map(([sql]) => sql)).toEqual([
       'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY', 'SELECT version,checksum FROM public.schema_migrations', 'ROLLBACK',
     ]);

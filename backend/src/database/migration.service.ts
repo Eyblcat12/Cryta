@@ -152,6 +152,23 @@ BEGIN
   EXECUTE format('CREATE INDEX idx_audit_text_trgm ON public.audit_logs USING gin (action %1$I.gin_trgm_ops, entity_id %1$I.gin_trgm_ops)', extension_schema);
   PERFORM set_config('lock_timeout', previous_lock_timeout, true);
 END $$;
+`},
+{version:'018_key_asset_identity',sql:`
+CREATE OR REPLACE FUNCTION public.reject_key_asset_reassignment() RETURNS trigger LANGUAGE plpgsql AS $function$
+BEGIN
+  RAISE EXCEPTION 'KEY_ASSET_LINK_IMMUTABLE' USING ERRCODE='23514';
+END;
+$function$;
+DO $migration$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger
+      WHERE tgrelid='public.cryptographic_keys'::regclass AND tgname='trg_key_asset_identity' AND NOT tgisinternal) THEN
+    CREATE TRIGGER trg_key_asset_identity BEFORE UPDATE OF asset_id ON public.cryptographic_keys
+      FOR EACH ROW WHEN (OLD.asset_id IS DISTINCT FROM NEW.asset_id)
+      EXECUTE FUNCTION public.reject_key_asset_reassignment();
+  END IF;
+END;
+$migration$;
 `}
 ];
 

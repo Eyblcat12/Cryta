@@ -277,14 +277,29 @@ async function main(argument) {
       return { originalLedgerPreserved: true, migration005RolledBack: true, legacyTablesPreserved: legacyTables.length };
     });
 
-    await check('Operator upgrade to migration 017 preserves historical rows and is idempotent', () => {
+    await check('Operator upgrade to migration 018 preserves historical rows and is idempotent', () => {
+      const sourceKey = sql(upgradeDatabase, 'SELECT asset_id FROM cryptographic_keys ORDER BY asset_id LIMIT 1;');
+      const destinationAsset = sql(upgradeDatabase, "SELECT id FROM crypto_assets WHERE asset_type='CERTIFICATE' ORDER BY id LIMIT 1;");
+      for (const id of [sourceKey, destinationAsset]) assert.match(id, /^[a-f0-9-]{36}$/);
+      // Demonstrate the old capability inside a rolled-back fixture transaction.
+      sql(upgradeDatabase, `BEGIN; UPDATE cryptographic_keys SET asset_id='${destinationAsset}' WHERE asset_id='${sourceKey}'; ROLLBACK;`);
+      assert.deepEqual(fingerprint(upgradeDatabase), original);
       const started = Date.now();
       oneOff(name('migration'), upgradeDatabase, byService.backend.Image, ['node', 'dist/database/migrate.js'], 0);
       const migrationMs = Date.now() - started;
       const upgraded = ledger(upgradeDatabase, true);
-      assert.equal(upgraded.length, 17);
-      assert.equal(upgraded.at(-1).version, '017_audit_search_trigram');
+      assert.equal(upgraded.length, 18);
+      assert.equal(upgraded.at(-1).version, '018_key_asset_identity');
       assert.equal(sql(upgradeDatabase, "SELECT indisvalid FROM pg_index WHERE indexrelid='public.idx_audit_text_trgm'::regclass;"), 't');
+      assert.equal(sql(upgradeDatabase, "SELECT tgenabled FROM pg_trigger WHERE tgrelid='public.cryptographic_keys'::regclass AND tgname='trg_key_asset_identity';"), 'O');
+      sql(upgradeDatabase, `DO $identity_test$ BEGIN
+        BEGIN
+          UPDATE cryptographic_keys SET asset_id='${destinationAsset}' WHERE asset_id='${sourceKey}';
+          RAISE EXCEPTION 'KEY_REASSIGNMENT_WAS_ALLOWED';
+        EXCEPTION WHEN check_violation THEN
+          IF SQLERRM <> 'KEY_ASSET_LINK_IMMUTABLE' THEN RAISE; END IF;
+        END;
+      END; $identity_test$;`);
       assert(upgraded.every(entry => /^[a-f0-9]{64}$/.test(entry.checksum)));
       assert.deepEqual(upgraded.slice(0, legacyVersions.length).map(({ version, applied_at }) => ({ version, applied_at })), originalLedger);
       assert.deepEqual(fingerprint(upgradeDatabase, 'candidate'), originalProjected);
@@ -302,7 +317,8 @@ async function main(argument) {
       assert.deepEqual(ledger(upgradeDatabase, true), upgraded);
       assert.deepEqual(fingerprint(upgradeDatabase), migrated);
       return { migrationMs, versions: upgraded.map(entry => entry.version), legacyTablesPreserved: legacyTables.length,
-        auditSequencePreserved: true, providerScopeBackfillTouchedSeedTimestamps: true, unverifiedImportUnchanged: true };
+        auditSequencePreserved: true, providerScopeBackfillTouchedSeedTimestamps: true, unverifiedImportUnchanged: true,
+        legacyKeyReassignmentDemonstratedInRollback: true, migratedKeyReassignmentDenied: true };
     });
 
     await check('Candidate serves migrated data with a restricted runtime LOGIN', async () => {

@@ -25,7 +25,7 @@ Lên lịch nâng cấp trong cửa sổ bảo trì vì `CREATE INDEX` trong tra
 
 [Compose local/demo](docker-compose.yml) khai báo `apply` với bootstrap role để khởi động bằng launcher. Chế độ này có thể chạy DDL và bổ sung checksum cho ledger cũ.
 
-[Compose production](docker-compose.production.yml) đọc URL runtime từ `DATABASE_URL_FILE`. URL phải có tên máy, database, tài khoản và mật khẩu, với tham số duy nhất `sslmode=verify-full`. Tên máy phải khớp chứng thư PostgreSQL và chuỗi CA phải được Node tin cậy. Startup kiểm TLS, role LOGIN riêng có NOINHERIT, membership, các đặc quyền cluster, ownership của database/schema/relation và quyền CREATE/TEMP. Sau đó runtime kiểm ledger trong cùng transaction chỉ đọc. Đối chiếu quyền ứng dụng và các ngoại lệ cấp cột trước rollout. [TLS của node-postgres](https://node-postgres.com/features/ssl) · [T43 review](T43_DB_HARDENING_REVIEW_2026-11-05.md) · [Runbook](RELEASE_RUNBOOK.md)
+[Compose production](docker-compose.production.yml) đọc URL runtime từ `DATABASE_URL_FILE`. URL phải có tên máy, database, tài khoản và mật khẩu, với tham số duy nhất `sslmode=verify-full`. Tên máy phải khớp chứng thư PostgreSQL và chuỗi CA phải được Node tin cậy. Startup kiểm TLS, role LOGIN riêng có NOINHERIT, membership, các đặc quyền cluster, ownership của database/schema/relation/function và quyền CREATE/TEMP. Sau đó runtime kiểm ledger trong cùng transaction chỉ đọc. Đối chiếu quyền ứng dụng và các ngoại lệ cấp cột trước rollout. [TLS của node-postgres](https://node-postgres.com/features/ssl) · [T43 review](T43_DB_HARDENING_REVIEW_2026-11-05.md) · [Runbook](RELEASE_RUNBOOK.md)
 
 Các runner worker/policy/expiry tạo database con mới dùng `applyPending()` rõ ràng trước khi gọi service. Runner [runtime-ledger](tools/test-real-runtime-ledger.cjs) kiểm compiled CLI/validator, role chỉ SELECT ledger, các lệnh ghi bị từ chối và cleanup. Role test được kích hoạt qua SET ROLE trên pool riêng; chưa chứng minh đăng nhập/password rotation hoặc toàn API bằng role hạn chế.
 
@@ -35,9 +35,15 @@ Runner [runtime privileges](tools/test-real-runtime-privileges.cjs) bổ sung ba
 psql -X -v ON_ERROR_STOP=1 -v database=<database> -v runtime_role=<runtime-login-role> -f tools/testing/runtime-grants.sql
 ```
 
-Template chỉ chấp nhận runtime LOGIN không ownership/membership, không quyền đặc biệt và NOINHERIT; từ chối database sai và PUBLIC grants trên bảng/cột/sequence ứng dụng hoặc CREATE database. Trong cùng transaction, nó reset quyền trực tiếp trên database, schema public,17 bảng/cột và sequence audit rồi cấp lại bộ quyền khai báo. Nó cũng thu hồi PUBLIC CREATE schema và TEMPORARY database; cần đánh giá ảnh hưởng tới các tài khoản cùng database trước rollout. Nó không kiểm soát mọi object/extension/schema ngoài danh mục này hoặc thay thế audit toàn cluster.
+Template kiểm ownership của database, schema, relation và function bên cạnh membership/đặc quyền của runtime LOGIN. Nó từ chối database sai và PUBLIC grants trên bảng/cột/sequence ứng dụng hoặc CREATE database. Trong cùng transaction, nó reset quyền trực tiếp trên database, schema public, bảng/cột và sequence audit rồi cấp lại bộ quyền khai báo. Nó cũng thu hồi PUBLIC CREATE schema và TEMPORARY database. Rà các tài khoản cùng database và inventory object/extension/schema trước rollout.
 
-PostgreSQL yêu cầu UPDATE trên ít nhất một cột để khóa dòng. Template cấp UPDATE `policies.is_active` để khóa và ngừng áp dụng policy, thay cho `policies.updated_at`. Các ngoại lệ `policy_versions.id` và `cryptographic_keys.asset_id` vẫn có trong bộ quyền. Trigger chặn cập nhật phiên bản policy đã phát hành. Quyền UPDATE `cryptographic_keys.asset_id` thực sự tồn tại và cần được đánh giá trước khi nghiệm thu least privilege đầy đủ.
+PostgreSQL yêu cầu UPDATE trên ít nhất một cột để khóa dòng. Template cấp UPDATE `policies.is_active` cho luồng ngừng áp dụng và khóa policy. Quyền UPDATE `policy_versions.id` đã được thu hồi vì các caller hiện khóa bảng cha `policies`. Worker vẫn có UPDATE trên `cryptographic_keys.asset_id` để lấy `FOR SHARE`. Migration 018 chặn thay đổi giá trị cột này bằng trigger `KEY_ASSET_LINK_IMMUTABLE`, giữ liên kết metadata với tài sản đã cấp.
+
+### Migration 018 và liên kết khóa
+
+Operator chạy CLI migration trước rồi áp lại `runtime-grants.sql` để thu hồi quyền cột cũ. Template từ chối thay ACL khi trigger bảo vệ liên kết khóa thiếu hoặc bị tắt. Migration thêm function/trigger, không chuyển hoặc sửa các liên kết khóa hiện có. Khởi động runtime trên ledger 017 sẽ báo thiếu migration 018. Chạy trong cửa sổ bảo trì như các migration DDL khác và kiểm lại việc gia hạn/thu hồi sau nâng cấp.
+
+Trigger áp dụng cho các lệnh UPDATE làm đổi `asset_id`, bao gồm lệnh của migration owner. Dữ liệu nhập sai cần quy trình sửa có kiểm soát với bằng chứng provider và lịch sử riêng. Việc khóa dòng của worker vẫn hoạt động, còn thuật toán/kích thước/usage tiếp tục được bảo vệ bằng ACL runtime.
 
 API T20 dùng schema hiện có. Áp lại `runtime-grants.sql` trước khi đưa API mới vào môi trường chạy bằng runtime LOGIN. Template thêm INSERT trên `policies.code`, `policies.name` và chỉ cho cập nhật `policies.is_active`. [Kiểm chứng T20](T20_POLICY_LIFECYCLE_2026-11-06.md).
 

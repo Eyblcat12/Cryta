@@ -7,6 +7,7 @@ export async function assertProductionRuntime(client: PoolClient) {
         (r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls OR r.rolinherit)
       AND NOT EXISTS (SELECT 1 FROM pg_auth_members WHERE member=r.oid)
       AND NOT EXISTS (SELECT 1 FROM pg_class WHERE relowner=r.oid)
+      AND NOT EXISTS (SELECT 1 FROM pg_proc WHERE proowner=r.oid)
       AND NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspowner=r.oid)
       AND NOT EXISTS (SELECT 1 FROM pg_database WHERE datdba=r.oid)
       AND NOT has_schema_privilege('public', 'CREATE')

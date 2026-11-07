@@ -14,7 +14,7 @@
 
 `./tools/test-real-shutdown.ps1 -ReportPath <report.json>` gửi SIGTERM cho API của một stack test. Ca thử giữ một giao dịch PostgreSQL ở bước ghi tài sản để đối chiếu thứ tự dừng. Chạy sau các bài API/trình duyệt vì ca này để backend test ở trạng thái đã dừng. Dùng `run-integration.ps1` để chạy và dọn stack tự động. [Cách chạy CI local](../ci/README.md)
 
-Runner runtime LOGIN hiện ghép thêm `email-test-operations-runner.cjs` vào SMTP loopback T07, kiểm sáu nhóm T28 với DB/role/API thật. Tổng dự kiến 48 nhóm trên source mới. Mọi SMTP test chỉ gửi tới server loopback của runner, không dùng SMTP vận hành. Các lượt chưa chạy không được coi là đạt từ việc kiểm cú pháp.
+Runner runtime LOGIN ghép thêm `email-test-operations-runner.cjs` vào SMTP loopback T07 và có 49 nhóm trên migration 018. Ca liên kết khóa kiểm quyền UPDATE, trigger và khóa dòng thực. Provisioning còn kiểm việc từ chối template khi trigger thiếu hoặc bị tắt. Kết quả gửi thư được kiểm bằng SMTP loopback trong runner.
 
 `node tools/test-real-email-delivery.cjs <report.json>` tạo DB email-test riêng và kiểm10 nhóm: ba kết quả CREATE/RENEW/REVOKE, đối soát không replay, rollback khi enqueue lỗi, hai worker claim, tám loại thư qua SMTP loopback, cấu hình lỗi và Message-ID trong MIME có folding. Nó không gửi SMTP ra ngoài; DB test được dọn bởi wrapper đã kiểm ownership/inventory.
 
