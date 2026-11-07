@@ -12,6 +12,8 @@ Từ thư mục dự án, build hai image từ đúng cây Git của commit đã
 node tools/build-release-images.cjs <full-commit-sha> <release-version>
 ```
 
+Sau khi kiểm tích hợp đạt, GitHub Actions dùng script này trên commit của lượt chạy với phiên bản tạm `0.0.0-ci.<run-id>.<attempt>`. Artifact `release-build-manifest` lưu SHA commit, nhãn, ID của hai image và hash của context. Image của lượt CI nằm trên runner tạm. Khi bàn giao, lưu image với phiên bản đã duyệt theo quy trình dưới đây. [Workflow](.github/workflows/ci.yml)
+
 Giữ manifest, `.env.example` và changelog cùng bản phát hành. Khi chuyển image sang máy khác, lưu archive bằng `docker image save` và đối chiếu SHA-256 của archive trước `docker image load`. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Base image trong Dockerfile hiện theo tag. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
 
 ## Cấu hình Docker production

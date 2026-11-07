@@ -172,7 +172,7 @@ async function main() {
       await page.keyboard.press('Enter');
       const dialog = page.getByRole('dialog', { name: 'Xuất báo cáo' });
       await dialog.getByText('Dữ liệu của tôi', { exact: true }).waitFor();
-      await page.screenshot({ path: path.join(output, 'desktop.png') });
+      await page.screenshot({ path: path.join(output, 'desktop.png'), animations: 'disabled' });
       await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
       await page.waitForFunction(() => document.activeElement?.textContent?.trim() === 'Xuất báo cáo', undefined, { timeout: 5_000 });
@@ -189,7 +189,7 @@ async function main() {
       await open.click();
       await dialog.getByText('Dữ liệu của tôi', { exact: true }).waitFor();
       assert.ok(await dialog.evaluate(element => element.getBoundingClientRect().width <= innerWidth));
-      await page.screenshot({ path: path.join(output, 'mobile.png') });
+      await page.screenshot({ path: path.join(output, 'mobile.png'), animations: 'disabled' });
       return { keyboardFocusRestored: true, readyAfterReload: true, download: true, mobileFits: true };
     });
 
