@@ -85,8 +85,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: [verify, lint, secret-scan]
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -97,8 +95,12 @@ jobs:
       - name: Install pinned browser tooling
         run: npm ci --prefix tools/ci
       - name: Install Chromium and system dependencies
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
         run: node tools/ci/node_modules/playwright/cli.js install --with-deps chromium
       - name: Verify PostgreSQL, runtime grants, worker and real browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
         shell: pwsh
         run: ./tools/ci/run-integration.ps1
       - name: Preserve isolated integration reports
