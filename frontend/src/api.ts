@@ -1,7 +1,7 @@
 import type { Asset, AuthUser, RequestItem,UserRole } from './types';
 import type { AssetResponse,AssetHistoryEvent,AssetHistoryResponse } from './api/contracts/assets';
 import type { DraftFields, RequestResponse } from './api/contracts/requests';
-import type { NotificationResponse,EmailIssueResponse,EmailDeliveryDetail,EmailReconciliation } from './api/contracts/notifications';
+import type { NotificationResponse,EmailIssueResponse,EmailDeliveryDetail,EmailReconciliation,EmailRetry } from './api/contracts/notifications';
 import type { UserResponse,UserReferenceResponse } from './api/contracts/users';
 import type { DepartmentResponse,DepartmentDetail } from './api/contracts/departments';
 import type { AdminPolicy, PolicyConfigurationInput, PolicyResponse, PolicyVersion } from './api/contracts/policies';
@@ -297,6 +297,12 @@ export const api={
       kind: 'email-reconciliation', key: `email:${id}`, targetId: id, expectedStatus,
       resources: ['email', 'summary', 'dashboard', 'audit'], reviewPath: '/operations/email',
     }, `/notifications/delivery-issues/${encodeURIComponent(id)}/reconcile`, { method: 'POST', body: JSON.stringify(body) });
+  },
+  retryEmailDelivery(id: string, body: EmailRetry) {
+    return mutate<{ id: string; status: 'PENDING'; scheduledFor: string }>({
+      kind: 'email-retry', key: `email:${id}`, targetId: id,
+      resources: ['email', 'summary', 'dashboard', 'audit'], reviewPath: '/operations/email',
+    }, `/notifications/delivery-issues/${encodeURIComponent(id)}/retry`, { method: 'POST', body: JSON.stringify(body) });
   },
   providerIssues(options:{page:number;pageSize:number;status?:string},signal?:AbortSignal){
     const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});

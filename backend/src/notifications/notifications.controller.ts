@@ -1,5 +1,5 @@
 import { Body,Controller,ForbiddenException,Get,Header,Param,Patch,Post,Query,UseGuards } from '@nestjs/common'; import { ApiBearerAuth,ApiOperation,ApiProperty,ApiQuery,ApiTags } from '@nestjs/swagger'; import { IsEmail } from 'class-validator'; import { JwtAuthGuard } from '../auth/jwt-auth.guard'; import type { AuthUser } from '../common/auth-user'; import { CurrentUser } from '../common/current-user.decorator'; import { UuidLikePipe } from '../common/uuid-like.pipe'; import { EmailTestService } from './email-test.service'; import { NotificationsService } from './notifications.service';
-import { EmailReconciliationDto } from './email-reconciliation.dto';
+import { EmailReconciliationDto, EmailRetryDto } from './email-reconciliation.dto';
 
 class TestEmailDto {
   @ApiProperty({ format: 'email', maxLength: 254 })
@@ -20,6 +20,14 @@ class TestEmailDto {
   reconcileDelivery(@CurrentUser() user: AuthUser, @Param('id', UuidLikePipe) id: string, @Body() dto: EmailReconciliationDto) {
     this.admin(user);
     return this.notifications.reconcileDelivery(user, id, dto);
+  }
+
+  @Post('delivery-issues/:id/retry')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Lên lịch gửi lại email có bằng chứng SMTP chưa chấp nhận' })
+  retryDelivery(@CurrentUser() user: AuthUser, @Param('id', UuidLikePipe) id: string, @Body() dto: EmailRetryDto) {
+    this.admin(user);
+    return this.notifications.retryDelivery(user, id, dto);
   }
 
   @Post('test-email') async test(@CurrentUser() user:AuthUser,@Body() body:TestEmailDto){this.admin(user);return this.email.send(user,body.email)} private admin(user:AuthUser){if(!user.roles.includes('ADMIN'))throw new ForbiddenException({code:'ADMIN_REQUIRED',message:'Chỉ Security Admin được thực hiện thao tác này.'})}}

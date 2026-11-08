@@ -5,9 +5,17 @@ import type { AuthUser } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
 import { listOrder } from '../common/list-order';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
-import type { EmailReconciliationDto } from './email-reconciliation.dto';
+import type { EmailReconciliationDto, EmailRetryDto } from './email-reconciliation.dto';
+import { EMAIL_RETRY_DELAY_SECONDS, MAX_EMAIL_ATTEMPTS, VERIFIED_UNSENT } from './email-delivery-state';
 
 const missingEmail = () => new NotFoundException({ code: 'EMAIL_DELIVERY_NOT_FOUND', message: 'Không tìm thấy lần gửi email.' });
+const changedEmail = () => new ConflictException({ code: 'EMAIL_DELIVERY_CHANGED', message: 'Trạng thái lần gửi đã thay đổi. Hãy tải lại chi tiết.' });
+
+type DeliveryState = { status: string; type: string; attemptCount: number; error_message: string | null; recipient_active: boolean };
+function eligibleForRetry(row: DeliveryState) {
+  return row.status === 'FAILED' && row.error_message === VERIFIED_UNSENT && row.attemptCount < MAX_EMAIL_ATTEMPTS
+    && row.recipient_active && row.type !== 'INVITATION' && row.type !== 'PASSWORD_RESET';
+}
 
 @Injectable()
 export class NotificationsService {
@@ -118,17 +126,21 @@ export class NotificationsService {
   async deliveryDetail(id: string) {
     const { rows: [email] } = await this.pool.query(`SELECT n.id,n.type,n.delivery_status AS status,n.attempt_count AS "attemptCount",
       n.created_at AS "createdAt",n.claimed_at AS "claimedAt",n.failed_at AS "failedAt",n.sent_at AS "sentAt",
-      n.error_message,u.email AS "recipientEmail",u.display_name AS "recipientName"
-      FROM notifications n JOIN users u ON u.id=n.recipient_id WHERE n.id=$1 AND n.channel='EMAIL'`, [id]);
+      n.error_message,u.email AS "recipientEmail",u.display_name AS "recipientName",
+      (u.status='ACTIVE' AND d.is_active) AS recipient_active
+      FROM notifications n JOIN users u ON u.id=n.recipient_id JOIN departments d ON d.id=u.department_id
+      WHERE n.id=$1 AND n.channel='EMAIL'`, [id]);
     if (!email) throw missingEmail();
-    const { error_message: diagnostic, ...detail } = email;
+    const { error_message: diagnostic, recipient_active: _recipientActive, ...detail } = email;
     const rejection = typeof diagnostic === 'string' ? /^SMTP rejected delivery \(([45]\d{2})\)$/.exec(diagnostic) : null;
     const smtpStatus = rejection ? Number(rejection[1]) : null;
     const failure = detail.status === 'RECONCILIATION_REQUIRED' ? 'OUTCOME_UNKNOWN'
       : smtpStatus !== null ? (smtpStatus >= 500 ? 'SMTP_PERMANENT_REJECTION' : 'SMTP_TEMPORARY_REJECTION')
       : diagnostic === 'Email content could not be prepared' ? 'PREPARATION_FAILED'
-      : diagnostic === 'SMTP did not accept delivery (operator verified)' ? 'VERIFIED_UNSENT' : null;
-    return { ...detail, smtpStatus, failure, messageIdPrefix: `notification-${detail.id}` };
+      : diagnostic === VERIFIED_UNSENT ? 'VERIFIED_UNSENT' : null;
+    const evidenceReference = eligibleForRetry(email) ? await this.unsentEvidence(this.pool, id, email.attemptCount) : undefined;
+    const retry = evidenceReference ? { evidenceReference, maxAttempts: MAX_EMAIL_ATTEMPTS, delaySeconds: EMAIL_RETRY_DELAY_SECONDS } : null;
+    return { ...detail, smtpStatus, failure, retry, messageIdPrefix: `notification-${detail.id}` };
   }
 
   async reconcileDelivery(user: AuthUser, id: string, dto: EmailReconciliationDto) {
@@ -138,6 +150,63 @@ export class NotificationsService {
       throw new BadRequestException({ code: 'EMAIL_ACCEPTANCE_TIME_INVALID', message: 'Chỉ cung cấp thời điểm khi xác nhận SMTP đã chấp nhận.' });
     }
 
+    return this.withAdminDeliveryTransaction(user, async client => {
+      const { rows: [email] } = await client.query(`SELECT delivery_status,attempt_count,
+        ($2::timestamptz BETWEEN created_at AND clock_timestamp()) AS acceptance_in_range
+        FROM notifications WHERE id=$1 AND channel='EMAIL' FOR UPDATE`, [id, acceptedAt]);
+      if (!email) throw missingEmail();
+      if (email.delivery_status !== 'RECONCILIATION_REQUIRED' || email.attempt_count !== dto.attemptCount) {
+        throw changedEmail();
+      }
+      if (accepted && !email.acceptance_in_range) {
+        throw new BadRequestException({ code: 'EMAIL_ACCEPTANCE_TIME_INVALID', message: 'Thời điểm SMTP chấp nhận phải nằm từ lúc tạo thư đến hiện tại.' });
+      }
+
+      const status = accepted ? 'SENT' : 'FAILED';
+      await client.query(`UPDATE notifications SET delivery_status=$2,sent_at=$3::timestamptz,
+        failed_at=CASE WHEN $3::timestamptz IS NULL THEN clock_timestamp() END,error_message=$4 WHERE id=$1`,
+      [id, status, acceptedAt, accepted ? null : VERIFIED_UNSENT]);
+      await client.query(`INSERT INTO audit_logs(actor_id,actor_type,action,entity_type,entity_id,outcome,metadata)
+        VALUES($1,'USER',$2,'EMAIL_DELIVERY',$3,'SUCCESS',$4::jsonb)`, [user.id,
+        accepted ? 'EMAIL_DELIVERY_ACCEPTED_CONFIRMED' : 'EMAIL_DELIVERY_UNSENT_CONFIRMED', id,
+        JSON.stringify(auditMetadata({ evidenceReference: dto.evidenceReference, attemptCount: dto.attemptCount,
+          ...(acceptedAt && { acceptedAt: acceptedAt.toISOString() }) }))]);
+      return { id, status };
+    });
+  }
+
+  retryDelivery(user: AuthUser, id: string, dto: EmailRetryDto) {
+    return this.withAdminDeliveryTransaction(user, async client => {
+      const { rows: [email] } = await client.query<DeliveryState>(`SELECT n.delivery_status AS status,n.type,
+        n.attempt_count AS "attemptCount",n.error_message,(u.status='ACTIVE' AND d.is_active) AS recipient_active
+        FROM notifications n JOIN users u ON u.id=n.recipient_id JOIN departments d ON d.id=u.department_id
+        WHERE n.id=$1 AND n.channel='EMAIL' FOR UPDATE OF n`, [id]);
+      if (!email) throw missingEmail();
+      if (email.status !== 'FAILED' || email.attemptCount !== dto.attemptCount) throw changedEmail();
+      if (!eligibleForRetry(email) || await this.unsentEvidence(client, id, dto.attemptCount) !== dto.evidenceReference) {
+        throw new ConflictException({ code: 'EMAIL_RETRY_INELIGIBLE', message: 'Lần gửi không còn đủ điều kiện hoặc mã phiếu không khớp. Hãy tải lại chi tiết.' });
+      }
+
+      const { rows: [updated] } = await client.query<{ scheduledFor: Date }>(`UPDATE notifications
+        SET delivery_status='PENDING',scheduled_for=clock_timestamp()+make_interval(secs=>$2),
+          failed_at=NULL,error_message=NULL WHERE id=$1 RETURNING scheduled_for AS "scheduledFor"`, [id, EMAIL_RETRY_DELAY_SECONDS]);
+      await client.query(`INSERT INTO audit_logs(actor_id,actor_type,action,entity_type,entity_id,outcome,metadata)
+        VALUES($1,'USER','EMAIL_DELIVERY_RETRY_SCHEDULED','EMAIL_DELIVERY',$2,'SUCCESS',$3::jsonb)`,
+      [user.id, id, JSON.stringify(auditMetadata({ attemptCount: dto.attemptCount,
+        evidenceReference: dto.evidenceReference, scheduledFor: updated.scheduledFor.toISOString() }))]);
+      return { id, status: 'PENDING' as const, scheduledFor: updated.scheduledFor };
+    });
+  }
+
+  private async unsentEvidence(reader: Pick<Pool, 'query'>, id: string, attemptCount: number) {
+    const { rows: [evidence] } = await reader.query<{ reference: string }>(`SELECT metadata->>'evidenceReference' AS reference
+      FROM audit_logs WHERE entity_type='EMAIL_DELIVERY' AND entity_id=$1
+        AND action='EMAIL_DELIVERY_UNSENT_CONFIRMED' AND outcome='SUCCESS'
+        AND metadata->>'attemptCount'=$2 ORDER BY id DESC LIMIT 1`, [id, String(attemptCount)]);
+    return evidence && /^[A-Za-z0-9][A-Za-z0-9._:-]{3,63}$/.test(evidence.reference) ? evidence.reference : undefined;
+  }
+
+  private async withAdminDeliveryTransaction<T>(user: AuthUser, change: (client: PoolClient) => Promise<T>) {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -148,29 +217,9 @@ export class NotificationsService {
       if (!actor || actor.status !== 'ACTIVE' || !actor.is_active || !actor.is_admin || actor.token_version !== user.tokenVersion) {
         throw new UnauthorizedException({ code: 'SESSION_REVOKED', message: 'Phiên đăng nhập đã bị thu hồi.' });
       }
-
-      const { rows: [email] } = await client.query(`SELECT delivery_status,attempt_count,
-        ($2::timestamptz BETWEEN created_at AND clock_timestamp()) AS acceptance_in_range
-        FROM notifications WHERE id=$1 AND channel='EMAIL' FOR UPDATE`, [id, acceptedAt]);
-      if (!email) throw missingEmail();
-      if (email.delivery_status !== 'RECONCILIATION_REQUIRED' || email.attempt_count !== dto.attemptCount) {
-        throw new ConflictException({ code: 'EMAIL_DELIVERY_CHANGED', message: 'Trạng thái lần gửi đã thay đổi. Hãy tải lại chi tiết.' });
-      }
-      if (accepted && !email.acceptance_in_range) {
-        throw new BadRequestException({ code: 'EMAIL_ACCEPTANCE_TIME_INVALID', message: 'Thời điểm SMTP chấp nhận phải nằm từ lúc tạo thư đến hiện tại.' });
-      }
-
-      const status = accepted ? 'SENT' : 'FAILED';
-      await client.query(`UPDATE notifications SET delivery_status=$2,sent_at=$3::timestamptz,
-        failed_at=CASE WHEN $3::timestamptz IS NULL THEN clock_timestamp() END,error_message=$4 WHERE id=$1`,
-      [id, status, acceptedAt, accepted ? null : 'SMTP did not accept delivery (operator verified)']);
-      await client.query(`INSERT INTO audit_logs(actor_id,actor_type,action,entity_type,entity_id,outcome,metadata)
-        VALUES($1,'USER',$2,'EMAIL_DELIVERY',$3,'SUCCESS',$4::jsonb)`, [user.id,
-        accepted ? 'EMAIL_DELIVERY_ACCEPTED_CONFIRMED' : 'EMAIL_DELIVERY_UNSENT_CONFIRMED', id,
-        JSON.stringify(auditMetadata({ evidenceReference: dto.evidenceReference, attemptCount: dto.attemptCount,
-          ...(acceptedAt && { acceptedAt: acceptedAt.toISOString() }) }))]);
+      const result = await change(client);
       await client.query('COMMIT');
-      return { id, status };
+      return result;
     } catch (error) {
       await client.query('ROLLBACK').catch(() => undefined);
       if ((error as { code?: string })?.code === '55P03') {

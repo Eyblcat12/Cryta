@@ -35,7 +35,7 @@ Mẫu mời và đặt lại mật khẩu dùng link riêng có hạn dùng. Xem
 | `PENDING` | Chờ gửi hoặc SMTP từ chối tạm thời rõ ràng (4xx) | Worker tự thử lại, tối đa 5 lần. |
 | `SENDING` | Một worker đã nhận việc | Worker kiểm số lượt và thời hạn ngay trước SMTP. Sau 10 phút, lượt quá hạn không còn khóa sẽ chuyển sang cần đối soát. |
 | `SENT` | SMTP đã chấp nhận đúng địa chỉ đích và database đã ghi nhận | Vẫn cần kiểm tra hộp thư nếu nghiệm thu gửi thật. |
-| `FAILED` | SMTP từ chối vĩnh viễn (5xx) hoặc hết lượt thử | Kiểm tra cấu hình/địa chỉ và nguyên nhân trước khi lập yêu cầu gửi lại. |
+| `FAILED` | Thư gặp lỗi chuẩn bị, bị SMTP từ chối hoặc đã xác minh SMTP chưa chấp nhận | Chỉ lên lịch gửi lại khi có mã phiếu đã ghi trong Audit Log và còn lượt. |
 | `RECONCILIATION_REQUIRED` | Kết quả SMTP không chắc chắn hoặc worker/DB ngắt giữa chừng | **Không gửi lại tự động.** Kiểm tra log SMTP, Message-ID và hộp thư nhận; ghi quyết định vận hành trước khi thử lại thủ công. |
 
 Message-ID của thư nghiệp vụ có dạng `<notification-UUID@domain-cua-SMTP_FROM>`. Mã thông báo nằm trong bảng `notifications.id`. Có thể tra cứu **chỉ đọc** trên database vận hành:
@@ -53,13 +53,18 @@ ORDER BY created_at DESC;
 
 Worker giữ khóa trên bản ghi trong lúc chờ SMTP và ghi kết quả. Lượt quét bỏ qua bản ghi còn khóa để worker khác tiếp tục xử lý hàng đợi. Nếu PostgreSQL ngắt phiên sau DATA, dấu `SENDING` đã ghi trước khi gửi vẫn còn. Khi lượt hết hạn, hệ thống đưa thư sang đối soát. Phản hồi thành công thiếu địa chỉ đích cũng được đưa sang đối soát.
 
-Security Admin mở **Vận hành → Email cần xử lý → Xem chi tiết** để xem số lượt, thời điểm và mã tra trong Message-ID. Với bản ghi **Cần đối soát**, chọn kết quả theo nhật ký SMTP, nhập mã phiếu nội bộ và chọn **Ghi kết quả**. Nếu SMTP đã chấp nhận, nhập thời điểm trong nhật ký theo UTC. Nếu dữ liệu đã đổi, dùng **Tải lại chi tiết** và so lại bằng chứng với lượt gửi mới. Nếu mất phản hồi khi ghi, dùng **Kiểm tra dữ liệu** để đọc trạng thái hiện tại. Bản ghi **Gửi thất bại** hiển thị chẩn đoán đã lọc và chỉ cho xem.
+Security Admin mở **Vận hành → Email cần xử lý → Xem chi tiết** để xem số lượt, thời điểm và mã tra trong Message-ID. Với bản ghi **Cần đối soát**, chọn kết quả theo nhật ký SMTP, nhập mã phiếu nội bộ và chọn **Ghi kết quả**. Nếu SMTP đã chấp nhận, nhập thời điểm trong nhật ký theo UTC. Nếu dữ liệu đã đổi, dùng **Tải lại chi tiết** và so lại bằng chứng với lượt gửi mới. Nếu mất phản hồi khi ghi, dùng **Kiểm tra dữ liệu** để đọc trạng thái hiện tại.
 
-Security Admin có thể xem danh sách chỉ đọc tại mục **Email cần xử lý** trên dashboard. API `GET /api/v1/notifications/delivery-issues` chỉ trả metadata vận hành cần thiết (không trả thông báo lỗi SMTP thô) và yêu cầu quyền Admin.
+Nếu SMTP xác nhận chưa chấp nhận, mở lại bản ghi và chọn **Lên lịch gửi lại** khi nút xuất hiện. Đối chiếu mã phiếu trước khi xác nhận. Worker nhận việc sau ít nhất hai phút khi SMTP đang bật. Số lượt chỉ tăng khi worker nhận việc và dùng chung giới hạn năm lượt với các lần thử tự động. Thư mời và đặt lại mật khẩu dùng luồng cấp liên kết mới của T07.
+
+API `GET /api/v1/notifications/delivery-issues` chỉ trả metadata vận hành đã lọc và yêu cầu quyền Admin.
 
 `GET /api/v1/notifications/delivery-issues/{id}` trả lần gửi gần nhất, số lượt, trạng thái và chẩn đoán đã lọc cho Security Admin. Mã `messageIdPrefix` dùng để tìm trong nhật ký SMTP. Khi danh tính gửi đã đổi, tra theo tên miền gửi ở thời điểm đó. Mã SMTP số chỉ lấy từ mẫu từ chối chuẩn do worker ghi.
 
 `POST /api/v1/notifications/delivery-issues/{id}/reconcile` ghi quyết định của Security Admin cho bản ghi `RECONCILIATION_REQUIRED`. Gửi `attemptCount` từ chi tiết và `evidenceReference` là mã phiếu đối soát nội bộ. Với `outcome: ACCEPTED`, kèm `acceptedAt` theo bằng chứng SMTP ở dạng UTC có hậu tố `Z`. Với `outcome: UNSENT`, dùng bằng chứng SMTP xác nhận chưa chấp nhận và bỏ `acceptedAt`. Kết quả lần lượt là `SENT` hoặc `FAILED`. Trạng thái và audit commit cùng nhau. Nếu API trả 409, tải lại chi tiết và đối chiếu kết quả đang lưu. Luồng đối soát không đưa thư vào hàng đợi gửi.
+
+`POST /api/v1/notifications/delivery-issues/{id}/retry` nhận `attemptCount` và `evidenceReference` đã ghi cho cùng lượt. API khóa bản ghi và lưu trạng thái `PENDING`, mốc hẹn cùng sự kiện `EMAIL_DELIVERY_RETRY_SCHEDULED` trong một giao dịch. Worker đọc lại tình trạng tài khoản và đơn vị người nhận trước khi gửi.
+
 ## Email mời và phục hồi tài khoản
 
 Để bật T07, chạy migration `012_account_actions`, áp lại quyền runtime, rồi cấu hình `SMTP_ENABLED=true`, `APP_URL`, `ACCOUNT_ACTIONS_ENABLED=true` và `ACCOUNT_ACTION_KEY`. Dùng một khóa ngẫu nhiên 32 byte ở dạng 64 ký tự hex và lưu riêng trong secret của môi trường. Mọi instance API và email worker của cùng môi trường cần dùng chung khóa. Với môi trường thật, đặt `APP_URL` về origin HTTPS người dùng truy cập.

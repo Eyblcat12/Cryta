@@ -12,7 +12,10 @@ export interface EmailDeliveryDetail extends EmailIssueResponse {
   smtpStatus: number | null;
   failure: 'OUTCOME_UNKNOWN' | 'SMTP_PERMANENT_REJECTION' | 'SMTP_TEMPORARY_REJECTION' | 'PREPARATION_FAILED' | 'VERIFIED_UNSENT' | null;
   messageIdPrefix: string;
+  retry?: { evidenceReference: string; maxAttempts: number; delaySeconds: number } | null;
 }
+
+export type EmailRetry = { attemptCount: number; evidenceReference: string };
 
 export type EmailReconciliation = {
   attemptCount: number;

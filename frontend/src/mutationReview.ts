@@ -48,11 +48,12 @@ export async function readMutationState(item:WorkspaceMutation,signal:AbortSigna
       await api.emailIssuesPage({page:1,pageSize:1},signal);
       return 'Đã tải dữ liệu vận hành email. Thư gửi thử không nằm trong hàng đợi này; hãy kiểm tra hộp thư nhận hoặc log SMTP trước khi gửi lại.';
     }
-    case 'email-reconciliation': {
+    case 'email-reconciliation':case 'email-retry': {
       const delivery = await api.emailDelivery(item.targetId!, signal);
       const state = delivery.status === 'SENT' ? 'SMTP đã chấp nhận'
         : delivery.failure === 'VERIFIED_UNSENT' ? 'Đã xác minh SMTP chưa chấp nhận'
-        : delivery.status === 'RECONCILIATION_REQUIRED' ? 'Vẫn cần đối soát' : delivery.status;
+        : delivery.status === 'RECONCILIATION_REQUIRED' ? 'Vẫn cần đối soát'
+        : delivery.status === 'PENDING' ? 'Đang chờ gửi' : delivery.status;
       return `Trạng thái hiện tại của email: ${state}. Lượt gửi: ${delivery.attemptCount}.`;
     }
   }

@@ -61,6 +61,7 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
   const operation = useMutationGuard(operationKey);
   const dialog = useRef<HTMLElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
   const lock = useRef(false);
   const mounted = useRef(true);
   const [outcome, setOutcome] = useState<EmailReconciliation['outcome'] | ''>('');
@@ -70,11 +71,15 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [needsRefresh, setNeedsRefresh] = useState(false);
   const [discard, setDiscard] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryConfirmed, setRetryConfirmed] = useState(false);
   const dirty = !!(outcome || evidence || acceptedAt);
   const blocker = useUnsavedChanges(dirty && !busy);
   const row = resource.data;
   const eligible = row?.status === 'RECONCILIATION_REQUIRED';
-  const disabled = resource.loading || !!resource.error || !eligible || busy || needsRefresh || !!operation;
+  const retry = row?.retry;
+  const unavailable = resource.loading || !!resource.error || busy || needsRefresh || !!operation;
+  const disabled = unavailable || !eligible;
 
   useEffect(() => {
     mounted.current = true;
@@ -83,7 +88,14 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
 
   function close() {
     if (lock.current) return;
-    if (dirty) setDiscard(true);
+    if (retrying) {
+      setRetrying(false);
+      setRetryConfirmed(false);
+      requestAnimationFrame(() => {
+        const trigger = retryButton.current;
+        (trigger && !trigger.disabled ? trigger : closeButton.current)?.focus();
+      });
+    } else if (dirty) setDiscard(true);
     else onClose();
   }
   useDialogBehavior(dialog, closeButton, close);
@@ -91,6 +103,8 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
   function reload() {
     setNeedsRefresh(false);
     setError('');
+    setRetrying(false);
+    setRetryConfirmed(false);
     closeButton.current?.focus();
     resource.retry();
   }
@@ -112,16 +126,20 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
     } else {
       body = { ...common, outcome };
     }
+    await save(() => api.reconcileEmailDelivery(id, body), 'Không thể ghi kết quả đối soát.');
+  }
+
+  async function save(action: () => Promise<unknown>, fallback: string) {
     lock.current = true;
     setBusy(true);
     setError('');
     try {
-      await api.reconcileEmailDelivery(id, body);
+      await action();
       if (mounted.current) onSaved();
     } catch (failure) {
       if (!mounted.current) return;
       const known = failure instanceof ApiError;
-      setError(known ? failure.message : 'Không thể ghi kết quả đối soát.');
+      setError(known ? failure.message : fallback);
       if (known && (failure.status === 409 || failure.outcome === 'unknown')) setNeedsRefresh(true);
     } finally {
       lock.current = false;
@@ -129,11 +147,18 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
     }
   }
 
+  async function submitRetry(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (lock.current || unavailable || !retryConfirmed || !row || !retry) return;
+    const body = { attemptCount: row.attemptCount, evidenceReference: retry.evidenceReference };
+    await save(() => api.retryEmailDelivery(id, body), 'Không thể lên lịch gửi lại email.');
+  }
+
   const message = row && diagnosis(row);
   return <div className="modal-layer">
     <button type="button" className="modal-scrim" onClick={close} aria-label="Đóng hộp thoại" tabIndex={-1}/>
     <section ref={dialog} className="decision-dialog email-delivery-dialog" role="dialog" aria-modal="true" aria-labelledby="email-delivery-title">
-      <header><div><p className="eyebrow">Vận hành email</p><h2 id="email-delivery-title">Chi tiết lần gửi</h2></div>
+      <header><div><p className="eyebrow">Vận hành email</p><h2 id="email-delivery-title">{retrying ? 'Xác nhận gửi lại' : 'Chi tiết lần gửi'}</h2></div>
         <button ref={closeButton} type="button" className="icon-button" aria-label="Đóng" disabled={busy} onClick={close}><X size={20}/></button>
       </header>
       <div className="email-delivery-body">
@@ -143,7 +168,7 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
           <button type="button" className="text-button" onClick={reload}>Thử tải lại</button>
         </div>}
         <MutationGuardNotice operationKey={operationKey}/>
-        {row && <>
+        {!retrying && row && <>
           <dl className="detail-grid provider-detail-grid">
             <div><dt>Thông báo</dt><dd>{emailDeliveryType(row.type)}</dd></div>
             <div><dt>Trạng thái</dt><dd><StatusPill label={emailDeliveryStatus(row.status)} tone={row.status === 'FAILED' ? 'danger' : row.status === 'SENT' ? 'success' : 'warning'}/></dd></div>
@@ -152,11 +177,28 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
             <div><dt>Ngày tạo</dt><dd>{emailDeliveryTime(row.createdAt)}</dd></div>
             <div><dt>{row.status === 'SENT' ? 'SMTP chấp nhận lúc' : 'Ghi nhận lỗi lúc'}</dt><dd>{emailDeliveryTime(row.sentAt ?? row.failedAt)}</dd></div>
             <div className="email-message-id"><dt>Mã đối chiếu Message-ID</dt><dd><code>{row.messageIdPrefix}</code></dd></div>
+            {retry && <div><dt>Mã phiếu đã xác minh</dt><dd>{retry.evidenceReference}</dd></div>}
           </dl>
           {message && <p>{message}</p>}
+          {retry && <button ref={retryButton} type="button" className="primary-button" disabled={unavailable}
+            onClick={() => { setRetrying(true); setError(''); dialog.current?.scrollTo(0, 0); closeButton.current?.focus(); }}>Lên lịch gửi lại</button>}
+          {row.status === 'FAILED' && !retrying && needsRefresh && <p className="login-error" role="alert">{error} <button type="button" className="text-button" onClick={reload}>Tải lại chi tiết</button></p>}
         </>}
       </div>
-      {(eligible || dirty) && <form onSubmit={submit} className="email-reconciliation-form" aria-labelledby="email-reconciliation-heading">
+      {retrying && <form onSubmit={submitRetry} className="email-reconciliation-form">
+        {row && retry ? <>
+          <p>Mã phiếu <strong>{retry.evidenceReference}</strong> ghi nhận SMTP chưa chấp nhận thư. Crypta sẽ lên lịch để worker nhận thư sau ít nhất {retry.delaySeconds / 60} phút và ghi Audit Log.</p>
+          <p>Worker sẽ kiểm tra điều kiện gửi hiện tại trước khi dùng lượt {row.attemptCount + 1} trên {retry.maxAttempts}.</p>
+          <label className="email-retry-confirmation"><input type="checkbox" required checked={retryConfirmed} disabled={unavailable}
+            onChange={event => setRetryConfirmed(event.target.checked)}/> Tôi đã đối chiếu mã phiếu và xác nhận SMTP chưa chấp nhận thư này.</label>
+        </> : <p>Lần gửi đã đổi trạng thái. Hãy tải lại chi tiết để kiểm tra.</p>}
+        {error && <p className="login-error" role="alert">{error}</p>}
+        {needsRefresh && <button type="button" className="secondary-button" onClick={reload}>Tải lại chi tiết</button>}
+        <footer><button type="submit" className="primary-button" disabled={unavailable || !retry || !retryConfirmed}>
+          {busy ? 'Đang lên lịch…' : 'Lên lịch gửi lại'}
+        </button></footer>
+      </form>}
+      {!retrying && (eligible || dirty) && <form onSubmit={submit} className="email-reconciliation-form" aria-labelledby="email-reconciliation-heading">
         <h3 id="email-reconciliation-heading">Ghi nhận đối soát</h3>
         <p>Đối chiếu Message-ID với nhật ký SMTP trước khi xác nhận. Kết quả được lưu vào Audit Log. Việc ghi nhận không gọi SMTP.</p>
         {!eligible && row && <p role="status">Lần gửi đã đổi trạng thái. Biểu mẫu đang giữ nội dung để bạn đối chiếu.</p>}

@@ -627,6 +627,55 @@ async function main() {
       sql(`DELETE FROM notifications WHERE id IN (${ids});`);
     }
   });
+  await test('T28: email retry requires matching evidence and queues exactly one audited action', async () => {
+    const [eligible, exhausted, missingEvidence, auditFault] = Array.from({ length: 4 }, () => randomUUID());
+    const ids = [eligible, exhausted, missingEvidence, auditFault].map(id => `'${id}'`).join(',');
+    const secondAdmin = await login('ciso@congty.com');
+    const delivery = id => `/notifications/delivery-issues/${id}`;
+    const reference = 'SMTP-T28-RETRY';
+    const proof = { attemptCount: 2, evidenceReference: reference };
+    const retry = (id, dto = proof, actor = admin) => call('POST', `${delivery(id)}/retry`, dto, actor.accessToken);
+    const detail = async id => expectStatus(await call('GET', delivery(id), undefined, admin.accessToken), 200);
+    sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key,delivery_status,attempt_count)
+      SELECT id::uuid,'${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL',id,'RECONCILIATION_REQUIRED',
+        CASE WHEN id='${exhausted}' THEN 5 ELSE 2 END FROM unnest(ARRAY[${ids}]::text[]) AS fixture(id);`);
+    try {
+      expectStatus(await retry(eligible, proof, approver), 403, 'ADMIN_REQUIRED');
+      expectStatus(await retry(eligible), 409, 'EMAIL_DELIVERY_CHANGED');
+      for (const [id, attemptCount] of [[eligible, 2], [exhausted, 5], [auditFault, 2]]) {
+        expectStatus(await call('POST', `${delivery(id)}/reconcile`, { ...proof, attemptCount, outcome: 'UNSENT' }, admin.accessToken), 201);
+      }
+      sql(`UPDATE notifications SET delivery_status='FAILED',failed_at=NOW(),
+        error_message='SMTP did not accept delivery (operator verified)' WHERE id='${missingEvidence}';`);
+      assert.deepEqual((await detail(eligible)).retry, { evidenceReference: reference, delaySeconds: 120, maxAttempts: 5 });
+      assert.equal((await detail(exhausted)).retry, null);
+      assert.equal((await detail(missingEvidence)).retry, null);
+      expectStatus(await retry(exhausted, { ...proof, attemptCount: 5 }), 409, 'EMAIL_RETRY_INELIGIBLE');
+      expectStatus(await retry(missingEvidence), 409, 'EMAIL_RETRY_INELIGIBLE');
+      expectStatus(await retry(eligible, { ...proof, evidenceReference: 'SMTP-WRONG' }), 409, 'EMAIL_RETRY_INELIGIBLE');
+      expectStatus(await retry(eligible, { ...proof, attemptCount: 1 }), 409, 'EMAIL_DELIVERY_CHANGED');
+      const results = await Promise.all([retry(eligible), retry(eligible, proof, secondAdmin)]);
+      assert.deepEqual(results.map(result => result.status).sort(), [201, 409]);
+      const queued = expectStatus(results.find(result => result.status === 201), 201);
+      assert.equal(queued.id, eligible);
+      assert.equal(queued.status, 'PENDING');
+      const persisted = await detail(eligible);
+      assert.equal(persisted.attemptCount, 2);
+      assert.equal(persisted.retry, null);
+      assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE action='EMAIL_DELIVERY_RETRY_SCHEDULED'
+        AND entity_id='${eligible}' AND metadata->>'evidenceReference'='${reference}'
+        AND (metadata->>'scheduledFor')::timestamptz >= occurred_at + INTERVAL '119 seconds';`), '1');
+      sql(`CREATE FUNCTION t28_reject_email_retry_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+        IF NEW.action='EMAIL_DELIVERY_RETRY_SCHEDULED' AND NEW.entity_id='${auditFault}' THEN RAISE EXCEPTION 'retry audit fixture'; END IF;
+        RETURN NEW; END $$;
+        CREATE TRIGGER t28_reject_email_retry_audit BEFORE INSERT ON audit_logs
+        FOR EACH ROW EXECUTE FUNCTION t28_reject_email_retry_audit();`);
+      try { expectStatus(await retry(auditFault), 500); }
+      finally { sql('DROP TRIGGER t28_reject_email_retry_audit ON audit_logs; DROP FUNCTION t28_reject_email_retry_audit();'); }
+      assert.equal((await detail(auditFault)).status, 'FAILED');
+      return { concurrentAdmins: 2, schedules: 1, attemptCountUnchanged: true, rollbackOnAuditFailure: true, requiresMatchingEvidence: true };
+    } finally { sql(`DELETE FROM notifications WHERE id IN (${ids});`); }
+  });
   for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
     await test(`T28 UI: email delivery detail and evidence on ${width}px ${theme}`, async () => {
       const unknown = randomUUID(), failed = randomUUID();
@@ -725,6 +774,25 @@ async function main() {
           await detailButton(unknown).click();
           await dialog.getByText('Quản trị viên đã xác minh SMTP chưa chấp nhận thư.').waitFor();
           assert.equal(await submit().count(), 0);
+          const retry = dialog.getByRole('button', { name: 'Lên lịch gửi lại' });
+          await retry.focus();
+          await page.keyboard.press('Enter');
+          const confirmation = page.getByRole('dialog', { name: 'Xác nhận gửi lại' });
+          const confirm = confirmation.getByRole('button', { name: 'Lên lịch gửi lại' });
+          assert.equal(await confirm.isDisabled(), true);
+          await page.keyboard.press('Escape');
+          await retry.waitFor();
+          await page.waitForFunction(() => document.activeElement?.textContent === 'Lên lịch gửi lại');
+          await retry.click();
+          await confirmation.getByRole('checkbox', { name: /Tôi đã đối chiếu mã phiếu/ }).check();
+          await page.screenshot({ path: path.join(output, 't28-email-retry-390-dark.png'), animations: 'disabled' });
+          await confirm.click();
+          await confirmation.waitFor({ state: 'hidden' });
+          await page.getByText(/Đã lên lịch gửi lại email/).waitFor();
+          const queued = expectStatus(await call('GET', deliveryPath(unknown), undefined, admin.accessToken), 200);
+          assert.equal(queued.status, 'PENDING');
+          assert.equal(queued.attemptCount, 2);
+          assert.equal(calls.filter(call => call === `POST ${deliveryPath(unknown)}/retry`).length, 1);
         }
         assert.deepEqual(errors, []);
         return { width, theme, expectedStatus, evidenceAuditEvents: 1, conflictPreservedDraft: outcome === 'ACCEPTED', keyboard: true, layout: true };

@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PickType } from '@nestjs/swagger';
 import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
 
 const deliveryOutcomes = ['ACCEPTED', 'UNSENT'] as const;
@@ -17,3 +17,5 @@ export class EmailReconciliationDto {
   @IsOptional() @IsISO8601({ strict: true, strictSeparator: true }) @Matches(/T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/)
   acceptedAt?: string;
 }
+
+export class EmailRetryDto extends PickType(EmailReconciliationDto, ['attemptCount', 'evidenceReference'] as const) {}

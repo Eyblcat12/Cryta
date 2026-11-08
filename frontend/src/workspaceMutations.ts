@@ -1,6 +1,6 @@
 import type { WorkspaceResource } from './workspaceRefresh';
 
-export type MutationKind='request-create'|'request-draft-save'|'request-draft-submit'|'request-decision'|'request-cancel'|'user-create'|'user-invite'|'user-invite-resend'|'user-status'|'user-access'|'user-department'|'department-save'|'department-status'|'policy-create'|'policy-version'|'policy-deactivate'|'notification-read'|'email-test'|'email-reconciliation'|'provider-recovery';
+export type MutationKind='request-create'|'request-draft-save'|'request-draft-submit'|'request-decision'|'request-cancel'|'user-create'|'user-invite'|'user-invite-resend'|'user-status'|'user-access'|'user-department'|'department-save'|'department-status'|'policy-create'|'policy-version'|'policy-deactivate'|'notification-read'|'email-test'|'email-reconciliation'|'email-retry'|'provider-recovery';
 export interface MutationInput {
   kind:MutationKind; key:string; targetId?:string; email?:string; expectedStatus?:string; expectedVersion?:number; expectedDepartmentId?:string; expectedCode?:string;
   resources:readonly WorkspaceResource[]; reviewPath:string;
@@ -58,6 +58,7 @@ export const mutationLabels:Record<MutationKind,string>={
   'policy-create':'Tạo chính sách','policy-version':'Phát hành chính sách','policy-deactivate':'Ngừng áp dụng chính sách',
   'notification-read':'Đánh dấu thông báo đã đọc','email-test':'Gửi email kiểm tra',
   'email-reconciliation':'Ghi kết quả đối soát email',
+  'email-retry':'Lên lịch gửi lại email',
   'provider-recovery':'Xử lý đối soát provider',
 };
 export const mutationSuccess:Record<MutationKind,string>={
@@ -71,6 +72,7 @@ export const mutationSuccess:Record<MutationKind,string>={
   'notification-read':'Đã cập nhật trạng thái đã đọc.',
   'email-test':'Máy chủ đã xác nhận gửi email kiểm tra.',
   'email-reconciliation':'Đã ghi kết quả đối soát email.',
+  'email-retry':'Đã lên lịch gửi lại email. Số lượt sẽ tăng khi worker nhận việc.',
   'provider-recovery':'Đã ghi nhận thao tác đối soát.',
 };
 export function validAcknowledgment(item:MutationInput,value:unknown){
@@ -93,6 +95,8 @@ export function validAcknowledgment(item:MutationInput,value:unknown){
       return Number.isSafeInteger(item.expectedVersion)&&data.version===item.expectedVersion!+1&&approval?.levels===2&&approval.approved===1;
     }
     case 'user-status':case 'email-reconciliation':return data.id===item.targetId&&data.status===item.expectedStatus;
+    case 'email-retry':return data.id===item.targetId&&data.status==='PENDING'&&
+      typeof data.scheduledFor==='string'&&Number.isFinite(Date.parse(data.scheduledFor));
     case 'provider-recovery':return data.id===item.targetId&&data.status===item.expectedStatus&&data.version===item.expectedVersion!+1;
     case 'user-create':return identified&&typeof item.email==='string'&&data.email===item.email;
     case 'user-invite':return identified&&typeof item.email==='string'&&data.email===item.email&&data.invitationPending===true&&data.status==='INACTIVE';

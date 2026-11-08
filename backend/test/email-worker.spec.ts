@@ -5,7 +5,8 @@ import { EmailWorkerService } from '../src/notifications/email-worker.service';
 
 const job = { id: 'notification-1', attempt_count: 1, type: 'REQUEST_APPROVED', recipient_email: 'user@example.test', recipient_name: 'User', request_id: 'request-1', asset_id: null };
 
-function setup(sendMail: () => Promise<unknown>, update: (sql: string, values?: unknown[]) => Promise<unknown> = async () => ({ rowCount: 1 })) {
+const active = { rows: [{ recipient_active: true }], rowCount: 1 };
+function setup(sendMail: () => Promise<unknown>, update: (sql: string, values?: unknown[]) => Promise<unknown> = async () => active) {
   const query = vi.fn(update);
   const client = { query, on: vi.fn(), removeListener: vi.fn(), release: vi.fn() };
   const worker = new EmailWorkerService({ query, connect: async () => client } as unknown as Pool);
@@ -45,7 +46,7 @@ describe('email delivery uncertainty', () => {
   });
   it('does not send an expiry alert after the recipient loses eligibility', async () => {
     const send = vi.fn(async () => ({}));
-    const { worker, query, restore } = setup(send, async sql => ({ rowCount: sql.includes("role.code='APPROVER'") ? 0 : 1 }));
+    const { worker, query, restore } = setup(send, async sql => sql.includes("role.code='APPROVER'") ? { rowCount: 0 } : active);
     try {
       await worker['deliver']({ ...job, type: 'ASSET_EXPIRED', asset_id: 'asset-1', request_id: null });
       expect(send).not.toHaveBeenCalled();
@@ -69,7 +70,7 @@ describe('email delivery uncertainty', () => {
   it('does not retry when SMTP accepted but database acknowledgement failed', async () => {
     const { worker, query, restore } = setup(async () => ({ accepted: ['user@example.test'] }), async sql => {
       if (sql.includes("delivery_status='SENT'")) throw new Error('DB unavailable');
-      return { rowCount: 1 };
+      return active;
     });
     try {
       await worker['deliver'](job);
@@ -107,12 +108,12 @@ describe('email delivery uncertainty', () => {
 
   it('does not reach SMTP after the claimed attempt is replaced', async () => {
     const send = vi.fn();
-    const { worker, query, restore } = setup(send, async sql => ({ rowCount: sql.includes('FOR UPDATE') ? 0 : 1 }));
+    const { worker, query, restore } = setup(send, async sql => sql.includes('FOR UPDATE') ? { rows: [] } : active);
     try {
       await worker['deliver'](job);
       expect(send).not.toHaveBeenCalled();
       const fence = query.mock.calls.find(([sql]) => sql.includes('FOR UPDATE'));
-      expect(fence?.[1]).toEqual([job.id, job.attempt_count]);
+      expect(fence?.[1]).toEqual([job.id, job.attempt_count, job.recipient_email]);
       expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
     } finally { restore(); }
   });

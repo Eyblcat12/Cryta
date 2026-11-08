@@ -20,7 +20,7 @@ async function main(options) {
   const department = id(), owner = id(), otherOwner = id(), policy = id(), policyVersion = id();
   const notifications = new NotificationsService(pool), provider = new CryptoProviderService();
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    loopbackSmtp: true, externalSmtp: false, plannedTotal: 17, results, compiledServiceHashes: Object.fromEntries([
+    loopbackSmtp: true, externalSmtp: false, plannedTotal: 18, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
       'jobs/asset-processing.service.js', 'database/migration.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
@@ -325,7 +325,7 @@ async function main(options) {
       try {
         reply = await smtp.received;
         const { rows } = await sql(`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
-          AND state='idle in transaction' AND query LIKE '%AND attempt_count=$2%'`);
+          AND state='idle in transaction' AND query LIKE '%AND n.attempt_count=$2%'`);
         assert.equal(rows.length, 1);
         assert.equal((await sql('SELECT pg_terminate_backend($1) AS terminated', [rows[0].pid])).rows[0].terminated, true);
       } finally {
@@ -339,6 +339,38 @@ async function main(options) {
       assert.equal((await deliveryState(notification)).status, 'RECONCILIATION_REQUIRED');
       assert.equal(messages.length - before, 1);
       return { postgresTerminatedAfterData: true, smtpMessages: 1, replayed: 0 };
+    });
+    await test('an audited retry waits for its schedule and worker rechecks the current recipient', async () => {
+      await reset();
+      const actor = { id: otherOwner, tokenVersion: 1 };
+      const before = messages.length;
+      const schedule = async () => {
+        const notification = await pendingEmail();
+        await sql("UPDATE notifications SET delivery_status='RECONCILIATION_REQUIRED',attempt_count=1 WHERE id=$1", [notification]);
+        const proof = { evidenceReference: 'SMTP-LOOPBACK-2041', attemptCount: 1 };
+        await notifications.reconcileDelivery(actor, notification, { ...proof, outcome: 'UNSENT' });
+        const queued = await notifications.retryDelivery(actor, notification, proof);
+        assert.equal(queued.status, 'PENDING');
+        assert.equal((await deliveryState(notification)).attempts, 1);
+        return notification;
+      };
+      const first = await schedule();
+      await mailWorker().processBatch();
+      assert.equal(messages.length, before);
+      await sql('UPDATE notifications SET scheduled_for=NOW() WHERE id=$1', [first]);
+      await mailWorker().processBatch();
+      assert.equal((await deliveryState(first)).status, 'SENT');
+      assert.equal((await deliveryState(first)).attempts, 2);
+      assert.equal(messages.length, before + 1);
+      const inactive = await schedule();
+      await sql("UPDATE users SET status='INACTIVE' WHERE id=$1", [owner]);
+      try {
+        await sql('UPDATE notifications SET scheduled_for=NOW() WHERE id=$1', [inactive]);
+        await mailWorker().processBatch();
+        assert.equal((await deliveryState(inactive)).status, 'FAILED');
+        assert.equal(messages.length, before + 1);
+      } finally { await sql("UPDATE users SET status='ACTIVE' WHERE id=$1", [owner]); }
+      return { sentBeforeDue: 0, sentAfterDue: 1, sendsToInactiveRecipient: 0, attemptIncrementedAtClaim: true };
     });
     report.success = results.length === report.plannedTotal && results.every(value => value.passed);
     return report;

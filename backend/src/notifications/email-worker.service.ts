@@ -7,6 +7,7 @@ import { OperationsMetricsService } from '../operations/operations-metrics.servi
 import { accountEmail, emailConfiguration, mfaSecurityChangedEmail, notificationEmail, passwordResetCompletedEmail } from './email-template';
 import { deriveAccountActionToken, matchesAccountActionHash, readAccountActionKey, type AccountActionPurpose } from '../auth/account-action-token';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
+import { MAX_EMAIL_ATTEMPTS } from './email-delivery-state';
 
 type Job = { id:string; attempt_count:number; type:string; recipient_email:string; recipient_name:string; request_id:string|null; asset_id:string|null; created_at?:Date; asset_expires_at?:Date|null };
 type AccountDelivery = { id: string; user_id: string; purpose: AccountActionPurpose; token_hash: string; created_at: Date; expires_at: Date };
@@ -143,12 +144,14 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
       await client.query('BEGIN');
       // Serialize SMTP with recovery for this claim. A crashed worker releases
       // the row lock, but the committed SENDING marker survives for reconciliation.
-      const current = await client.query(`SELECT 1 FROM notifications
-        WHERE id=$1 AND channel='EMAIL' AND delivery_status='SENDING' AND attempt_count=$2
-          AND COALESCE(claimed_at,scheduled_for)>=NOW()-INTERVAL '10 minutes'
-        FOR UPDATE`, [job.id, job.attempt_count]);
-      if (current.rowCount && !connectionLost) {
-        smtpAccepted = await this.sendClaim(client, job);
+      const { rows: [current] } = await client.query<{ recipient_active: boolean }>(`SELECT
+        ((u.status='ACTIVE' OR n.type='INVITATION') AND d.is_active AND u.email=$3) AS recipient_active
+        FROM notifications n JOIN users u ON u.id=n.recipient_id JOIN departments d ON d.id=u.department_id
+        WHERE n.id=$1 AND n.channel='EMAIL' AND n.delivery_status='SENDING' AND n.attempt_count=$2
+          AND COALESCE(n.claimed_at,n.scheduled_for)>=NOW()-INTERVAL '10 minutes'
+        FOR UPDATE OF n`, [job.id, job.attempt_count, job.recipient_email]);
+      if (current && !connectionLost) {
+        smtpAccepted = await this.sendClaim(client, job, current.recipient_active);
         if (smtpAccepted) await client.query(`UPDATE notifications SET delivery_status='SENT',sent_at=clock_timestamp(),error_message=NULL
           WHERE id=$1`, [job.id]);
       }
@@ -163,9 +166,12 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     }
   }
 
-  private async sendClaim(client: PoolClient, job: Job) {
+  private async sendClaim(client: PoolClient, job: Job, recipientActive: boolean) {
     let message;
-    try { message = await this.message(client, job); }
+    try {
+      if (!recipientActive) throw new Error('EMAIL_RECIPIENT_NO_LONGER_ELIGIBLE');
+      message = await this.message(client, job);
+    }
     catch {
       // No SMTP call was made; a preparation failure is a known unsent result.
       await client.query(`UPDATE notifications SET delivery_status='FAILED',failed_at=clock_timestamp(),error_message=$2
@@ -183,9 +189,9 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
       const code = (error as { responseCode?: unknown })?.responseCode;
       if (typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 600) {
         await client.query(`UPDATE notifications
-          SET delivery_status=CASE WHEN $3::int>=500 OR attempt_count>=5 THEN 'FAILED' ELSE 'PENDING' END,
-            failed_at=CASE WHEN $3::int>=500 OR attempt_count>=5 THEN clock_timestamp() ELSE NULL END,
-            scheduled_for=clock_timestamp()+(LEAST(attempt_count,5)*INTERVAL '2 minutes'),error_message=$2
+          SET delivery_status=CASE WHEN $3::int>=500 OR attempt_count>=${MAX_EMAIL_ATTEMPTS} THEN 'FAILED' ELSE 'PENDING' END,
+            failed_at=CASE WHEN $3::int>=500 OR attempt_count>=${MAX_EMAIL_ATTEMPTS} THEN clock_timestamp() ELSE NULL END,
+            scheduled_for=clock_timestamp()+(LEAST(attempt_count,${MAX_EMAIL_ATTEMPTS})*INTERVAL '2 minutes'),error_message=$2
           WHERE id=$1`, [job.id, `SMTP rejected delivery (${code})`, code]);
         this.logger.warn({ event: 'email.delivery_rejected', notificationId: job.id, smtpStatus: code });
       } else {

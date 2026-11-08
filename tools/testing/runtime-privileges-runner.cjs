@@ -615,10 +615,25 @@ async function main(options){
    assert.equal(history.items.filter(event=>event.action==='ASSET_MARKED_EXPIRED').length,1);
    const notification=(await sql("SELECT id FROM notifications WHERE asset_id=$1 AND recipient_id=$2 AND channel='IN_APP'",[asset,sessions.user.user.id])).rows[0];assert(notification);await api('PATCH',`/notifications/${notification.id}/read`,null,sessions.user,200);assert((await sql('SELECT read_at FROM notifications WHERE id=$1',[notification.id])).rows[0].read_at);return{assetId:asset,notificationId:notification.id};
   });
-  await test('Email queue claim and SENT bookkeeping use runtime grants with a fake transport only',async()=>{
+  await test('Email queue claim, SENT and audited retry use restricted runtime grants',async()=>{
    const email=new EmailWorkerService(runtime);let sent=0;const old=process.env.SMTP_FROM;process.env.SMTP_FROM='Crypta <no-reply@example.test>';
    email.transporter={sendMail:async({to})=>{sent++;return{accepted:[to]}}};
-   try{const job=await email.claim();assert(job);await email.deliver(job);await email.reconcileStuck();assert.equal(sent,1);assert.equal((await sql('SELECT delivery_status FROM notifications WHERE id=$1',[job.id])).rows[0].delivery_status,'SENT');return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0};}finally{if(old===undefined)delete process.env.SMTP_FROM;else process.env.SMTP_FROM=old;}
+   const retryId=crypto.randomUUID();
+   try{
+    const job=await email.claim();assert(job);await email.deliver(job);await email.reconcileStuck();assert.equal(sent,1);
+    assert.equal((await sql('SELECT delivery_status FROM notifications WHERE id=$1',[job.id])).rows[0].delivery_status,'SENT');
+    await sql(`INSERT INTO notifications(id,recipient_id,asset_id,type,channel,deduplication_key,delivery_status,attempt_count)
+      VALUES($1::uuid,$2,$3,'ASSET_REVOKED','EMAIL',($1::uuid)::text,'RECONCILIATION_REQUIRED',1)`,[retryId,sessions.user.user.id,renewedAsset]);
+    const base='/notifications/delivery-issues/'+retryId, proof={attemptCount:1,evidenceReference:'SMTP-RUNTIME-RETRY'};
+    await api('POST',base+'/reconcile',{...proof,outcome:'UNSENT'},sessions.admin,201);
+    assert.equal((await api('GET',base,null,sessions.admin,200)).data.retry.evidenceReference,proof.evidenceReference);
+    assert.equal((await api('POST',base+'/retry',proof,sessions.admin,201)).data.status,'PENDING');
+    assert.equal((await sql("SELECT count(*)::int AS count FROM audit_logs WHERE action='EMAIL_DELIVERY_RETRY_SCHEDULED' AND entity_id=$1",[retryId])).rows[0].count,1);
+    return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0,auditedRetry:true};
+   }finally{
+    if(old===undefined)delete process.env.SMTP_FROM;else process.env.SMTP_FROM=old;
+    await sql('DELETE FROM notifications WHERE id=$1',[retryId]);
+   }
   });
   await test('Dashboard, asset/history, audit, notification and operations metrics reads are available under runtime',async()=>{
    for(const endpoint of ['/dashboard?role=ADMIN','/users?page=1&pageSize=25','/audit-logs?page=1&pageSize=25','/notifications/status','/notifications/delivery-issues?page=1&pageSize=25'])await api('GET',endpoint,null,sessions.admin,200);
