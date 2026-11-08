@@ -176,18 +176,18 @@ async function main() {
       assert.match(id,/^[0-9a-f-]{36}$/i); sessions.push({...session,id});
     }
     const malformedStatuses=[];
-    for (const value of ['not-a-uuid.secret',sessions[0].id,`${sessions[0].id}.secret.extra`]) {
+    for (const value of ['not-a-uuid.secret',sessions[0].id,`${sessions[0].id}.secret.extra`,'%E0%A4']) {
       malformedStatuses.push((await call('POST','/auth/logout',undefined,account.accessToken,`crypta_refresh=${value}`)).status);
     }
     const foreign=await call('POST','/auth/logout',undefined,account.accessToken,sessions[0].cookie);
     const foreignActive=Number(sql(`SELECT COUNT(*) FROM auth_sessions WHERE id='${sessions[0].id}' AND revoked_at IS NULL`));
     const wrongSecret=await call('POST','/auth/logout',undefined,victim.accessToken,`crypta_refresh=${sessions[1].id}.incorrect-secret`);
     const wrongSecretActive=Number(sql(`SELECT COUNT(*) FROM auth_sessions WHERE id='${sessions[1].id}' AND revoked_at IS NULL`));
-    const own=await call('POST','/auth/logout',undefined,victim.accessToken,sessions[2].cookie);
+    const own=await call('POST','/auth/logout',undefined,victim.accessToken,sessions[2].cookie.replace('.', '%2E'));
     const ownActive=Number(sql(`SELECT COUNT(*) FROM auth_sessions WHERE id='${sessions[2].id}' AND revoked_at IS NULL`));
     const repeated=await call('POST','/auth/logout',undefined,victim.accessToken,sessions[2].cookie);
     await fs.writeFile(path.join(output,'logout-observations.json'),JSON.stringify({malformedStatuses,foreignStatus:foreign.status,foreignActive,wrongSecretStatus:wrongSecret.status,wrongSecretActive,ownStatus:own.status,ownActive,repeatedStatus:repeated.status},null,2));
-    assert.deepEqual(malformedStatuses,[200,200,200],'Malformed cookies must be harmless idempotent logout, without UUID SQL errors.');
+    assert.deepEqual(malformedStatuses,[200,200,200,200],'Malformed cookies must be harmless idempotent logout.');
     expectStatus(foreign,200); assert.equal(foreignActive,1,'An actor must never revoke another user\'s refresh session.');
     expectStatus(wrongSecret,200); assert.equal(wrongSecretActive,1,'A guessed session UUID without its matching secret must not revoke a session.');
     expectStatus(own,200); assert.equal(ownActive,0); expectStatus(repeated,200);
@@ -379,7 +379,9 @@ async function main() {
     }
   });
   await test('M API: malformed refresh cookie returns 401', async () => {
-    expectStatus(await call('POST', '/auth/refresh', undefined, undefined, 'crypta_refresh=invalid.secret'), 401, 'SESSION_INVALID');
+    for (const cookie of ['invalid.secret', '%E0%A4']) {
+      expectStatus(await call('POST', '/auth/refresh', undefined, undefined, `crypta_refresh=${cookie}`), 401, 'SESSION_INVALID');
+    }
   });
   async function newPage(viewport = { width: 1440, height: 1000 }, sharedContext) {
     const context = sharedContext ?? await browser.newContext({ viewport }); if (!sharedContext) contexts.push(context);
