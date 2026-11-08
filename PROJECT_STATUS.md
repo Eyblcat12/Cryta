@@ -1,5 +1,15 @@
 # Trạng thái triển khai Crypta
 
+## Hiện trạng ngày 08/11/2026
+
+Nhánh ứng viên đã có bản kiểm CI đầy đủ tại `fd4577145db8db35a38437b7f81501ad78549142`. Cả 5 job đạt. Artifact xác nhận backend 520/520, frontend 148/148, SMTP loopback 6/6, Chromium 65/65, quyền runtime 51/51, worker 37/37 và hết hạn 21/21. Audit dependency ghi 0 advisory cho ba package ở lượt này. CI đã dọn stack. SHA-256 của hai context build và mẫu cấu hình khớp khi tạo lại từ cùng commit. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md)
+
+Thay đổi Tổng quan tại `c14a89b` có bằng chứng local riêng. Backend 520/520 và hai nhóm Chromium T29 đạt. Truy vấn biểu đồ Admin nhanh hơn trên cùng volume. Hai lượt đo p95 ở mức 32 request đồng thời cho 139–216 ms. [CI Tổng quan](https://github.com/Eyblcat12/Cryta/actions/runs/42492791049) · [Báo cáo tải](T50_CAPACITY_2026-11-06.md)
+
+54 task chính đã được đối chiếu ít nhất một phần và 6 mục mở rộng giữ trong phạm vi. Cả 12 UC có liên kết đến bằng chứng kỹ thuật theo commit. Quyết định R1 và nghiệm thu R2 còn chờ điều kiện đích, gồm UAT, hạ tầng HTTPS, hộp thư SMTP, provider/CA theo phạm vi, nơi sao lưu và người trực. [Tracker](TASK_STATUS_2026-11-05.md) · [Ma trận UC](docs/NGHIEM_THU_UAT.md#đối-chiếu-bằng-chứng-theo-commit) · [Cổng nghiệm thu](docs/CONG_NGHIEM_THU_RELEASE.md)
+
+## Lịch sử kiểm thử theo từng lượt
+
 T30 đã sửa callback tiêu đề lấy mất focus trước Enter. Bộ UI/API thật đạt 39/39. GitHub Actions trên `7a02147` đạt cả năm job, gồm 160/160 nhóm tích hợp và dọn stack. [Focus](T30_FOCUS_INTENT_2026-11-07.md) · [CI](docs/CI_REMOTE_2026-11-07.md)
 
 X02 đã tích hợp hai cấp phê duyệt vào policy, hàng chờ, chi tiết và worker theo mẫu đã duyệt. GitHub Actions trên `dcfff1d` đạt 165/165 nhóm tích hợp, gồm X02, các ca T49 và 4 nhóm MFA. Cả hai stack đã được dọn. [Chi tiết X02](docs/X02_TWO_STAGE_APPROVAL.md) · [CI](https://github.com/Eyblcat12/Cryta/actions/runs/42347634913)
@@ -70,7 +80,7 @@ Cập nhật focus06/11: [sửa Tab thoát dialog đang gửi](T30_DIALOG_FOCUS_
 
 Cập nhật tiếp06/11: [NAV20 network baseline12/12 mẫu](T30_USERS_NETWORK_2026-11-06.md) trên Edge/Chrome xác nhận cold Users7→3 GET và503+retry14→4, không đọc bảng ngoài nhu cầu Users; đây là fixture comparison với source Git trước routing, không latency/deployment proof. [Skeleton gộp hàng](T30_SKELETON_BANDS_2026-11-06.md)40/40 geometry nhưng24 mẫu benefit đổi dấu, không tích hợp. Product source/build giữ nguyên; N6 và T30 vẫn mở.
 
-## Lượt mới nhất06/11/2026 — T30 với GET thật bị trễ
+## Lượt 06/11/2026 — T30 với GET thật bị trễ
 
 [Integration mới26/26 mỗi Edge/Chrome](T30_DELAYED_GET_2026-11-06.md) thêm ba race Assets qua relation lock PostgreSQL thật: đổi route, logout→account khác, ADMIN→USER. Browser hủy read cũ và giữ đúng owner/scope; mỗi ca một document/không tải thêm script, không business mutation từ UI. Holder session đã đóng; backup11/11,17 bảng/sequence khớp, dọn stack test0/0/0 và giữ8 container ngoài test. Snapshot204 file/build/12 compiled hashes khớp. Product FE/BE giữ nguyên; unit không chạy lại. T30 còn N6, screen reader/native close, network baseline và ma trận ngoài ba ca desktop này.
 
@@ -140,7 +150,7 @@ Frontend **123/123 unit test**, production/motion-off build đạt. **106/106 br
 
 Phạm vi vẫn đủ 54 task chính và 6 mở rộng: **29 task có cập nhật một phần, 25 chưa đối chiếu riêng, 0 được xác nhận nghiệm thu toàn tiêu chí qua báo cáo này**. Xem [thống kê toàn bộ](TASK_STATUS_2026-10-01.md) và [bằng chứng T30](T30_PROGRESS_2026-10-01.md). Ưu tiên tiếp tục L/N còn thiếu → M theo plan; không đóng T30 hay toàn dự án từ một lát cắt xanh. Các kết quả có ngày cũ bên dưới được giữ làm lịch sử.
 
-## Kết quả mới nhất 30/09/2026 — T30 đang triển khai
+## Lượt 30/09/2026 — T30 đang triển khai
 
 Đã tách shell/Outlet/pages, resource ownership và session boundary. Lượt I/J/K mới hoàn thiện query/pageSize/history, search theo trang và card filter; thông báo giữ lỗi mất quyền/đối tượng, cập nhật unread toàn scope. Bốn form có dirty/beforeunload và bảo vệ đổi target/policy/Back; sửa query scroll chờ hàng tải và đóng dialog sau điều hướng. Các guards personal/SoD của lượt E/H được giữ. Kết quả mới: **104/104 frontend, 86/86 backend unit test**, cả hai production build đạt, **78/78 browser regression bằng HTTP fixture cách ly**. T30 chưa nghiệm thu; ưu tiên tiếp K/NAV-21 mutation mất mạng/kết quả chưa rõ, rồi L/N browser/trace và M JWT/cookie/object scope/SoD/concurrency/deployment/DB theo [bằng chứng T30](T30_PROGRESS_2026-09-30.md). Hợp đồng summary/lifecycle/personal filters mới cần triển khai cả backend và frontend; chưa có Nginx/DB smoke mới.
 

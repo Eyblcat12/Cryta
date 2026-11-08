@@ -36,6 +36,27 @@ Mỗi ca có một dòng ghi revision, môi trường, vai trò và người ch�
 
 Các kết quả dưới đây là kiểm thử kỹ thuật hỗ trợ nghiệm thu. Biên bản xác nhận của người dùng vẫn chờ phiên UAT.
 
+### Đối chiếu bằng chứng theo commit
+
+Ngày 08/11/2026, `fd4577145db8db35a38437b7f81501ad78549142` đạt 65/65 nhóm Chromium qua Nginx và PostgreSQL trên stack cách ly. Bảng dùng các nhóm đã kiểm trong artifact `integration-results` ID `13621983579`. Ca Chromium nằm trong `real-chromium-1794149721819/results.json`. Provider dùng MOCK trong luồng chính và các ca email chạy loopback riêng. [Lượt GitHub Actions](https://github.com/Eyblcat12/Cryta/actions/runs/42491755494) · [Digest artifact](CI_REMOTE_2026-11-07.md)
+
+| UC | Bằng chứng đã đối chiếu trong artifact | Điều kiện cần xác nhận khi nghiệm thu |
+| --- | --- | --- |
+| UC1 | `T49 real UI: issue, renew and revoke` kiểm lưu và mở lại nháp, gửi cấp mới, duyệt và đối chiếu một lần xử lý. Ca T32 kiểm phiên bản policy TLS trong yêu cầu chứng thư. | Đại diện User và Approver chạy với policy đích, đối chiếu biên nhận provider. |
+| UC2 | Cùng nhóm T49 kiểm gia hạn. Ca T18 kiểm liên kết tài sản, lịch sử provider và giới hạn scope. Bộ worker kiểm tài sản cũ đổi trạng thái khi gia hạn. | Chạy gia hạn và ca lỗi với sandbox provider đã chọn. |
+| UC3 | Cùng nhóm T49 kiểm thu hồi thường và khẩn. Ca T10 kiểm cạnh tranh giữa gia hạn và thu hồi, chỉ có một lần gọi provider. | Đối chiếu trạng thái thu hồi và lần gửi lặp trong sandbox đích. |
+| UC4 | `owner/scope filters apply before count and paging`, các ca T18 và NAV-03 kiểm tổng, chi tiết, lịch sử, F5 và link ngoài scope. | Chạy với các đơn vị và dữ liệu đại diện. |
+| UC5 | `UC5 approval queue` kiểm ưu tiên khẩn, tìm kiếm, phân trang và đồng nhất phạm vi giữa UI và API. | Chạy với tài khoản được giao nhiều đơn vị và các bộ lọc nghiệp vụ. |
+| UC6 | Ca SoD và hai Approver đồng thời kiểm quyết định duy nhất. Hai ca T49 từ chối kiểm người duyệt, lý do và trạng thái hiển thị trên desktop và mobile. | Đại diện nghiệp vụ xác nhận luồng từ chối và xử lý xung đột. |
+| UC7 | Ca T18 kiểm Admin thấy liên kết tài sản trong toàn hệ thống. `Large list fixtures` trong `runtime-privileges` kiểm thứ tự và tổng trên dữ liệu vượt giới hạn cũ. | Đối chiếu danh mục và phân trang với tập dữ liệu đích. |
+| UC8 | Hai ca T20 kiểm vòng đời policy và phục hồi xung đột trên UI. Ca `Policy append concurrency` kiểm bất biến phiên bản đã phát hành bằng role runtime. | Chốt bộ policy đích và kiểm phiên bản được áp dụng sau rollout. |
+| UC9 | Ca T21 đối chiếu mã truy vết Nginx với audit PostgreSQL. Ca T22 kiểm tìm kiếm, chi tiết đã lọc và xuất theo cùng phạm vi. Bộ `runtime-privileges` kiểm quyền ghi audit. | Xác nhận lưu log, tra cứu và quyền trên môi trường đích. |
+| UC10 | Ca đổi quyền khi phiên đang mở và hai ca bảo vệ Admin cuối kiểm thu hồi phiên và cạnh tranh. `runtime-privileges` kiểm quyền quản trị, chuyển đơn vị và luồng mời/đặt lại qua SMTP loopback. | Chạy với cơ cấu quyền đích và hộp thư thử. |
+| UC11 | `UC11–UC12: expiry job catches up` kiểm thông báo theo phạm vi. Bộ `expiry-scan` đạt 21/21, gồm policy gắn với tài sản, ngưỡng 24 giờ và khử trùng theo người nhận/kênh. `email-delivery-after` kiểm bỏ gửi khi scope đã bị thu hồi. | Xác nhận thư đến hộp thư thử và link sau khi thay đổi quyền. |
+| UC12 | Cùng ca UC11–UC12 kiểm vượt mốc trong downtime, audit, thông báo và chạy lại. Bộ `expiry-scan` kiểm thêm các trạng thái đã thu hồi và đã thay thế. | Kiểm chu kỳ trên môi trường đích cùng các replica vận hành. |
+
+### Các lượt chuẩn bị trước đó
+
 | Phạm vi | Bằng chứng kỹ thuật hiện có | Điều kiện còn mở |
 | --- | --- | --- |
 | UC1–UC3 | Ngày 08/11, User lưu nháp chưa đủ nội dung, tải lại, mở nháp và gửi bằng cùng mã. Approver không đọc được trước khi gửi. Bộ kiểm chạy năm yêu cầu gồm hai lần cấp, một lần gia hạn, thu hồi khẩn và thu hồi thường trên hai tài sản khác nhau. Mỗi yêu cầu ghi một audit gửi, một quyết định, một lần gọi worker MOCK và một biên nhận. Hàng chờ hiện đúng mức độ. [Runner](../tools/test-real-integration.cjs) · [Báo cáo Chromium/PostgreSQL](../tools/test-artifacts/integration/crypta-t30-test-0e79bb65f1e0/real-chromium-1794073415266/results.json) | Kiểm biên nhận với sandbox provider đã chọn và người dùng chạy lại luồng chính. |
