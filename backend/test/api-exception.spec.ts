@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ConflictException, Logger, type ArgumentsHost } from '@nestjs/common';
+import { BadRequestException, ConflictException, Logger, NotFoundException, type ArgumentsHost } from '@nestjs/common';
 import createError from 'http-errors';
 import { gunzipSync } from 'node:zlib';
 import { ApiExceptionFilter } from '../src/common/api-exception.filter';
@@ -74,6 +74,25 @@ describe('API exception status and safe parser messages', () => {
     expect(result.payload).toMatchObject({ error: { code: 'VERSION_CONFLICT', message: 'Yêu cầu đã thay đổi.', details: [{ field: 'version' }] } });
   });
 
+  it.each([
+    [new BadRequestException(`Parser token ${secret}`), 400, 'Dữ liệu yêu cầu không hợp lệ.'],
+    [new NotFoundException(`Cannot GET /${secret}`), 404, 'Không tìm thấy đường dẫn API.'],
+  ] as const)('uses a safe envelope for framework errors before route matching', (error, status, message) => {
+    const result = present(error, { originalUrl: `/api/v1/${secret}?token=${secret}` });
+    expect(result.status).toBe(status);
+    expect(result.payload).toMatchObject({ error: { code: `HTTP_${status}`, message, details: [] }, path: '/' });
+    expect(JSON.stringify(result.payload)).not.toContain(secret);
+  });
+
+  it('keeps DTO validation messages and uses the matched route template', () => {
+    const error = new BadRequestException(['version must be an integer number']);
+    const result = present(error, { route: { path: '/api/v1/requests/:id' }, originalUrl: `/api/v1/requests/${secret}?q=${secret}` });
+    expect(result.status).toBe(400);
+    expect(result.payload).toMatchObject({ error: { code: 'HTTP_400', message: 'version must be an integer number', details: [] },
+      path: '/api/v1/requests/:id' });
+    expect(JSON.stringify(result.payload)).not.toContain(secret);
+  });
+
   it('correlates a server failure without logging the raw URL or exception', () => {
     const log = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
     const result = present(new Error(`Driver detail ${secret}`), {
@@ -91,6 +110,8 @@ describe('API exception status and safe parser messages', () => {
       durationMs: expect.any(Number),
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain(secret);
+    expect(result.payload.path).toBe('/api/v1/assets/:id');
+    expect(JSON.stringify(result.payload)).not.toContain(secret);
   });
 
   it.each([

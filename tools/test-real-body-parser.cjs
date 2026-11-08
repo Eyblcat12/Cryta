@@ -1,4 +1,4 @@
-// Three small HTTP parser probes against a validated, patched test backend only.
+// Bounded HTTP parser and error-envelope probes against a validated test backend.
 // No credentials, business endpoint writes, process restart or DB mutation.
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -27,22 +27,28 @@ async function containerProbes(port) {
     'Requires a stable patched body-parser 2.4+ runtime.');
   const results = [];
   const endpoint = '/api/v1/__body_parser_regression__';
+  const healthPath = '/api/v1/health';
+  const invalidUri = '/api/v1/requests/T03TARGET%FF?probe=T03QUERY';
+  const unknownRoute = '/api/v1/T03TARGET?probe=T03QUERY';
+  const syntheticValues = ['T03BODY', 'T03TARGET', 'T03QUERY'];
 
-  function request(method, endpoint, first, trailing) {
-    assert.ok(endpoint === '/api/v1/health' || endpoint === '/api/v1/__body_parser_regression__');
+  function request(method, target, first, trailing, contentEncoding = 'gzip') {
+    assert.ok([endpoint, healthPath, invalidUri, unknownRoute].includes(target));
     const bytes = (first?.length ?? 0) + (trailing?.length ?? 0);
     assert.ok(bytes <= 2048, 'Parser probes are bounded to 2 KiB.');
     const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
     return new Promise((resolve, reject) => {
-      let completed = false, responseEnded = false, requestFinished = false, status;
+      let completed = false, responseEnded = false, requestFinished = false, status, requestId;
       let responseBytes = 0, tailTimer, deadline, graceTimer, req;
+      const chunks = [];
       const started = Date.now();
       function stop(error) {
         if (completed) return;
         completed = true; clearTimeout(deadline); clearTimeout(tailTimer); clearTimeout(graceTimer);
         req?.destroy(); agent.destroy();
         if (error) reject(error);
-        else resolve({ status, requestBytes: bytes, responseBytes,
+        else resolve({ status, requestId, responseText: Buffer.concat(chunks).toString('utf8'),
+          requestBytes: bytes, responseBytes,
           requestFinished, responseEnded, elapsedMs: Date.now() - started,
           trailingBytes: trailing?.length ?? 0, requestedTrailerDelayMs: trailing ? 50 : 0,
           postResponseObservationMs: method === 'POST' ? 200 : 0 });
@@ -55,14 +61,16 @@ async function containerProbes(port) {
         else stop();
       }
       const headers = method === 'POST' ? {
-        'Content-Type': 'application/json', 'Content-Encoding': 'gzip',
+        'Content-Type': 'application/json', 'Content-Encoding': contentEncoding,
         'Content-Length': bytes, Connection: 'keep-alive',
       } : { Connection: 'keep-alive' };
-      req = http.request({ hostname: '127.0.0.1', port, method, path: endpoint, headers, agent }, response => {
+      req = http.request({ hostname: '127.0.0.1', port, method, path: target, headers, agent }, response => {
         status = response.statusCode;
+        requestId = response.headers['x-request-id'];
         response.on('data', chunk => {
           responseBytes += chunk.length;
           if (responseBytes > 64 * 1024) stop(new Error('Probe response exceeded its bound.'));
+          else chunks.push(chunk);
         });
         response.once('end', () => { responseEnded = true; finish(); });
         response.once('aborted', () => stop(new Error('Probe response was aborted.')));
@@ -78,35 +86,57 @@ async function containerProbes(port) {
     });
   }
   async function health() {
-    const result = await request('GET', '/api/v1/health');
+    const result = await request('GET', healthPath);
     assert.equal(result.status, 200, 'The test backend must remain healthy.');
     return { status: result.status, elapsedMs: result.elapsedMs };
   }
   const beforeHealth = await health();
   const valid = zlib.gzipSync(Buffer.from('{"probe":"crypta"}', 'utf8'));
   assert.ok(valid.length < 128);
-  for (const test of [
+  const tests = [
+    { name: 'Malformed JSON returns a safe 400 envelope', encoding: 'identity',
+      first: Buffer.from('{"probe":T03BODY}'), expected: [400], message: 'Dữ liệu yêu cầu không hợp lệ.' },
     { name: 'Valid small gzip JSON reaches the unknown route without a parser error',
       first: valid, expected: [404] },
     { name: 'A malformed four-byte gzip body is rejected and the backend remains healthy',
       first: Buffer.from([0x1f, 0x8b, 0x08, 0xff]), expected: [400] },
     { name: 'Small delayed trailing bytes after gzip do not interrupt backend health',
       first: Buffer.concat([valid, Buffer.from([0])]), trailing: Buffer.alloc(1024, 0x58), expected: [400, 404] },
-  ]) {
+    { name: 'Inflated JSON above the parser limit returns a safe 413 envelope',
+      first: zlib.gzipSync(Buffer.alloc(101 * 1024, 0x20)), expected: [413], message: 'Dữ liệu yêu cầu vượt quá giới hạn cho phép.' },
+    { name: 'Unsupported encoding returns a safe 415 envelope', encoding: 'crypta-unsupported',
+      first: Buffer.from('{"probe":"T03BODY"}'), expected: [415], message: 'Định dạng hoặc mã hóa yêu cầu không được hỗ trợ.' },
+    { name: 'Invalid route parameter encoding returns a safe 400 envelope', method: 'GET', target: invalidUri,
+      expected: [400], message: 'Dữ liệu yêu cầu không hợp lệ.' },
+    { name: 'Unknown route returns a safe 404 envelope', method: 'GET', target: unknownRoute,
+      expected: [404], message: 'Không tìm thấy đường dẫn API.' },
+  ];
+  for (const test of tests) {
     try {
-      const response = await request('POST', endpoint, test.first, test.trailing);
+      const method = test.method ?? 'POST';
+      const { requestId, responseText, ...response } = await request(method, test.target ?? endpoint,
+        test.first, test.trailing, test.encoding);
       assert.ok(test.expected.includes(response.status), `Unexpected parser probe status ${response.status}.`);
+      assert.ok(syntheticValues.every(value => !responseText.includes(value)), 'Synthetic input was reflected in an error response.');
+      const envelope = JSON.parse(responseText);
+      assert.match(requestId, /^req_[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+      assert.equal(envelope.requestId, requestId);
+      assert.equal(envelope.error.code, `HTTP_${response.status}`);
+      assert.deepEqual(envelope.error.details, []);
+      assert.equal(envelope.path, '/');
+      if (test.message) assert.equal(envelope.error.message, test.message);
       // request() retains the socket for the post-response observation window.
       const afterHealth = await health();
-      results.push({ name: test.name, passed: true, evidence: { ...response, healthAfter200Ms: afterHealth } });
+      results.push({ name: test.name, passed: true, evidence: { ...response, method, safeEnvelope: true, healthAfter: afterHealth } });
     } catch (error) {
-      results.push({ name: test.name, passed: false, error: error instanceof assert.AssertionError
-        ? 'Parser status or health assertion failed.' : String(error.message).slice(0, 200) });
+      const reflectionFailure = 'Synthetic input was reflected in an error response.';
+      results.push({ name: test.name, passed: false, error: error.message === reflectionFailure
+        ? reflectionFailure : 'Parser status, envelope or health assertion failed.' });
       break; // Never retry a potentially failed parser process.
     }
   }
-  return { results, passed: results.filter(item => item.passed).length, total: 3,
-    success: results.length === 3 && results.every(item => item.passed), beforeHealth,
+  return { results, passed: results.filter(item => item.passed).length, total: tests.length,
+    success: results.length === tests.length && results.every(item => item.passed), beforeHealth,
     target: 'backend-container IPv4 loopback:3000', bypassesNginxRequestBuffering: true,
     nodeVersion: process.versions.node,
     nestExpressAdapterVersion: JSON.parse(fs.readFileSync(adapterPackage, 'utf8')).version,
@@ -114,7 +144,7 @@ async function containerProbes(port) {
     bodyParserVersion: parser.version,
     parserReadSha256: createHash('sha256').update(fs.readFileSync(path.join(path.dirname(parserPackage), 'lib/read.js'))).digest('hex'),
     apiExceptionFilterCompiledSha256: createHash('sha256').update(fs.readFileSync('/app/dist/common/api-exception.filter.js')).digest('hex'),
-    probePostCount: results.length, maximumBodyBytes: 2048, requestDeadlineMs: 4000,
+    maximumWireBodyBytes: 2048, requestDeadlineMs: 4000,
     noAutomaticRetries: true, businessEndpointsCalled: false, credentialsUsed: false };
 }
 
@@ -197,7 +227,7 @@ async function main(argument) {
     containerInventoryBefore: beforeInventory, outsideContainerCountBefore: beforeInventory.filter(item => item.project !== stack.project).length,
     sourceHashes: {}, results: [],
     runtimeImages: containers.map(item => ({ service: item.Config.Labels['com.docker.compose.service'], imageId: item.Image })),
-    limitations: ['Three bounded HTTP regression requests, not a stress test or a full reproduction of every decoder timing.',
+    limitations: ['Bounded HTTP regression requests, not a stress test or a full reproduction of every decoder timing.',
       'The 1 KiB delayed trailer is smaller than upstream coverage; writable/request completion is not proof of each decoder event order.',
       'Requests run directly against the validated backend loopback, so Nginx buffering cannot hide the delayed trailer; this suite does not test proxy behavior.',
       'No old-image crash attempt, automatic retry, business DB write, real provider or SMTP delivery.'] };
@@ -209,8 +239,8 @@ async function main(argument) {
     const invocation = `(${containerProbes.toString()})(3000).then(result=>process.stdout.write(JSON.stringify(result))).catch(()=>{process.stderr.write('Bounded parser runner failed before emitting credentials.');process.exitCode=1;});`;
     const result = JSON.parse(docker([...compose, 'exec', '-T', 'backend', 'node', '-'], invocation, 45000));
     Object.assign(report, result);
-    assert.equal(result.total, 3);
-    report.success = result.success === true && result.results.length === 3 && result.results.every(item => item.passed);
+    assert.equal(result.total, 8);
+    report.success = result.success === true && result.results.length === result.total && result.results.every(item => item.passed);
   } catch (error) {
     report.success = false;
     report.error = error instanceof assert.AssertionError ? 'Parser runner result assertion failed.' : String(error.message).slice(0, 250);
@@ -233,7 +263,7 @@ async function main(argument) {
     }
     report.finishedUtc = new Date().toISOString();
     await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(report, null, 2));
-    console.log(`Body-parser ${report.passed ?? 0}/3 probes; success=${report.success}; report ${path.join(output, 'results.json')}`);
+    console.log(`Body-parser ${report.passed ?? 0}/${report.total ?? 8} probes; success=${report.success}; report ${path.join(output, 'results.json')}`);
   }
   if (!report.success) process.exitCode = 1;
 }

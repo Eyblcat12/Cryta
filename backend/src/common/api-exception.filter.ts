@@ -32,41 +32,42 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const status = exception instanceof HttpException ? exception.getStatus() : parserStatus ?? HttpStatus.INTERNAL_SERVER_ERROR;
     const raw = exception instanceof HttpException ? exception.getResponse() : null;
     const payload = typeof raw === 'object' && raw !== null ? raw as Record<string, unknown> : {};
-    const message = parserStatus !== undefined
-      ? parserStatus === 413 ? 'Dữ liệu yêu cầu vượt quá giới hạn cho phép.'
-        : parserStatus === 415 ? 'Định dạng hoặc mã hóa yêu cầu không được hỗ trợ.'
-          : 'Dữ liệu yêu cầu không hợp lệ.'
-      : Array.isArray(payload.message)
-      ? payload.message.join('; ')
-      : typeof payload.message === 'string'
-        ? payload.message
-        : exception instanceof Error && status < 500
-          ? exception.message
-          : 'Đã xảy ra lỗi máy chủ.';
+    const route: unknown = request.route?.path;
+    const routeTemplate = typeof route === 'string' ? route : undefined;
+    const code = typeof payload.code === 'string' ? payload.code : undefined;
+    let message = 'Đã xảy ra lỗi máy chủ.';
+    let details: unknown = [];
+    // Nest converts parser SyntaxError and Express URIError to plain 400s before this filter.
+    // Its unmatched 404 message also embeds the incoming target.
+    if (parserStatus === 413) message = 'Dữ liệu yêu cầu vượt quá giới hạn cho phép.';
+    else if (parserStatus === 415) message = 'Định dạng hoặc mã hóa yêu cầu không được hỗ trợ.';
+    else if (parserStatus === 400 || (!routeTemplate && !code && status === 400)) message = 'Dữ liệu yêu cầu không hợp lệ.';
+    else if (!routeTemplate && !code && status === 404) message = 'Không tìm thấy đường dẫn API.';
+    else {
+      if (Array.isArray(payload.message)) message = payload.message.join('; ');
+      else if (typeof payload.message === 'string') message = payload.message;
+      else if (exception instanceof Error && status < 500) message = exception.message;
+      details = payload.details ?? [];
+    }
 
     const requestId = request.requestId ?? `req_${randomUUID()}`;
     request.requestId = requestId;
     if (status >= 500) {
-      const route: unknown = request.route?.path;
       this.logger.error({
         event: 'http.server_error',
         requestId,
         method: request.method,
-        route: typeof route === 'string' ? route : undefined,
+        route: routeTemplate,
         status,
         durationMs: request.requestStartedAt === undefined
           ? undefined : Math.round(performance.now() - request.requestStartedAt),
       });
     }
     const send = () => response.status(status).json({
-      error: {
-        code: typeof payload.code === 'string' ? payload.code : `HTTP_${status}`,
-        message,
-        details: payload.details ?? [],
-      },
+      error: { code: code ?? `HTTP_${status}`, message, details },
       requestId,
       timestamp: new Date().toISOString(),
-      path: request.originalUrl,
+      path: routeTemplate ?? '/',
     });
     if (this.failureAudit) return this.failureAudit.record(request, status).then(send);
     return send();

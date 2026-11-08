@@ -59,3 +59,11 @@ npm.cmd run build
 ```
 
 Chỉ gán kết quả cho source/image của chính lượt chạy, giữ BEFORE/AFTER và report lịch sử nguyên phạm vi. Báo cáo này không đóng T03 hoặc toàn dự án.
+
+## Phản hồi trước khi khớp route ngày 08/11/2026
+
+Ca HTTP trên image cũ tái hiện thông báo JSON sai cú pháp chứa một đoạn input giả. Với HTTP 400 và 404 chưa khớp route, filter hiện dùng thông báo cố định nếu lỗi chưa có mã nghiệp vụ. `path` trong phản hồi là mẫu route, ví dụ `/api/v1/requests/:id`. Khi chưa có mẫu route, giá trị là `/`. Client có thể dùng `error.code` và `requestId` để xử lý và tra cứu. OpenAPI mô tả ý nghĩa mới của trường `path`. [Ca trước sửa](tools/test-artifacts/integration/crypta-t30-test-3bd7b013c677/body-parser-e972c33b7c21/results.json) · [Xử lý lỗi của NestJS](https://docs.nestjs.com/exception-filters)
+
+Image mới đạt 8/8 ca HTTP trực tiếp. Các ca gồm gzip hợp lệ, gzip hỏng, trailer đến muộn, JSON sai cú pháp, dữ liệu vượt giới hạn sau giải nén, encoding không hỗ trợ, phần trăm mã hóa sai trong tham số và route không tồn tại. Mỗi ca kiểm status, error envelope, mã truy vết trùng header, dữ liệu giả vắng mặt và health 200 sau yêu cầu. Unit backend đạt 505/505, gồm kiểm giữ mã nghiệp vụ và thông báo validation ở route đã khớp. Hồi quy T21 qua Nginx/PostgreSQL đạt. [Tám ca HTTP](tools/test-artifacts/integration/crypta-t30-test-be092ef8698d/body-parser-2a8bf74324b4/results.json) · [T21](tools/test-artifacts/integration/crypta-t30-test-be092ef8698d/real-chromium-1794132902779/results.json)
+
+T03 còn tiêu chí đối chiếu hợp đồng DTO, validation và kết quả provider cho toàn bộ luồng nghiệp vụ. Bộ này kiểm các nhánh lỗi HTTP nêu trên.

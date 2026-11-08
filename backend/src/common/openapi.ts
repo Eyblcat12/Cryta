@@ -125,7 +125,7 @@ export function createCryptaOpenApi(app: INestApplication) {
     }),
     requestId,
     timestamp,
-    path: { type: 'string' },
+    path: { type: 'string', description: 'Mẫu đường dẫn API. Dùng / khi yêu cầu chưa khớp route.' },
   });
   (components.responses ??= {}).CryptaError = {
     description: 'Lỗi API. Dùng mã HTTP, error.code và requestId để xử lý và truy vết.',
