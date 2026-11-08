@@ -191,6 +191,8 @@ node tools/test-real-policy-version.cjs <report.json> after
 node tools/test-real-expiry-scan.cjs <report.json>
 ```
 
+Chạy `./tools/test-real-expiry-schedule.ps1 -Port 18210` để kiểm một chu kỳ thực của bộ hẹn giờ hết hạn. Chọn cổng loopback đang trống và để Docker chạy khoảng 60–65 phút. Runner tạo stack cách ly, đặt hai tài sản thử sau lượt quét khởi động, đợi lượt tiếp theo và đối chiếu trạng thái, audit, hai kênh thông báo. Xem `expiry-schedule.json` và `report.json` trong thư mục artifact của project thử.
+
 Worker **12/12**, policy **8/8**, expiry **13/13** đạt trên image backend sau sửa. Các mode `before` ghi đối chứng lỗi và có thể trả exit1; không đổi mode để che lỗi trong AFTER. Worker trước sửa2/3 và policy trước sửa6/8 còn giữ. Report có image ID, hash compiled service, source hash, inventory đầy đủ trước/sau và cờ cleanup database con. Clock có kiểm soát chỉ trong database con; hai instance dùng connection PostgreSQL thật trong một Node process. Đây không phải OS-kill, timer/scheduler hoặc delivery acceptance.
 
 [Worker proof](../../T14_WORKER_RECOVERY_2026-10-06.md), [expiry proof](../../T27_EXPIRY_SCAN_2026-10-06.md) và [policy proof](../../T19_POLICY_VERSION_2026-10-06.md) ghi các giới hạn. Triggers không thay quyền DB tối thiểu hoặc bảo vệ trước DBA có quyền tắt trigger; legacy policy sai JSON, provider lookup/reconciliation workflow và SMTP/scheduler vẫn cần hoàn thiện. Sau các harness, chạy hồi quy browser/API rồi backup/restore trước khi dọn stack.

@@ -804,6 +804,8 @@ Mỗi dòng ghi ngày, môi trường, revision, role, fixture và pass/fail/ch�
 
 #### T48 — Kiểm thử job, thời gian và sự cố · P0 · QA/BE/OPS
 
+08/11 đã xác minh lượt quét định kỳ sau 3.599,78 giây trên một backend và PostgreSQL cách ly, gồm hai trạng thái tài sản, hai audit và 16 thông báo theo phạm vi. [Bằng chứng T48](T27_HARDENING_2026-11-06.md#t48--lượt-quét-định-kỳ-theo-giờ-thực)
+
 - [ ] Chạy nhiều worker cùng DB test; mô phỏng restart/crash/network timeout tại các ranh giới tác động ngoài và commit.
 - [ ] Kiểm tra các ngưỡng cảnh báo/hết hạn, catch-up sau downtime, retry hết lượt và phục hồi Sending/Processing.
 - [ ] Đối chiếu request, operation, asset, audit và notification sau mỗi sự cố; ghi rõ trường hợp cần can thiệp thủ công.
