@@ -70,6 +70,11 @@ try {
     $env:T30_TEST_MONITOR_TOKEN_SHA256 = $taskCiPreviousMonitorHash
     [IO.File]::Delete($taskCiMonitorTokenFile)
   }
+  & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -Port 18083 -AccessTtlSeconds 20 -VerifyStack {
+    param([string]$ReportPath)
+    & node (Join-Path $taskCiRoot 'tools/test-real-session-expiry.cjs') $ReportPath $taskCiTooling chromium
+    if ($LASTEXITCODE -ne 0) { throw 'Real session expiry integration failed.' }
+  }
   & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -RequireMfa -VerifyStack {
     param([string]$ReportPath)
     & node (Join-Path $taskCiRoot 'tools/test-real-mfa.cjs') $ReportPath $taskCiTooling

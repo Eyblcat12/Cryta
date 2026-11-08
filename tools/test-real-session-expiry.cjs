@@ -20,7 +20,7 @@ async function main() {
   assert.ok(Number.isInteger(stack.accessTtlSeconds) && stack.accessTtlSeconds >= 10 && stack.accessTtlSeconds <= 30, 'Report must declare a 10–30 second test access TTL.');
   const origin = new URL(stack.origin);
   assert.equal(origin.hostname, '127.0.0.1'); assert.equal(origin.protocol, 'http:'); assert.ok(origin.port && origin.port !== '8080');
-  assert.ok(['msedge', 'chrome'].includes(channel));
+  assert.ok(['msedge', 'chrome', 'chromium'].includes(channel));
   const compose = ['compose', '--project-name', stack.project, '--env-file', path.join(path.dirname(reportPath), 'test.env'), '--file', path.join(root, 'tools', 'testing', 'compose.t30.yml')];
   function docker(args) { return execFileSync('docker', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 }).trim(); }
   const config = JSON.parse(docker([...compose, 'config', '--format', 'json']));
@@ -68,6 +68,8 @@ async function main() {
   const it = reference.departments.find(department => department.code === 'IT').id;
   const email = `expiry.${randomUUID()}@example.test`;
   const created = expectStatus(await call('POST', '/users', { email, displayName: 'Short TTL integration', departmentId: it, temporaryPassword, roles: ['USER'], approverDepartmentIds: [] }, admin.accessToken), 201);
+  const activeRefreshRows = () => Number(sql(`SELECT COUNT(*) FROM auth_sessions
+    WHERE user_id='${created.id}' AND revoked_at IS NULL AND expires_at>NOW()`));
   const firstLogin = expectStatus(await call('POST', '/auth/login', { email, password: temporaryPassword }), 200);
   expectStatus(await call('POST', '/auth/change-password', { currentPassword: temporaryPassword, newPassword: changedPassword }, firstLogin.accessToken), 200);
   const { chromium } = playwrightDirectory ? require(path.join(playwrightDirectory, 'playwright')) : require('playwright');
@@ -102,14 +104,14 @@ async function main() {
     // Expire only the dedicated user's live refresh rows. Keep the table's
     // expires_at > created_at invariant; no HTTP response is fabricated.
     sql(`UPDATE auth_sessions SET created_at=NOW()-INTERVAL '2 days',expires_at=NOW()-INTERVAL '1 day' WHERE user_id='${created.id}' AND revoked_at IS NULL`);
-    assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${created.id}' AND revoked_at IS NULL AND expires_at>NOW()`), '0');
+    assert.equal(activeRefreshRows(), 0, 'The fixture must have no unexpired refresh session.');
     await waitForServerExpiry(rotated.accessToken);
     calls.length = 0; responses.length = 0;
     await page.locator('.nav-groups a[href="/assets"]').click(); await page.locator('.login-card').waitFor();
     assert.equal(await page.locator('#main-content, .nav-groups').count(), 0);
     assert.equal(calls.filter(call => call.method === 'POST' && call.path === '/auth/refresh').length, 1);
     assert.equal(responses.filter(response => response.path === '/auth/refresh' && response.status === 401).length, 1);
-    assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${created.id}' AND revoked_at IS NULL`), '0');
+    assert.equal(activeRefreshRows(), 0, 'The rejected refresh must not create a new live session.');
     await page.waitForTimeout(600);
     assert.equal(calls.filter(call => call.method === 'POST' && call.path === '/auth/refresh').length, 1, 'Session expiry must not loop refresh POSTs.');
     const callsBeforeF5 = calls.length; await page.reload(); await page.locator('.login-card').waitFor();

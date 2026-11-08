@@ -103,7 +103,7 @@ Lượt T05 tiếp ngày 06/11 sửa request quản trị đã qua guard nhưng 
 
 #### T06 — Hoàn thiện đăng nhập và vòng đời phiên · P0 · BE/FE
 
-- [ ] Kiểm thử bắt buộc đổi mật khẩu trên server, refresh rotation, logout và session hết hạn.
+- [x] Kiểm thử bắt buộc đổi mật khẩu trên server, refresh rotation, logout và session hết hạn trên stack cách ly. [Bằng chứng T06](T05_USER_ADMINISTRATION_2026-11-06.md#t06--hết-hạn-phiên-khi-giao-diện-đang-mở)
 - [ ] Xử lý nhiều tab refresh đồng thời; xóa cache/dữ liệu người cũ khi đổi tài khoản và bỏ response đến muộn.
 - [ ] Rà giới hạn thử đăng nhập, thời gian khóa, thông báo lỗi không tiết lộ tài khoản; cookie/origin theo từng môi trường.
 - **Kết quả:** phiên ổn định, UI và backend thống nhất trạng thái đăng nhập.
