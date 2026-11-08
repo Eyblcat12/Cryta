@@ -97,6 +97,39 @@ async function main() {
   const ownerRequest = await createRequest(account, 'owner');
   const otherRequest = await createRequest(finance, 'finance');
   const ownApproverRequest = await createRequest(approver, 'self-approval');
+  await test('T06: login throttling conceals account state and starts a fresh window after expiry', async () => {
+    const subject = await createUser();
+    const deniedLogin = async (email, password = 'Invalid@Test12345') => {
+      const response = await fetch(new URL('/api/v1/auth/login', origin), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }),
+        signal: AbortSignal.timeout(15000),
+      });
+      assert.equal(response.status, 401);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      assert.ok(!response.headers.has('set-cookie'));
+      return (await response.json()).error;
+    };
+    const state = () => JSON.parse(sql(`SELECT json_build_object('failures',failed_login_attempts,
+      'lockedUntil',locked_until,'locked',COALESCE(locked_until>NOW(),false)) FROM users WHERE id='${subject.id}';`));
+    const generic = await deniedLogin(`absent.${randomUUID()}@example.test`);
+    assert.equal(generic.code, 'INVALID_CREDENTIALS');
+    const failures = await Promise.all(Array.from({ length: 7 }, () => deniedLogin(subject.email)));
+    for (const denial of failures) assert.deepEqual(denial, generic);
+    const locked = state();
+    assert.equal(locked.locked, true);
+    assert.deepEqual(await deniedLogin(subject.email, changedPassword), generic);
+    assert.equal(locked.failures, 5);
+    assert.deepEqual(state(), locked);
+    sql(`UPDATE users SET locked_until=NOW()-INTERVAL '1 second' WHERE id='${subject.id}';`);
+    assert.deepEqual(await deniedLogin(subject.email), generic);
+    assert.deepEqual(state(), { failures: 1, lockedUntil: null, locked: false });
+    await login(subject.email, changedPassword);
+    assert.deepEqual(state(), { failures: 0, lockedUntil: null, locked: false });
+    expectStatus(await call('PATCH', `/users/${subject.id}/status`, { status: 'INACTIVE' }, admin.accessToken), 200);
+    assert.deepEqual(await deniedLogin(subject.email, changedPassword), generic);
+    assert.deepEqual(state(), { failures: 0, lockedUntil: null, locked: false });
+    return { samePublicError: true, concurrentFailures: 7, lockThreshold: 5, freshWindowAfterExpiry: true, inactiveDenied: true };
+  });
   await test('T21: Nginx logs safe fields and correlates a denied API call with PostgreSQL audit', async () => {
     const frontend = containers.find(container => container.Config.Labels['com.docker.compose.service'] === 'frontend');
     assert.ok(frontend, 'Expected the isolated frontend container.');

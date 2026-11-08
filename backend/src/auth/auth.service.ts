@@ -12,6 +12,8 @@ import type { OidcIdentity } from './oidc-provider';
 
 type UserRow = { id: string; email: string; display_name: string; department_id: string; department_name: string; token_version: number; password_hash: string; status: string; failed_login_attempts:number;locked_until:Date|null;must_change_password:boolean;roles: RoleCode[] | null; scopes: string[] | null; mfa_enrolled: boolean };
 type SessionContext = { ipAddress?: string; userAgent?: string };
+const LOGIN_DUMMY_HASH = '$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.';
+const invalidCredentials = () => new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
 
 @Injectable()
 export class AuthService {
@@ -21,13 +23,21 @@ export class AuthService {
 
   async login(email: string, password: string, context: SessionContext = {}) {
     const row = await this.findUserByEmail(email);
-    if (row && await this.oidc?.hasLink(this.pool, row.id)) {
-      await compare(password, '$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.');
-      throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
+    const linked = row && await this.oidc?.hasLink(this.pool, row.id);
+    const valid = await compare(password, row && !linked ? row.password_hash : LOGIN_DUMMY_HASH);
+    if (!row || linked || row.status !== 'ACTIVE' || (row.locked_until && row.locked_until > new Date())) {
+      throw invalidCredentials();
     }
-    if(row?.locked_until&&row.locked_until>new Date())throw new UnauthorizedException({code:'ACCOUNT_TEMPORARILY_LOCKED',message:'Tài khoản tạm khóa do đăng nhập sai nhiều lần. Hãy thử lại sau.'});
-    const valid=await compare(password,row?.password_hash??'$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.');
-    if (!row || row.status !== 'ACTIVE' || !valid){if(row&&row.status==='ACTIVE')await this.pool.query(`UPDATE users SET failed_login_attempts=failed_login_attempts+1,locked_until=CASE WHEN failed_login_attempts+1>=5 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END WHERE id=$1`,[row.id]);throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });}
+    if (!valid) {
+      // Only attempts against the same active credential can advance the counter.
+      // PostgreSQL rechecks the lock predicate after a concurrent UPDATE commits.
+      await this.pool.query(`UPDATE users SET
+        failed_login_attempts=CASE WHEN locked_until IS NULL THEN LEAST(failed_login_attempts,4)+1 ELSE 1 END,
+        locked_until=CASE WHEN locked_until IS NULL AND failed_login_attempts>=4 THEN NOW()+INTERVAL '15 minutes' ELSE NULL END
+        WHERE id=$1 AND password_hash=$2 AND token_version=$3 AND status='ACTIVE'
+          AND (locked_until IS NULL OR locked_until<=NOW())`, [row.id, row.password_hash, row.token_version]);
+      throw invalidCredentials();
+    }
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -37,7 +47,7 @@ export class AuthService {
       const current = (await client.query<UserRow>(this.userQuery('u.id = $1'), [row.id])).rows[0];
       if (!current || current.status !== 'ACTIVE' || current.password_hash !== row.password_hash ||
           (current.locked_until && current.locked_until > new Date()) || await this.oidc?.hasLink(client, row.id)) {
-        throw new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
+        throw invalidCredentials();
       }
       const user = this.toAuthUser(current);
       if (user.mfaRequired) {
