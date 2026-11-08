@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { gzipSync } = require('node:zlib');
+const { verifyMonitorLoad } = require('./testing/capacity-monitor.cjs');
 
 const [reportArgument, label, ...flags] = process.argv.slice(2);
 const sampleCount = 48;
@@ -25,7 +26,7 @@ function summarize(values) {
 
 async function main() {
   assert.match(label ?? '', /^[a-z0-9-]{1,35}$/);
-  assert.ok(flags.every(flag => ['--seed', '--jobs', '--pages'].includes(flag)));
+  assert.ok(flags.every(flag => ['--seed', '--jobs', '--pages', '--monitor'].includes(flag)));
   const artifactRoot = fs.realpathSync(path.join(__dirname, 'test-artifacts/integration'));
   const reportPath = fs.realpathSync(reportArgument);
   assert.ok(reportPath.startsWith(artifactRoot + path.sep));
@@ -190,6 +191,11 @@ async function main() {
     console.log(`${label}: ${concurrency} in flight, ${total} checked requests, ${round(total / elapsed * 1000)} req/s`);
   }
 
+  const monitor = flags.includes('--monitor') ? await verifyMonitorLoad({
+    origin: origin.origin, postgresId: postgres.Id, backendEnvironment: backend.Config.Env,
+    artifactRoot, sql, read, routes, summarize,
+  }) : undefined;
+
   const querySource = `const { DashboardService } = require('./dist/dashboard/dashboard.service');
     const { AssetsService } = require('./dist/assets/assets.service');
     const { RequestsService } = require('./dist/requests/requests.service');
@@ -305,7 +311,7 @@ async function main() {
   const report = { label, project: stack.project, capturedAt: new Date().toISOString(),
     mode: { smtp: false, provider: 'MOCK', http: 'loopback through Nginx' }, dataset, dockerHost, memory,
     images: Object.fromEntries(Object.entries(byService).map(([service, container]) => [service, container.Image])),
-    bundle, expected, dashboards, projectionChecks, phases, plans, pages, jobs };
+    bundle, expected, dashboards, projectionChecks, phases, monitor, plans, pages, jobs };
   fs.writeFileSync(output, JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
   console.log(`Capacity report: ${output}`);
 }

@@ -8,6 +8,8 @@
 
 `node tools/test-real-capacity.cjs <report.json> <nhãn-lượt-đo> --seed` dùng stack cách ly đã chạy smoke và volume mới. Runner xác minh namespace Docker, cổng loopback, SMTP tắt và provider MOCK trước khi nạp dữ liệu. Lượt sau bỏ `--seed`. Tùy chọn `--pages` thêm đo Chrome với `CRYPTA_CAPACITY_PLAYWRIGHT`. Tùy chọn `--jobs` gửi 12 yêu cầu cấp mới sau pha đo đọc, vì vậy dùng ở lượt so sánh cuối. [Dữ liệu, cách đo và kết quả](../../T50_CAPACITY_2026-11-06.md)
 
+Thêm `--monitor` để đo 48 lượt collector song song với 32 luồng đọc nghiệp vụ. Trước khi dựng stack, đặt `T30_TEST_MONITOR_TOKEN_SHA256` bằng SHA-256 của token thử như diễn tập monitor ở dưới. Đặt `CRYPTA_CAPACITY_MONITOR_TOKEN_FILE` trỏ tới file token đó trong `tools/test-artifacts/`. Bài thử dùng bốn trạng thái retry, đối chiếu tín hiệu và sự kiện mở/đóng, rồi dọn fixture. Xóa file token thử khi dọn stack.
+
 ## Email và thông báo kết quả
 
 `npm --prefix backend run test:smtp` kiểm sáu ca Nodemailer với SMTP IPv4 loopback và DB mô phỏng. Các ca gồm accept, 550, mất ACK sau DATA, lỗi audit sau accept, từ chối STARTTLS và cấu hình cổng hoặc auth sai. Bộ unit thông thường không chạy file `.integration.ts` này. CI backend có bước riêng bắt buộc. Nghiệm thu hộp thư bên ngoài theo T25.
