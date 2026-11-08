@@ -65,6 +65,10 @@ Ngày 08/11/2026, `fd4577145db8db35a38437b7f81501ad78549142` đạt 65/65 nhóm 
 | UC8–UC10 | Luồng tạo/ngừng policy đã được duyệt và kiểm qua giao diện trên PostgreSQL. Audit correlation, quyền runtime, quản trị tài khoản và chuyển đơn vị có kiểm riêng. [Policy](../T20_POLICY_LIFECYCLE_2026-11-06.md) · [Audit](../T21_AUDIT_CORRELATION_2026-11-06.md) · [Quyền DB](../T43_RUNTIME_LOGIN_2026-11-06.md) · [Chuyển đơn vị](../T08_DEPARTMENT_ADMINISTRATION_2026-11-06.md) | Rà với cơ cấu đơn vị thử, các vai trò nghiệp vụ và chính sách của môi trường đích. |
 | UC11–UC12 | 20 ca PostgreSQL về ngưỡng, scope, thu hồi và restart. Chromium qua Nginx xác nhận UI cho ba vai trò nhận và loại Approver ngoài phạm vi sau khi job catch-up. SMTP loopback kiểm thư và người nhận ở lượt riêng. [Cảnh báo hết hạn](../T27_HARDENING_2026-11-06.md) | Xác minh hộp thư ngoài, lịch quét định kỳ và giám sát trên môi trường đích. |
 
+### UC10 — Cấp và thu hẹp phạm vi qua màn Phân quyền
+
+Ngày 08/11, Admin dùng màn Phân quyền để chuyển một User thử thành Approver của hai đơn vị, rồi bỏ một đơn vị. Hai lần lưu yêu cầu xác nhận. Sau mỗi lần, bearer cũ trả 401 và PostgreSQL ghi 0 phiên refresh còn hiệu lực cho tài khoản đó. Trình duyệt yêu cầu đăng nhập lại. Hàng chờ sau đăng nhập đổi từ hai yêu cầu còn một. Link trực tiếp thuộc đơn vị đã bỏ trả 404, còn yêu cầu trong phạm vi vẫn mở được. Audit ghi đúng hai lần đổi phạm vi với Admin thực hiện. Chromium đạt 65/65 nhóm trong bộ đầy đủ và Edge đạt ca UC10 riêng. [Chromium](../tools/test-artifacts/integration/crypta-t30-test-9f333c0a3885/real-chromium-1794151378023/results.json) · [Edge](../tools/test-artifacts/integration/crypta-t30-test-9f333c0a3885/real-msedge-1794151701987/results.json)
+
 ### T10 — Kiểm lại tài sản khi duyệt
 
 Ca đối chứng cho thấy bản cũ vẫn duyệt yêu cầu sau khi tài sản đổi chủ. Bản sửa khóa và kiểm lại chủ sở hữu, trạng thái, ngày hết hạn, policy gắn với tài sản và tham chiếu provider trước khi ghi phê duyệt gia hạn hoặc thu hồi. Bước gửi và worker cùng kiểm mốc hết hạn, kể cả khi bộ quét chưa đổi trạng thái. Nếu phê duyệt bị chặn, Approver vẫn có thể từ chối yêu cầu.

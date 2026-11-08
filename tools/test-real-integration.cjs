@@ -1816,18 +1816,82 @@ async function main() {
     await page.getByRole('button', { name: 'CRT-FIN-ACTIVE', exact: true }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: 'KEY-DEV-001', exact: true }).count(), 0); assert.equal(errors.length, 0);
   });
-  await test('M browser/API/DB: role change invalidates an already open session', async () => {
+  await test('UC10: Admin changes approver scope from UI and invalidates open sessions', async () => {
     const user = await createUser();
-    const { page } = await newPage(); await page.goto(new URL('/assets', origin).href); await uiLogin(page, user.email, changedPassword);
-    await page.getByRole('heading', { name: 'Tài sản của tôi', level: 1, exact: true }).waitFor();
-    await page.locator('.table-shell[aria-busy=false]').waitFor();
-    expectStatus(await call('PUT', `/users/${user.id}/access`, { roles: ['APPROVER'], approverDepartmentIds: [it] }, admin.accessToken), 200);
-    expectStatus(await call('GET', '/auth/me', undefined, user.accessToken), 401, 'SESSION_REVOKED');
-    assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${user.id}' AND revoked_at IS NULL`), '0');
-    await page.reload(); await page.locator('.login-card').waitFor(); await uiLogin(page, user.email, changedPassword); await page.waitForURL('**/assets');
-    await page.getByRole('heading', { name: 'Tài sản trong phạm vi phê duyệt', level: 1, exact: true }).waitFor();
-    await page.locator('a[href="/approvals"]').first().waitFor();
-    const me = await login(user.email, changedPassword); assert.deepEqual(me.user.roles, ['APPROVER']); assert.deepEqual(me.user.approverDepartmentIds, [it]);
+    const prefix = `UC10-${randomUUID()}`;
+    const inIt = await createRequest(account, prefix);
+    const inFinance = await createRequest(finance, prefix);
+    const financeDepartment = inFinance.departmentId;
+    const operator = await newPage();
+    const subject = await newPage();
+    const queueUrl = new URL(`/approvals?q=${prefix}`, origin).href;
+    const editor = operator.page.getByRole('region', { name: 'Phân quyền và phạm vi phòng ban' });
+    const scope = id => editor.getByRole('checkbox', { name: reference.departments.find(department => department.id === id).name, exact: true });
+    const save = editor.getByRole('button', { name: 'Lưu quyền truy cập', exact: true });
+    async function selectSubject() {
+      await editor.getByLabel('Người dùng', { exact: true }).selectOption(user.id);
+    }
+    async function saveAccess(oldSession) {
+      assert.equal(await save.isDisabled(), true);
+      await editor.getByRole('checkbox', { name: 'Xác nhận thay đổi quyền của tài khoản đã chọn.', exact: true }).check();
+      const [response] = await Promise.all([
+        operator.page.waitForResponse(result => result.request().method() === 'PUT' &&
+          new URL(result.url()).pathname === `/api/v1/users/${user.id}/access`),
+        save.click(),
+      ]);
+      assert.equal(response.status(), 200);
+      await editor.getByText('Đã cập nhật quyền. Người dùng cần đăng nhập lại.', { exact: true }).waitFor();
+      expectStatus(await call('GET', '/auth/me', undefined, oldSession.accessToken), 401, 'SESSION_REVOKED');
+      assert.equal(sql(`SELECT count(*) FROM auth_sessions WHERE user_id='${user.id}' AND revoked_at IS NULL`), '0');
+      await subject.page.reload();
+      await subject.page.locator('.login-card').waitFor();
+      await uiLogin(subject.page, user.email, changedPassword);
+    }
+    try {
+      await operator.page.goto(new URL('/users/access', origin).href);
+      await uiLogin(operator.page, admin.user.email);
+      await editor.getByLabel('Tìm tài khoản để phân quyền', { exact: true }).fill(user.email);
+      await editor.getByRole('button', { name: 'Tìm tài khoản', exact: true }).click();
+      await selectSubject();
+      await subject.page.goto(new URL('/assets', origin).href);
+      await uiLogin(subject.page, user.email, changedPassword);
+      await subject.page.getByRole('heading', { name: 'Tài sản của tôi', level: 1, exact: true }).waitFor();
+
+      await editor.getByLabel('Vai trò', { exact: true }).selectOption('APPROVER');
+      await scope(it).check();
+      await scope(financeDepartment).check();
+      await saveAccess(user);
+      await subject.page.getByRole('heading', { name: 'Tài sản trong phạm vi phê duyệt', level: 1, exact: true }).waitFor();
+      await subject.page.goto(queueUrl);
+      const queue = subject.page.getByRole('region', { name: 'Hàng chờ phê duyệt', exact: true });
+      const requests = queue.locator('table tbody button.table-link');
+      await queue.getByText('Trang 1/1 · 2 yêu cầu', { exact: true }).waitFor();
+      assert.deepEqual((await requests.allTextContents()).sort(), [inIt.id, inFinance.id].sort());
+      const full = await login(user.email, changedPassword);
+      assert.deepEqual(full.user.roles, ['APPROVER']);
+      assert.deepEqual([...full.user.approverDepartmentIds].sort(), [it, financeDepartment].sort());
+      expectStatus(await call('GET', `/requests/${inFinance.id}`, undefined, full.accessToken), 200);
+
+      await selectSubject();
+      assert.equal(await scope(it).isChecked(), true);
+      assert.equal(await scope(financeDepartment).isChecked(), true);
+      await scope(financeDepartment).uncheck();
+      await saveAccess(full);
+      await queue.getByText('Trang 1/1 · 1 yêu cầu', { exact: true }).waitFor();
+      assert.deepEqual(await requests.allTextContents(), [inIt.id]);
+      const reduced = await login(user.email, changedPassword);
+      assert.deepEqual(reduced.user.roles, ['APPROVER']);
+      assert.deepEqual(reduced.user.approverDepartmentIds, [it]);
+      expectStatus(await call('GET', `/requests/${inIt.id}`, undefined, reduced.accessToken), 200);
+      expectStatus(await call('GET', `/requests/${inFinance.id}`, undefined, reduced.accessToken), 404);
+      const audit = JSON.parse(sql(`SELECT json_agg(metadata->'scopes' ORDER BY id) FROM audit_logs
+        WHERE entity_id='${user.id}' AND entity_type='USER' AND action='USER_ACCESS_CHANGED' AND actor_id='${admin.user.id}';`));
+      assert.deepEqual(audit.map(scopes => scopes.sort()), [[it, financeDepartment].sort(), [it]]);
+      assert.deepEqual([...operator.errors, ...subject.errors], []);
+      return { scopeChangesFromAdminUi: 2, revokedExistingSessions: true, visibleRequests: [2, 1], removedRequestDenied: 404, auditEvents: 2 };
+    } finally {
+      await Promise.all([operator.context.close(), subject.context.close()]);
+    }
   });
   await test('T26: notification target scope, paging, read state and deleted links', async () => {
     const owner = await createUser();
