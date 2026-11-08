@@ -268,12 +268,50 @@ async function main() {
     assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${user.id}' AND revoked_at IS NULL`), '0');
     assert.equal((await login(user.email, changedPassword)).user.mustChangePassword, false);
   });
+  await test('T06: expired and retired refresh cookies leave a separate live session usable', async () => {
+    const user = await createUser();
+    const signIn = async () => {
+      const response = await call('POST', '/auth/login', { email: user.email, password: changedPassword });
+      expectStatus(response, 200);
+      assert.ok(response.cookie);
+      return response;
+    };
+    const refresh = cookie => call('POST', '/auth/refresh', undefined, undefined, cookie);
+    const sessionId = cookie => {
+      const id = cookie.split('=')[1].split('.')[0];
+      assert.match(id, /^[a-f0-9-]{36}$/);
+      return id;
+    };
+    const independent = await signIn(), expired = await signIn(), loggedOut = await signIn(), retired = await signIn();
+    const stillActive = () => sql(`SELECT revoked_at IS NULL FROM auth_sessions WHERE id='${sessionId(independent.cookie)}';`);
+    sql(`UPDATE auth_sessions SET created_at=NOW()-INTERVAL '2 hours',expires_at=NOW()-INTERVAL '1 hour'
+      WHERE id='${sessionId(expired.cookie)}';`);
+    expectStatus(await refresh(expired.cookie), 401, 'SESSION_INVALID');
+    assert.equal(stillActive(), 't');
+    expectStatus(await call('POST', '/auth/logout', undefined, loggedOut.data.accessToken, loggedOut.cookie), 200);
+    expectStatus(await refresh(loggedOut.cookie), 401, 'SESSION_INVALID');
+    assert.equal(stillActive(), 't');
+
+    const successor = await refresh(retired.cookie);
+    expectStatus(successor, 200);
+    expectStatus(await call('POST', '/auth/logout', undefined, successor.data.accessToken, successor.cookie), 200);
+    expectStatus(await refresh(retired.cookie), 401, 'SESSION_INVALID');
+    assert.equal(stillActive(), 't');
+    assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE actor_id='${user.id}' AND action='SESSION_REPLAY_REJECTED';`), '0');
+    expectStatus(await refresh(independent.cookie), 200);
+    return { expiredRejected: true, logoutRejected: true, retiredRotationRejected: true, independentRefreshStatus: 200 };
+  });
   await test('M API/DB: replayed refresh token rejects and revokes rotated refresh', async () => {
+    const replayAudits = () => Number(sql(`SELECT count(*) FROM audit_logs WHERE actor_id='${account.id}' AND action='SESSION_REPLAY_REJECTED';`));
+    const auditsBefore = replayAudits();
     const one = await call('POST', '/auth/login', { email: account.email, password: changedPassword }); expectStatus(one, 200);
     const rotated = await call('POST', '/auth/refresh', undefined, undefined, one.cookie); expectStatus(rotated, 200);
     assert.ok(rotated.cookie && rotated.cookie !== one.cookie, 'Refresh cookie must rotate.');
+    const latest = await call('POST', '/auth/refresh', undefined, undefined, rotated.cookie); expectStatus(latest, 200);
     expectStatus(await call('POST', '/auth/refresh', undefined, undefined, one.cookie), 401);
     expectStatus(await call('POST', '/auth/refresh', undefined, undefined, rotated.cookie), 401);
+    expectStatus(await call('POST', '/auth/refresh', undefined, undefined, latest.cookie), 401);
+    assert.equal(replayAudits(), auditsBefore + 1);
     assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${account.id}' AND revoked_at IS NULL`), '0');
   });
   await test('M API/DB: simultaneous refresh/access change leaves no surviving old session', async () => {

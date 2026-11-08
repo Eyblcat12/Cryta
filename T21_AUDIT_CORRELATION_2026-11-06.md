@@ -25,6 +25,8 @@ Redaction áp dụng lúc ghi và khi trả metadata lịch sử. Ngoài tên kh
 
 Refresh sai secret trước đây có thể thu hồi các phiên của user chỉ dựa trên session UUID. Đã sửa: sai secret rollback và không thay phiên; chỉ xử lý replay khi hash khớp và phiên đã thu hồi/hết hạn. Rotation/replay và audit cùng transaction; audit lỗi rollback các thay đổi. Logout cũng đã chuyển sang một transaction, tránh thu hồi phiên thành công khi audit thất bại.
 
+Cập nhật 08/11. Nhánh replay còn kiểm chuỗi xoay vòng có phiên thay thế đang hoạt động. Cookie hết hạn hoặc chuỗi đã kết thúc bị từ chối và đi qua audit HTTP thông thường. [Bằng chứng T06](T05_USER_ADMINISTRATION_2026-11-06.md)
+
 API audit thêm bộ lọc chính xác `correlationId=req_UUID`, dùng tham số SQL cho count và page, trả scalar correlationId. Mã yêu cầu nghiệp vụ UUID ở `requestId` vẫn có nghĩa riêng.
 
 ## Bằng chứng và phần còn mở

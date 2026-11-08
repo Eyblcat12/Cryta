@@ -94,7 +94,10 @@ export class AuthService {
       // Lock user before session, matching password/access/status changes. Recheck the
       // session after waiting, so rotation cannot escape another transaction's revocation.
       await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE', [owner.user_id]);
-      const found = await client.query<{ user_id: string; token_hash: string; expires_at: Date; revoked_at: Date | null; mfa_token_version: number | null; oidc_session_id: string | null }>('SELECT user_id, token_hash, expires_at, revoked_at, mfa_token_version, oidc_session_id FROM auth_sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+      const found = await client.query<{ user_id: string; token_hash: string; expires_at: Date; revoked_at: Date | null;
+        replaced_by: string | null; mfa_token_version: number | null; oidc_session_id: string | null }>(`SELECT
+        user_id, token_hash, expires_at, revoked_at, replaced_by, mfa_token_version, oidc_session_id
+        FROM auth_sessions WHERE id = $1 FOR UPDATE`, [sessionId]);
       const session = found.rows[0];
       // A guessed session UUID with a wrong secret must not revoke another user's sessions.
       if (!session || session.token_hash !== this.hash(secret)) throw this.invalidSession();
@@ -104,6 +107,8 @@ export class AuthService {
       // Credentials retired by MFA enrollment or replacement must not revoke the new sessions.
       if (user.mfaRequired && !verified) throw this.invalidSession();
       if (session.revoked_at || session.expires_at <= new Date()) {
+        if (!session.revoked_at || !session.replaced_by ||
+            !await this.hasActiveRefreshSuccessor(client, session.replaced_by, session.user_id)) throw this.invalidSession();
         await client.query('UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, NOW()) WHERE user_id = $1', [session.user_id]);
         if (oidcSessionId) await this.oidc?.endSession(client, oidcSessionId, user.id);
         await this.appendAuthAudit(client, session.user_id, 'SESSION_REPLAY_REJECTED', 'DENIED');
@@ -126,6 +131,17 @@ export class AuthService {
       return { ...await this.issueAccessToken(user, verified, oidcSessionId), refreshToken: nextToken };
     } catch (error) { if (!committed) await client.query('ROLLBACK').catch(() => undefined); throw error; }
     finally { client.release(); }
+  }
+
+  private async hasActiveRefreshSuccessor(client: PoolClient, successorId: string, userId: string) {
+    // Refresh, logout and credential revocation hold the same user lock while changing this chain.
+    const active = await client.query(`WITH RECURSIVE successors AS (
+      SELECT id,replaced_by,revoked_at,expires_at FROM auth_sessions WHERE id=$1 AND user_id=$2
+      UNION
+      SELECT next.id,next.replaced_by,next.revoked_at,next.expires_at FROM auth_sessions next
+      JOIN successors previous ON next.id=previous.replaced_by WHERE next.user_id=$2
+    ) SELECT id FROM successors WHERE revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [successorId, userId]);
+    return Boolean(active.rowCount);
   }
 
   async verifyMfaLogin(challenge: string, code: string, context: SessionContext) {
