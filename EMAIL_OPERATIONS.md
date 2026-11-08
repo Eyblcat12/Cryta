@@ -30,6 +30,10 @@ Mẫu mời và đặt lại mật khẩu dùng link riêng có hạn dùng. Xem
 
 ## Trạng thái và xử lý sự cố
 
+Bảng **Tình trạng hàng đợi** hiển thị số email chờ gửi, đang gửi, đã được SMTP chấp nhận, thất bại và cần đối soát. Tuổi hàng đợi tính từ lịch của thư đến hạn lâu nhất. Lỗi gần nhất là mốc của các thư còn ở trạng thái thất bại. Dùng **Làm mới tình trạng** để đọc lại. Khi đọc lỗi, giao diện ghi rõ thời điểm của số liệu lần đọc trước nếu còn dữ liệu.
+
+Mốc worker là lượt quét kết thúc gần nhất đã ghi vào PostgreSQL từ bất kỳ replica nào. Khi SMTP bật, hệ thống cảnh báo thư đến hạn chờ từ năm phút, lượt quét gần nhất gặp lỗi hoặc năm phút thiếu tín hiệu worker. Mốc quét phản ánh hoạt động của worker. Kết quả SMTP xem qua số đếm hoặc chi tiết thư, còn việc thư đến hộp thư được kiểm ở T25.
+
 | Trạng thái | Ý nghĩa | Hành động |
 | --- | --- | --- |
 | `PENDING` | Chờ gửi hoặc SMTP từ chối tạm thời rõ ràng (4xx) | Worker tự thử lại, tối đa 5 lần. |

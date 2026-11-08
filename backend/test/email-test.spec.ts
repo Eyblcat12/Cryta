@@ -114,8 +114,12 @@ describe('test email SMTP evidence and queue accounting', () => {
     await expect(worker.sendTest(recipient, 'operation')).rejects.toThrow('SMTP_TEST_RESULT_UNCONFIRMED');
   });
   it('uses only EMAIL records in operations queue totals', async () => {
-    const query = vi.fn().mockResolvedValue({ rows: [{ delivery_status: 'PENDING', count: 3 }] });
-    await expect(new NotificationsService({ query } as unknown as Pool).stats()).resolves.toEqual({ PENDING: 3 });
-    expect(query.mock.calls[0][0]).toContain("WHERE channel='EMAIL'");
+    vi.stubEnv('SMTP_ENABLED', 'false');
+    const worker = { lastPollAt: null, lastPollSucceeded: null, stale: true };
+    const query = vi.fn().mockResolvedValue({ rows: [{ queue: { PENDING: 3 }, oldestDueSeconds: 301, worker }] });
+    await expect(new NotificationsService({ query } as unknown as Pool).status()).resolves.toMatchObject({
+      queue: { PENDING: 3 }, worker: { state: 'DISABLED' }, queueDelayed: false,
+    });
+    expect(query.mock.calls[0][0].text).toContain("WHERE channel='EMAIL'");
   });
 });

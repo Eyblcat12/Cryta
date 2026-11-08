@@ -421,6 +421,16 @@ BEGIN
     WHERE octet_length(metadata->>'correlationId') = 40;
   PERFORM set_config('lock_timeout', previous_lock_timeout, true);
 END $$;
+`},
+{version:'027_email_worker_status',sql:`
+CREATE TABLE public.email_worker_status (
+  singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
+  initialized_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  last_poll_at timestamptz,
+  last_poll_succeeded boolean,
+  CHECK ((last_poll_at IS NULL) = (last_poll_succeeded IS NULL))
+);
+INSERT INTO public.email_worker_status DEFAULT VALUES;
 `}
 ];
 

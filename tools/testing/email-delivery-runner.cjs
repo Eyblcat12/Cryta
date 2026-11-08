@@ -12,6 +12,7 @@ async function main(options) {
   const { MigrationService } = require('/app/dist/database/migration.service');
   const { NotificationsService } = require('/app/dist/notifications/notifications.service');
   const { EmailWorkerService } = require('/app/dist/notifications/email-worker.service');
+  const { OperationsMetricsService } = require('/app/dist/operations/operations-metrics.service');
   const { notificationEmail, accountEmail, emailConfiguration } = require('/app/dist/notifications/email-template');
   const { AssetProcessingService } = require('/app/dist/jobs/asset-processing.service');
   const { CryptoProviderService } = require('/app/dist/jobs/crypto-provider.service');
@@ -20,7 +21,7 @@ async function main(options) {
   const department = id(), owner = id(), otherOwner = id(), policy = id(), policyVersion = id();
   const notifications = new NotificationsService(pool), provider = new CryptoProviderService();
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    loopbackSmtp: true, externalSmtp: false, plannedTotal: 18, results, compiledServiceHashes: Object.fromEntries([
+    loopbackSmtp: true, externalSmtp: false, plannedTotal: 19, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
       'jobs/asset-processing.service.js', 'database/migration.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
@@ -371,6 +372,51 @@ async function main(options) {
         assert.equal(messages.length, before + 1);
       } finally { await sql("UPDATE users SET status='ACTIVE' WHERE id=$1", [owner]); }
       return { sentBeforeDue: 0, sentAfterDue: 1, sendsToInactiveRecipient: 0, attemptIncrementedAtClaim: true };
+    });
+    await test('email queue and worker signals are shared between replicas and recover after a successful poll', async () => {
+      await reset();
+      await sql('UPDATE public.email_worker_status SET initialized_at=NOW(),last_poll_at=NULL,last_poll_succeeded=NULL');
+      const pending = await pendingEmail();
+      await sql("UPDATE notifications SET scheduled_for=NOW()-INTERVAL '6 minutes' WHERE id=$1", [pending]);
+      const reader = new Pool({ connectionString: url.href, max: 1 });
+      const metrics = new OperationsMetricsService(reader);
+      const overview = new NotificationsService(reader);
+      const savedSetting = process.env.SMTP_ENABLED;
+      async function check(state, signal, queueDelayed) {
+        const status = await overview.status();
+        const snapshot = await metrics.snapshot();
+        assert.deepEqual(snapshot.email.worker, status.worker);
+        assert.equal(status.worker.state, state);
+        assert.equal(status.queueDelayed, queueDelayed);
+        const signals = snapshot.signals.filter(code => code.startsWith('EMAIL_WORKER_'));
+        assert.deepEqual(signals, signal ? [signal] : []);
+        return status;
+      }
+      try {
+        process.env.SMTP_ENABLED = 'true';
+        const initial = await check('AWAITING', undefined, true);
+        assert.deepEqual(initial.queue, { PENDING: 1 });
+        assert.ok(initial.oldestDueSeconds >= 360);
+        const brokenWorker = mailWorker();
+        brokenWorker.claim = async () => { throw new Error('synthetic poll failure'); };
+        await brokenWorker.processBatch();
+        const failed = await check('FAILED', 'EMAIL_WORKER_FAILED', true);
+        assert.ok(failed.worker.lastPollAt);
+        assert.equal(failed.worker.lastPollSucceeded, false);
+        await sql("UPDATE public.email_worker_status SET last_poll_at=NOW()-INTERVAL '6 minutes'");
+        await check('STALE', 'EMAIL_WORKER_STALE', true);
+        await mailWorker().processBatch();
+        const recovered = await check('RECENT', undefined, false);
+        assert.deepEqual(recovered.queue, { SENT: 1 });
+        assert.equal(recovered.oldestDueSeconds, null);
+        assert.equal(recovered.worker.lastPollSucceeded, true);
+        process.env.SMTP_ENABLED = 'false';
+        await check('DISABLED', undefined, false);
+        return { replicas: 2, awaiting: true, failed: true, stale: true, recovered: true, disabled: true, smtpOnly: true };
+      } finally {
+        if (savedSetting === undefined) delete process.env.SMTP_ENABLED; else process.env.SMTP_ENABLED = savedSetting;
+        await reader.end();
+      }
     });
     report.success = results.length === report.plannedTotal && results.every(value => value.passed);
     return report;

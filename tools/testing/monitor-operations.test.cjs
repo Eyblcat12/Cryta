@@ -129,6 +129,7 @@ test('validates origin and treats missing, redirected, oversized and invalid sig
       if (mode === 'redirect') res.writeHead(302, { Location: '/do-not-follow' }).end();
       else if (mode === 'invalid') res.writeHead(200).end('{"data":{"signals":["UNEXPECTED_SIGNAL"]}}');
       else if (mode === 'oversized') res.writeHead(200).end('x'.repeat(17_000));
+      else if (mode === 'worker-stale') res.writeHead(200).end('{"data":{"signals":["EMAIL_WORKER_STALE"]}}');
       else res.writeHead(401).end('not authorized');
     } else {
       redirectRequests += 1;
@@ -148,6 +149,11 @@ test('validates origin and treats missing, redirected, oversized and invalid sig
       assert.equal(sample.EMAIL_QUEUE_DELAYED, undefined);
     }
     assert.equal(redirectRequests, 0);
+    mode = 'worker-stale';
+    const sample = await collect(options);
+    assert.equal(sample.MONITOR_SIGNAL_PROBE_FAILED, false);
+    assert.equal(sample.EMAIL_WORKER_STALE, true);
+    assert.equal(sample.EMAIL_WORKER_FAILED, false);
     mode = 'unauthorized';
     assert.equal((await collect(options)).MONITOR_SIGNAL_ACCESS_FAILED, true);
     mode = 'offline';

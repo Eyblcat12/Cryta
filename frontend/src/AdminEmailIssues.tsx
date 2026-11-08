@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import type { EmailIssueResponse } from './api/contracts/notifications';
 import { EmailDeliveryDialog, emailDeliveryStatus, emailDeliveryTime, emailDeliveryType } from './EmailDeliveryDialog';
+import { EmailQueueStatus } from './EmailQueueStatus';
 import { TableSkeletonRows } from './LoadingOutline';
 import { PageSizeSelect } from './PageSizeSelect';
 import { useDelayedPending } from './useDelayedPending';
@@ -10,7 +11,7 @@ import { useResource } from './useResource';
 import { useUrlTableQuery } from './useUrlTableQuery';
 import { StatusPill } from './WorkspaceUi';
 
-export function AdminEmailIssues({refreshKey,failed,uncertain}:{refreshKey:number;failed:number|null;uncertain:number|null}) {
+export function AdminEmailIssues({refreshKey}:{refreshKey:number}) {
   const {page,pageSize,status,updateQuery}=useUrlTableQuery(['FAILED','RECONCILIATION_REQUIRED'] as const,{defaultPageSize:20,search:false});
   const resource=useResource('email:'+JSON.stringify([page,pageSize,status]),signal=>api.emailIssuesPage({page,pageSize,status},signal),refreshKey);
   const {data:result,loading,error}=resource;
@@ -36,10 +37,8 @@ export function AdminEmailIssues({refreshKey,failed,uncertain}:{refreshKey:numbe
   }
   const items=result?.items??[];
   const statusPill=(item:EmailIssueResponse)=><StatusPill label={emailDeliveryStatus(item.status)} tone={item.status==='FAILED'?'danger':'warning'}/>;
-  return <><section id="email-health" className="content-section compact-section" aria-labelledby="email-health-title">
-    <div className="section-heading"><div><h2 id="email-health-title" ref={heading} tabIndex={-1}>Email cần xử lý</h2><p>Tra cứu lần gửi và ghi nhận bằng chứng từ nhật ký SMTP.</p></div><button className="icon-button" aria-label="Làm mới danh sách email" disabled={loading} onClick={resource.retry}><RotateCw size={17}/></button></div>
-    <div className="policy-summary"><div><span>Gửi thất bại</span><strong>{failed??'—'}</strong></div><div><span>Kết quả chưa rõ</span><strong>{uncertain??'—'}</strong></div></div>
-    {(uncertain??0)>0&&<p>Một số thư có thể đã được SMTP chấp nhận. Đối chiếu Message-ID với nhà cung cấp trước khi quyết định xử lý.</p>}
+  return <><EmailQueueStatus revision={refreshKey}/><section id="email-health" className="content-section compact-section" aria-labelledby="email-health-title">
+    <div className="section-heading"><div><h2 id="email-health-title" ref={heading} tabIndex={-1}>Danh sách email cần xử lý</h2><p>Tra cứu lần gửi và ghi nhận bằng chứng từ nhật ký SMTP.</p></div><button className="icon-button" aria-label="Làm mới danh sách email" disabled={loading} onClick={resource.retry}><RotateCw size={17}/></button></div>
     <label className="form-field"><span>Lọc trạng thái</span><select value={status} onChange={event=>updateQuery({status:event.target.value,page:1})}><option value="">Tất cả mục cần xử lý</option><option value="FAILED">Gửi thất bại</option><option value="RECONCILIATION_REQUIRED">Kết quả chưa rõ</option></select></label>
     <div className="email-list-read">
       <div className="table-pending" role="status">{pending?(result?'Đang cập nhật…':'Đang tải email cần xử lý…'):''}</div>

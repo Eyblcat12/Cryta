@@ -2,6 +2,7 @@ import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import type { Pool } from 'pg';
 import { DATABASE_POOL } from '../database/database.constants';
 import { cryptoProviderMode } from '../jobs/crypto-provider-config';
+import { EMAIL_QUEUE_WAIT_LIMIT_SECONDS, EMAIL_WORKER_SAMPLE, emailWorkerStatus, type EmailWorkerSample } from '../notifications/email-worker-status';
 
 type Job = 'assetProcessing' | 'emailDelivery' | 'expiryScan';
 type JobRun = { outcome: 'completed' | 'failed'; finishedAt: string; durationMs: number };
@@ -10,6 +11,7 @@ type QueueSnapshot = {
   collected_at: Date;
   expiry_failed: boolean;
   expiry_stale: boolean;
+  email_worker: EmailWorkerSample;
   assets: { ready: number; processing: number; oldestReadySeconds: number | null };
   provider: { reconciliationRequired: number; lastRecordedFailureAt: string | null };
   email: {
@@ -51,14 +53,15 @@ const QUEUE_SNAPSHOT = {
     )
     SELECT statement_timestamp() AS collected_at, assets, provider, email,
       expiry.last_failed AS expiry_failed,
-      COALESCE(expiry.last_success_at,expiry.initialized_at) <= statement_timestamp()-INTERVAL '2 hours' AS expiry_stale
+      COALESCE(expiry.last_success_at,expiry.initialized_at) <= statement_timestamp()-INTERVAL '2 hours' AS expiry_stale,
+      ${EMAIL_WORKER_SAMPLE} AS email_worker
     FROM asset_queue CROSS JOIN provider_queue CROSS JOIN email_queue
-    CROSS JOIN public.expiry_scan_status expiry WHERE expiry.singleton
+    CROSS JOIN public.expiry_scan_status expiry
+    CROSS JOIN public.email_worker_status worker WHERE expiry.singleton AND worker.singleton
   `,
 };
 
 const ASSET_WAIT_LIMIT_SECONDS = 120;
-const EMAIL_WAIT_LIMIT_SECONDS = 300;
 
 @Injectable()
 export class OperationsMetricsService {
@@ -100,7 +103,7 @@ export class OperationsMetricsService {
       },
       assets: { ...assets, oldestReadySeconds: assets.oldestReadySeconds === null ? null : Math.max(0, assets.oldestReadySeconds) },
       provider: { ...provider, mode: cryptoProviderMode() },
-      email: { ...email, enabled: smtpEnabled },
+      email: { ...email, enabled: smtpEnabled, worker: emailWorkerStatus(smtpEnabled, queues.email_worker) },
       signals: this.signals(queues, smtpEnabled),
       process: {
         since: this.since,
@@ -126,14 +129,17 @@ export class OperationsMetricsService {
   }
 
   private signals(
-    { assets, provider, email, expiry_failed, expiry_stale }: QueueSnapshot,
+    { assets, provider, email, expiry_failed, expiry_stale, email_worker }: QueueSnapshot,
     smtpEnabled: boolean,
   ): string[] {
     const signals: string[] = [];
     if ((assets.oldestReadySeconds ?? 0) >= ASSET_WAIT_LIMIT_SECONDS) signals.push('ASSET_QUEUE_DELAYED');
     if (provider.reconciliationRequired > 0) signals.push('PROVIDER_RECONCILIATION_REQUIRED');
-    if (smtpEnabled && (email.oldestDueSeconds ?? 0) >= EMAIL_WAIT_LIMIT_SECONDS) signals.push('EMAIL_QUEUE_DELAYED');
+    if (smtpEnabled && (email.oldestDueSeconds ?? 0) >= EMAIL_QUEUE_WAIT_LIMIT_SECONDS) signals.push('EMAIL_QUEUE_DELAYED');
     if (email.reconciliationRequired > 0) signals.push('EMAIL_RECONCILIATION_REQUIRED');
+    const worker = emailWorkerStatus(smtpEnabled, email_worker);
+    if (worker.state === 'FAILED') signals.push('EMAIL_WORKER_FAILED');
+    if (worker.state === 'STALE') signals.push('EMAIL_WORKER_STALE');
     if (expiry_failed) signals.push('EXPIRY_SCAN_FAILED');
     if (expiry_stale) signals.push('EXPIRY_SCAN_STALE');
     return signals;

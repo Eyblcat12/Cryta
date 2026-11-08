@@ -7,6 +7,20 @@ export interface EmailIssueResponse {
   claimedAt:string|null; failedAt:string|null; recipientEmail:string; recipientName:string;
 }
 
+export interface EmailQueueStatusResponse {
+  queue: Partial<Record<'PENDING' | 'SENDING' | 'SENT' | 'FAILED' | 'RECONCILIATION_REQUIRED', number>>;
+  collectedAt: string;
+  oldestDueSeconds: number | null;
+  lastFailedAt: string | null;
+  smtpEnabled: boolean;
+  queueDelayed: boolean;
+  worker: {
+    state: 'DISABLED' | 'AWAITING' | 'STALE' | 'FAILED' | 'RECENT';
+    lastPollAt: string | null;
+    lastPollSucceeded: boolean | null;
+  };
+}
+
 export interface EmailDeliveryDetail extends EmailIssueResponse {
   sentAt: string | null;
   smtpStatus: number | null;

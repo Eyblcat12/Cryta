@@ -28,7 +28,7 @@ BEGIN
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
       'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
       'auth_mfa','auth_mfa_challenges','auth_oidc_links','auth_oidc_flows','auth_oidc_sessions','auth_oidc_revocations',
-      'report_exports','expiry_scan_status','schema_migrations','audit_logs_id_seq')
+      'report_exports','expiry_scan_status','email_worker_status','schema_migrations','audit_logs_id_seq')
       AND acl.grantee=0
   ) OR EXISTS (
     SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace,
@@ -37,7 +37,7 @@ BEGIN
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
       'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
       'auth_mfa','auth_mfa_challenges','auth_oidc_links','auth_oidc_flows','auth_oidc_sessions','auth_oidc_revocations',
-      'report_exports','expiry_scan_status','schema_migrations') AND acl.grantee=0
+      'report_exports','expiry_scan_status','email_worker_status','schema_migrations') AND acl.grantee=0
   ) OR EXISTS (
     SELECT 1 FROM pg_database d,LATERAL aclexplode(COALESCE(d.datacl,acldefault('d',d.datdba))) acl
     WHERE d.datname=current_database() AND acl.grantee=0 AND acl.privilege_type='CREATE'
@@ -67,7 +67,7 @@ REVOKE ALL ON SCHEMA public FROM :"runtime_role";
 REVOKE ALL ON departments,roles,policies,users,user_roles,approver_scopes,auth_sessions,
   policy_versions,crypto_assets,cryptographic_keys,certificates,requests,request_decisions,
   provider_operations,audit_logs,notifications,account_actions,account_action_limits,auth_mfa,auth_mfa_challenges,
-  auth_oidc_links,auth_oidc_flows,auth_oidc_sessions,auth_oidc_revocations,report_exports,expiry_scan_status,schema_migrations FROM :"runtime_role";
+  auth_oidc_links,auth_oidc_flows,auth_oidc_sessions,auth_oidc_revocations,report_exports,expiry_scan_status,email_worker_status,schema_migrations FROM :"runtime_role";
 REVOKE ALL ON SEQUENCE audit_logs_id_seq FROM :"runtime_role";
 -- A restore without ACLs gives new functions their default PUBLIC EXECUTE.
 REVOKE ALL ON public.audit_anchor_rows FROM PUBLIC, :"runtime_role";
@@ -82,7 +82,7 @@ BEGIN
       'approver_scopes','auth_sessions','policy_versions','crypto_assets','cryptographic_keys','certificates',
       'requests','request_decisions','provider_operations','audit_logs','notifications','account_actions','account_action_limits',
       'auth_mfa','auth_mfa_challenges','auth_oidc_links','auth_oidc_flows','auth_oidc_sessions','auth_oidc_revocations',
-      'report_exports','expiry_scan_status','schema_migrations')
+      'report_exports','expiry_scan_status','email_worker_status','schema_migrations')
       AND a.attnum>0 AND NOT a.attisdropped AND a.attacl IS NOT NULL
   LOOP
     EXECUTE format('REVOKE ALL (%I) ON TABLE public.%I FROM %I',column_acl.attname,column_acl.relname,current_setting('crypta.grants_runtime_role'));
@@ -96,7 +96,7 @@ GRANT USAGE ON SCHEMA public TO :"runtime_role";
 GRANT SELECT ON departments,roles,policies,users,user_roles,approver_scopes,auth_sessions,
   policy_versions,crypto_assets,cryptographic_keys,certificates,requests,request_decisions,
   provider_operations,audit_logs,notifications,account_actions,account_action_limits,auth_mfa,auth_mfa_challenges,
-  auth_oidc_links,auth_oidc_flows,auth_oidc_sessions,auth_oidc_revocations,report_exports,expiry_scan_status,schema_migrations TO :"runtime_role";
+  auth_oidc_links,auth_oidc_flows,auth_oidc_sessions,auth_oidc_revocations,report_exports,expiry_scan_status,email_worker_status,schema_migrations TO :"runtime_role";
 GRANT INSERT ON departments,users,user_roles,approver_scopes,auth_sessions,policy_versions,crypto_assets,
   cryptographic_keys,certificates,requests,request_decisions,provider_operations,audit_logs,notifications,account_actions,account_action_limits TO :"runtime_role";
 GRANT INSERT(code,name) ON policies TO :"runtime_role";
@@ -123,6 +123,7 @@ GRANT UPDATE(status,attempt_count,provider_reference,last_error_code,updated_at,
   retry_after,failure_class,sent_at,receipt_at,input_digest,receipt) ON provider_operations TO :"runtime_role";
 GRANT UPDATE(read_at,delivery_status,attempt_count,claimed_at,failed_at,scheduled_for,error_message,sent_at) ON notifications TO :"runtime_role";
 GRANT UPDATE(last_attempt_at,last_success_at,last_failed) ON expiry_scan_status TO :"runtime_role";
+GRANT UPDATE(last_poll_at,last_poll_succeeded) ON email_worker_status TO :"runtime_role";
 -- PostgreSQL row locks require UPDATE privilege on a column, even without a data UPDATE.
 -- Key identity changes are blocked by migration 018 while SELECT FOR SHARE can lock metadata.
 GRANT UPDATE(is_active) ON policies TO :"runtime_role";

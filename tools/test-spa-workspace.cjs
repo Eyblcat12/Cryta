@@ -156,6 +156,12 @@ async function fixture(browser,role='USER',options={}){
     }
     else if(endpoint==='/users/summary')data={total:35,active:35,roles:{USER:35,APPROVER:1,ADMIN:1}};
     else if(endpoint==='/operations/provider-issues')data={items:[],total:0,page:Number(params.get('page')??1),pageSize:Number(params.get('pageSize')??25)};
+    else if(endpoint==='/notifications/status'){
+      if(state.emailStatusGate)await state.emailStatusGate;
+      data={queue:{PENDING:3,SENT:12},collectedAt:'2026-11-08T02:48:00Z',oldestDueSeconds:null,lastFailedAt:null,
+        smtpEnabled:false,queueDelayed:false,worker:{state:'DISABLED',lastPollAt:null,lastPollSucceeded:null},...state.emailStatus};
+      if(state.emailStatusFail){status=503;data={error:{code:'EMAIL_STATUS_UNAVAILABLE',message:'Không thể đọc tình trạng hàng đợi email.'}}}
+    }
     else if(endpoint==='/reports')data=[];
     else if(state.emailRecovery&&endpoint==='/notifications/delivery-issues/email-1'){
       if(state.emailDetailGate)await state.emailDetailGate;
@@ -267,6 +273,7 @@ if(require.main===module)(async()=>{
       try{
       await page.setViewportSize({width,height:1000});await page.goto(origin+item.route);
       const section=page.locator(item.section);await section.locator('.admin-asset-pagination').waitFor();
+      if(item.route==='/operations/email')await page.getByRole('region',{name:'Tình trạng hàng đợi'}).getByText(/Lấy số liệu lúc/).waitFor();
       const geometry=()=>section.evaluate(element=>({footer:element.querySelector('.admin-asset-pagination').getBoundingClientRect().top+scrollY,columns:[...element.querySelectorAll('th')].map(cell=>cell.getBoundingClientRect().width)}));
       const before=await geometry();
       assert.equal(await section.locator('tbody tr:not([aria-hidden])').count(),0);state.tableReadGate=null;release();
@@ -280,6 +287,42 @@ if(require.main===module)(async()=>{
       }finally{state.tableReadGate=null;release()}
     },{[item.delay]:1100,...(item.data?{[item.data]:true}:{})}));
 
+    for (const [width, theme] of [[1440,'light'],[390,'dark']]) {
+      await test(browser,`/operations/email reports worker status, stale samples and recovery at ${width}px`,()=>withFixture(browser,'ADMIN',async({page,state})=>{
+        let finishRead;
+        state.emailStatusGate=new Promise(resolve=>{finishRead=resolve});
+        try {
+          await page.setViewportSize({width,height:900});
+          await page.addInitScript(value=>localStorage.setItem('crypta-theme',value),theme);
+          await page.goto(origin+'/operations/email');
+          const queue=page.getByRole('region',{name:'Tình trạng hàng đợi'});
+          const refresh=queue.getByRole('button',{name:'Làm mới tình trạng'});
+          await queue.getByText('Đang tải tình trạng hàng đợi…').waitFor();
+          assert.equal(await queue.getByText('SMTP đã chấp nhận',{exact:true}).count(),0);
+          state.emailStatusGate=null;finishRead();
+          await queue.getByText('SMTP đang tắt',{exact:true}).waitFor();
+          assert.equal(await queue.getByText('Không có thư đến hạn').count(),1);
+          state.emailStatusFail=true;
+          await refresh.focus();
+          await page.keyboard.press('Enter');
+          await queue.getByRole('alert').filter({hasText:'Đang hiển thị số liệu lần đọc trước.'}).waitFor();
+          assert.equal(await queue.getByText('12',{exact:true}).count(),1);
+          assert.equal(await refresh.evaluate(button=>document.activeElement===button),true);
+          state.emailStatusFail=false;
+          state.emailStatus={smtpEnabled:true,queueDelayed:true,oldestDueSeconds:480,
+            worker:{state:'STALE',lastPollAt:'2026-11-08T02:40:00Z',lastPollSucceeded:true}};
+          await refresh.click();
+          await queue.getByText(/Chưa ghi nhận lượt quét worker/).waitFor();
+          assert.equal(await queue.getByText('8 phút 0 giây').count(),1);
+          assert.equal(await queue.getByRole('alert').count(),0);
+          assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+          await queue.screenshot({path:path.join(output,`t28-email-queue-${width}-${theme}.png`),animations:'disabled'});
+          state.emailStatus={smtpEnabled:true,worker:{state:'FAILED',lastPollAt:'2026-11-08T02:47:00Z',lastPollSucceeded:false}};
+          await refresh.click();
+          await queue.getByText('Lượt quét gần nhất của worker gặp lỗi.').waitFor();
+        } finally {state.emailStatusGate=null;finishRead()}
+      }));
+    }
     await test(browser,'/operations/email checks the saved state when reconciliation acknowledgment is lost',()=>withFixture(browser,'ADMIN',async({page,state,mutations})=>{
       let release;
       state.emailDetailGate=new Promise(resolve=>{release=resolve});

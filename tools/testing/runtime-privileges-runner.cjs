@@ -47,8 +47,8 @@ async function main(options){
   await test('Migrator LOGIN can SET ROLE to a NOLOGIN owner and apply all published migrations',async()=>{
    assert.equal((await sql("SELECT has_database_privilege($1,current_database(),'CREATE') AS allowed",[roles.owner])).rows[0].allowed,false);
    execFileSync(process.execPath,['/app/dist/database/migrate.js'],{env:{...process.env,DATABASE_URL:urlFor(roles.migrator,passwords.migrator),DATABASE_MIGRATION_OWNER_ROLE:roles.owner},stdio:['ignore','pipe','pipe'],timeout:45000});
-   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,26);
-   assert.equal(ledger.at(-1)?.version,'026_audit_correlation_index');
+   const ledger=(await sql('SELECT version,checksum FROM schema_migrations ORDER BY version')).rows;assert.equal(ledger.length,27);
+   assert.equal(ledger.at(-1)?.version,'027_email_worker_status');
    const index=(await sql("SELECT pg_get_indexdef('public.idx_audit_text_trgm'::regclass) AS definition")).rows[0].definition;
    assert.ok(index.includes('crypta_extension_test.gin_trgm_ops'));
    assert.equal((await sql("SELECT pg_get_userbyid(relowner) AS owner FROM pg_class WHERE oid='schema_migrations'::regclass")).rows[0].owner,roles.owner);return{versions:ledger.map(r=>r.version),ledgerOwner:roles.owner,extensionSchema:'crypta_extension_test'};
@@ -629,7 +629,14 @@ async function main(options){
     assert.equal((await api('GET',base,null,sessions.admin,200)).data.retry.evidenceReference,proof.evidenceReference);
     assert.equal((await api('POST',base+'/retry',proof,sessions.admin,201)).data.status,'PENDING');
     assert.equal((await sql("SELECT count(*)::int AS count FROM audit_logs WHERE action='EMAIL_DELIVERY_RETRY_SCHEDULED' AND entity_id=$1",[retryId])).rows[0].count,1);
-    return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0,auditedRetry:true};
+    await runtime.query('UPDATE public.email_worker_status SET last_poll_at=clock_timestamp(),last_poll_succeeded=true WHERE singleton');
+    await assert.rejects(runtime.query('DELETE FROM public.email_worker_status'), { code:'42501' });
+    await api('GET','/notifications/status',null,sessions.user,403);
+    const status=(await api('GET','/notifications/status',null,sessions.admin,200)).data;
+    assert.equal(status.worker.state,'DISABLED');
+    assert.equal(status.worker.lastPollSucceeded,true);
+    assert.ok(status.worker.lastPollAt);
+    return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0,auditedRetry:true,workerStatusRestricted:true};
    }finally{
     if(old===undefined)delete process.env.SMTP_FROM;else process.env.SMTP_FROM=old;
     await sql('DELETE FROM notifications WHERE id=$1',[retryId]);

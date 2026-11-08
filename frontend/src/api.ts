@@ -1,7 +1,7 @@
 import type { Asset, AuthUser, RequestItem,UserRole } from './types';
 import type { AssetResponse,AssetHistoryEvent,AssetHistoryResponse } from './api/contracts/assets';
 import type { DraftFields, RequestResponse } from './api/contracts/requests';
-import type { NotificationResponse,EmailIssueResponse,EmailDeliveryDetail,EmailReconciliation,EmailRetry } from './api/contracts/notifications';
+import type { NotificationResponse,EmailIssueResponse,EmailDeliveryDetail,EmailReconciliation,EmailRetry,EmailQueueStatusResponse } from './api/contracts/notifications';
 import type { UserResponse,UserReferenceResponse } from './api/contracts/users';
 import type { DepartmentResponse,DepartmentDetail } from './api/contracts/departments';
 import type { AdminPolicy, PolicyConfigurationInput, PolicyResponse, PolicyVersion } from './api/contracts/policies';
@@ -288,6 +288,18 @@ export const api={
   markNotificationRead(id:string){return mutate({kind:'notification-read',key:'notifications:read',targetId:id,resources:mutationResources.notification,reviewPath:'/notifications'},`/notifications/${id}/read`,{method:'PATCH'})},
   testEmail(email:string){return mutate<{sent:boolean;to:string}>({kind:'email-test',key:'email:test',resources:['email'],reviewPath:'/operations/email'},'/notifications/test-email',{method:'POST',body:JSON.stringify({email})})},
   emailIssuesPage(options:{page:number;pageSize:number;status?:string},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);return request<PageResponse<EmailIssueResponse>>(`/notifications/delivery-issues?${params}`,{signal})},
+  async emailQueueStatus(signal?: AbortSignal) {
+    const data = await request<EmailQueueStatusResponse>('/notifications/status', { signal, cache: 'no-store' });
+    const dateOrNull = (value: string | null) => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
+    if (!data?.queue || typeof data.queue !== 'object' || Array.isArray(data.queue) || !data.worker
+        || typeof data.collectedAt !== 'string' || !dateOrNull(data.collectedAt) || !dateOrNull(data.lastFailedAt)
+        || !dateOrNull(data.worker.lastPollAt) || !['DISABLED', 'AWAITING', 'STALE', 'FAILED', 'RECENT'].includes(data.worker.state)
+        || typeof data.queueDelayed !== 'boolean' || (data.oldestDueSeconds !== null && !Number.isFinite(data.oldestDueSeconds))
+        || Object.values(data.queue).some(count => !Number.isSafeInteger(count) || count < 0)) {
+      throw new ApiError('INVALID_EMAIL_STATUS', 'Không nhận được số liệu hàng đợi hợp lệ.', 502);
+    }
+    return data;
+  },
   emailDelivery(id: string, signal?: AbortSignal) {
     return request<EmailDeliveryDetail>(`/notifications/delivery-issues/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
   },

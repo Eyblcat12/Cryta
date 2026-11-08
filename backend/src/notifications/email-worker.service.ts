@@ -90,6 +90,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
 
   private async deliverBatch() {
     const startedAt = performance.now();
+    let succeeded = false;
     try {
       await this.reconcileStuck();
       for (let i = 0; i < 10 && !this.poll.stopping; i++) {
@@ -97,10 +98,17 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
         if (!job) break;
         await this.deliver(job);
       }
-      this.metrics?.recordJob('emailDelivery', 'completed', startedAt);
+      succeeded = true;
     } catch {
-      this.metrics?.recordJob('emailDelivery', 'failed', startedAt);
       this.logger.error({ event: 'email.poll_failed' });
+    }
+    this.metrics?.recordJob('emailDelivery', succeeded ? 'completed' : 'failed', startedAt);
+    try {
+      const result = await this.pool.query(`UPDATE public.email_worker_status
+        SET last_poll_at=clock_timestamp(),last_poll_succeeded=$1 WHERE singleton`, [succeeded]);
+      if (!result.rowCount) this.logger.error({ event: 'email.worker_status_missing' });
+    } catch {
+      this.logger.error({ event: 'email.worker_status_write_failed' });
     }
   }
   private async reconcileStuck() {

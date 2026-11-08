@@ -532,6 +532,30 @@ async function main() {
         COMMIT;`);
     }
   });
+  await test('T28: queue status counts only SMTP and exposes a protected shared worker sample', async () => {
+    const base = '/notifications/status', prefix = `t28-queue-${randomUUID()}`;
+    const status = async () => expectStatus(await call('GET', base, undefined, admin.accessToken), 200);
+    expectStatus(await call('GET', base, undefined, dev.accessToken), 403, 'ADMIN_REQUIRED');
+    const before = await status();
+    sql(`INSERT INTO notifications(recipient_id,request_id,type,channel,delivery_status,deduplication_key,scheduled_for,failed_at,sent_at)
+      SELECT '${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED',channel,status,'${prefix}-'||channel||'-'||status,
+        NOW()-INTERVAL '8 minutes',CASE WHEN status='FAILED' THEN NOW() END,CASE WHEN status='SENT' THEN NOW() END
+      FROM (VALUES ('EMAIL'),('IN_APP')) AS channels(channel)
+      CROSS JOIN (VALUES ('PENDING'),('SENDING'),('FAILED'),('SENT'),('RECONCILIATION_REQUIRED')) AS statuses(status);`);
+    try {
+      const result = await status();
+      for (const name of ['PENDING', 'SENDING', 'FAILED', 'SENT', 'RECONCILIATION_REQUIRED']) {
+        assert.equal(result.queue[name], (before.queue[name] ?? 0) + 1);
+      }
+      assert.ok(result.oldestDueSeconds >= 480);
+      assert.ok(Math.abs(Date.now() - Date.parse(result.lastFailedAt)) < 30_000);
+      assert.equal(result.smtpEnabled, false);
+      assert.equal(result.queueDelayed, false);
+      assert.equal(result.worker.state, 'DISABLED');
+      assert.ok(Number.isFinite(Date.parse(result.collectedAt)));
+      return { adminOnly: true, smtpCounts: 5, disabledWorker: true, delayedWarningSuppressedWhenDisabled: true };
+    } finally { sql(`DELETE FROM notifications WHERE deduplication_key LIKE '${prefix}-%';`); }
+  });
   await test('T28: only Admin can read redacted SMTP delivery detail', async () => {
     const rejected = randomUUID(), unknown = randomUUID(), inApp = randomUUID();
     sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key,delivery_status,
@@ -701,6 +725,10 @@ async function main() {
         await uiLogin(page, 'admin@congty.com');
         await page.getByRole('heading', { level: 1, name: 'Email cần xử lý' }).waitFor();
         await page.waitForFunction(value => document.documentElement.dataset.theme === value, theme);
+        const queue = page.getByRole('region', { name: 'Tình trạng hàng đợi' });
+        await queue.getByText(/SMTP đang tắt/).waitFor();
+        await queue.getByText(/Lấy số liệu lúc/).waitFor();
+        await queue.screenshot({ path: path.join(output, `t28-queue-${width}-${theme}.png`), animations: 'disabled' });
         const failPath = '**/api/v1' + deliveryPath(failed);
         await page.route(failPath, route => route.fulfill({ status: 503, json: { error: {
           code: 'TEST_UNAVAILABLE', message: 'Chi tiết tạm thời không khả dụng.',

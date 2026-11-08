@@ -46,6 +46,7 @@ Mỗi tiến trình giữ kết quả và thời gian chạy gần nhất của 
 | `PROVIDER_RECONCILIATION_REQUIRED` | Có ít nhất một thao tác provider cần đối soát | Vận hành mật mã |
 | `EMAIL_QUEUE_DELAYED` | SMTP bật và email đã đến hạn chờ từ 300 giây | Vận hành email |
 | `EMAIL_RECONCILIATION_REQUIRED` | Có ít nhất một email cần đối soát | Vận hành email |
+| `EMAIL_WORKER_FAILED` / `EMAIL_WORKER_STALE` | SMTP bật và lượt quét gần nhất gặp lỗi hoặc không có lượt quét kết thúc trong năm phút. Khi chưa ghi lượt nào, đo từ lúc tạo dòng trạng thái. | Vận hành email |
 | `EXPIRY_SCAN_FAILED` / `EXPIRY_SCAN_STALE` | Lần quét lấy được khóa gần nhất thất bại hoặc đã 2 giờ từ lần thành công gần nhất theo PostgreSQL. Nếu chưa thành công, tính từ lúc tạo dòng trạng thái. | Vận hành job |
 
 Khi metrics trả `503 METRICS_UNAVAILABLE`, kiểm `/health/ready` để phân biệt lỗi truy vấn hàng đợi với mất kết nối DB. Kiểm thử khóa bảng xác nhận thời hạn khoảng 2 giây sau khi gửi truy vấn. Xác thực và lấy connection dùng pool API. Kênh thu thập và người trực cụ thể sẽ cấu hình theo môi trường triển khai, ưu tiên kênh ngoài email cho cảnh báo SMTP.

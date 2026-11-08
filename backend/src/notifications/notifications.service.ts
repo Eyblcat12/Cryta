@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { auditMetadata } from '../audit/audit-context';
 import type { AuthUser } from '../common/auth-user';
@@ -7,6 +7,7 @@ import { listOrder } from '../common/list-order';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
 import type { EmailReconciliationDto, EmailRetryDto } from './email-reconciliation.dto';
 import { EMAIL_RETRY_DELAY_SECONDS, MAX_EMAIL_ATTEMPTS, VERIFIED_UNSENT } from './email-delivery-state';
+import { EMAIL_QUEUE_WAIT_LIMIT_SECONDS, EMAIL_WORKER_SAMPLE, emailWorkerStatus, type EmailWorkerSample } from './email-worker-status';
 
 const missingEmail = () => new NotFoundException({ code: 'EMAIL_DELIVERY_NOT_FOUND', message: 'Không tìm thấy lần gửi email.' });
 const changedEmail = () => new ConflictException({ code: 'EMAIL_DELIVERY_CHANGED', message: 'Trạng thái lần gửi đã thay đổi. Hãy tải lại chi tiết.' });
@@ -228,5 +229,28 @@ export class NotificationsService {
       throw error;
     } finally { client.release(); }
   }
-  async stats() { const result=await this.pool.query(`SELECT delivery_status,COUNT(*)::int AS count FROM notifications WHERE channel='EMAIL' GROUP BY delivery_status`); return Object.fromEntries(result.rows.map(r=>[r.delivery_status,r.count])); }
+  async status() {
+    const query = { query_timeout: 2_000, text: `WITH counts AS (
+      SELECT delivery_status, COUNT(*)::int AS count,
+        MIN(scheduled_for) FILTER (WHERE delivery_status='PENDING' AND scheduled_for<=statement_timestamp()) AS oldest_due,
+        MAX(failed_at) FILTER (WHERE delivery_status='FAILED') AS last_failed_at
+      FROM notifications WHERE channel='EMAIL' GROUP BY delivery_status
+    ), queue_snapshot AS (
+      SELECT COALESCE(json_object_agg(delivery_status,count),'{}'::json) AS queue,
+        EXTRACT(EPOCH FROM statement_timestamp()-MIN(oldest_due))::double precision AS "oldestDueSeconds",
+        MAX(last_failed_at) AS "lastFailedAt"
+      FROM counts
+    )
+    SELECT queue_snapshot.*, statement_timestamp() AS "collectedAt", ${EMAIL_WORKER_SAMPLE} AS worker
+    FROM queue_snapshot CROSS JOIN public.email_worker_status worker WHERE worker.singleton` };
+    const result = await this.pool.query<{
+      queue: Record<string, number>; collectedAt: Date; oldestDueSeconds: number | null;
+      lastFailedAt: Date | null; worker: EmailWorkerSample;
+    }>(query).catch(() => undefined);
+    const snapshot = result?.rows[0];
+    if (!snapshot) throw new ServiceUnavailableException({ code: 'EMAIL_STATUS_UNAVAILABLE', message: 'Không thể đọc tình trạng hàng đợi email.' });
+    const smtpEnabled = process.env.SMTP_ENABLED === 'true';
+    return { ...snapshot, smtpEnabled, worker: emailWorkerStatus(smtpEnabled, snapshot.worker),
+      queueDelayed: smtpEnabled && (snapshot.oldestDueSeconds ?? 0) >= EMAIL_QUEUE_WAIT_LIMIT_SECONDS };
+  }
 }

@@ -182,7 +182,7 @@ export function EmailDeliveryDialog({ id, revision, onClose, onSaved }: {
           {message && <p>{message}</p>}
           {retry && <button ref={retryButton} type="button" className="primary-button" disabled={unavailable}
             onClick={() => { setRetrying(true); setError(''); dialog.current?.scrollTo(0, 0); closeButton.current?.focus(); }}>Lên lịch gửi lại</button>}
-          {row.status === 'FAILED' && !retrying && needsRefresh && <p className="login-error" role="alert">{error} <button type="button" className="text-button" onClick={reload}>Tải lại chi tiết</button></p>}
+          {row.status === 'FAILED' && !dirty && needsRefresh && <p className="login-error" role="alert">{error} <button type="button" className="text-button" onClick={reload}>Tải lại chi tiết</button></p>}
         </>}
       </div>
       {retrying && <form onSubmit={submitRetry} className="email-reconciliation-form">

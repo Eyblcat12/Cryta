@@ -8,6 +8,8 @@ const queueRules = {
   ASSET_QUEUE_DELAYED: ['warning', 'crypto-operations'],
   PROVIDER_RECONCILIATION_REQUIRED: ['critical', 'crypto-operations'],
   EMAIL_QUEUE_DELAYED: ['warning', 'mail-operations'],
+  EMAIL_WORKER_FAILED: ['warning', 'mail-operations'],
+  EMAIL_WORKER_STALE: ['warning', 'mail-operations'],
   EMAIL_RECONCILIATION_REQUIRED: ['warning', 'mail-operations'],
   EXPIRY_SCAN_FAILED: ['warning', 'job-operations'],
   EXPIRY_SCAN_STALE: ['warning', 'job-operations'],
