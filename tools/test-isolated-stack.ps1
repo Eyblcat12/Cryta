@@ -5,6 +5,7 @@ param(
   [switch]$KeepStack,
   [switch]$RequireMfa,
   [ValidateRange(1024,65535)][int]$OidcPort,
+  [ValidateRange(1024,65535)][int]$SessionTlsPort,
   [scriptblock]$VerifyStack
 )
 
@@ -18,6 +19,9 @@ if ($taskProject -notmatch '^crypta-t30-test-[a-f0-9]{12}$') { throw 'Invalid is
 if (Test-Path -LiteralPath $taskArtifactPath) { throw 'Fresh test artifact directory already exists.' }
 if ($OidcPort -and (-not $RequireMfa -or $OidcPort -eq $Port -or $Port -eq 8080 -or $OidcPort -eq 8080)) {
   throw 'The isolated OIDC stack needs MFA and two dedicated ports.'
+}
+if ($SessionTlsPort -and (-not $VerifyStack -or $OidcPort -or $SessionTlsPort -in @($Port,8080))) {
+  throw 'The isolated HTTPS session check needs a verification callback and a dedicated proxy port.'
 }
 
 function New-TestSecret {
@@ -37,6 +41,9 @@ $taskEnvironment = @(
   "T30_TEST_MFA_REQUIRED=$($RequireMfa.ToString().ToLowerInvariant())"
   "T30_TEST_MFA_KEY=$(if ($RequireMfa) { New-TestSecret } else { '' })"
 )
+if ($SessionTlsPort) {
+  $taskEnvironment += @("T30_TEST_SESSION_TLS_ORIGIN=https://crypta-session.test:$SessionTlsPort", 'T30_TEST_COOKIE_SECURE=true')
+}
 $taskComposeArgs = @('compose','--project-name',$taskProject,'--env-file',$taskEnvironmentPath,'--file',$taskComposePath)
 $taskRealmDirectory = $null
 if ($OidcPort) {
@@ -74,6 +81,7 @@ if ($OidcPort) {
   $taskReport.browserOrigin = "http://app.crypta.test:$Port"
   $taskReport.oidcIssuer = "http://oidc.crypta.test:$OidcPort/realms/crypta-oidc-test"
 }
+if ($SessionTlsPort) { $taskReport.sessionTlsOrigin = "https://crypta-session.test:$SessionTlsPort" }
 function Save-TestReport {
   [IO.File]::WriteAllText($taskReportPath,($taskReport | ConvertTo-Json -Depth 6),(New-Object Text.UTF8Encoding $false))
 }
@@ -96,6 +104,11 @@ try {
     if ($volume.Value.external -eq $true -or $volume.Value.name -notlike "$($taskProject)_*") { throw 'Test volume is not owned by the fresh test project.' }
   }
   if ($taskConfig.services.backend.environment.CRYPTO_PROVIDER_MODE -ne 'MOCK' -or [string]$taskConfig.services.backend.environment.SMTP_ENABLED -ne 'false') { throw 'Test configuration must disable real provider/email effects.' }
+  if ($SessionTlsPort -and ($taskConfig.services.backend.environment.CORS_ORIGIN -cne $taskReport.sessionTlsOrigin -or
+      $taskConfig.services.backend.environment.APP_URL -cne $taskReport.sessionTlsOrigin -or
+      [string]$taskConfig.services.backend.environment.COOKIE_SECURE -cne 'true')) {
+    throw 'Unexpected isolated session origin or cookie policy.'
+  }
   foreach ($binding in $taskConfig.services.frontend.ports) { if ($binding.host_ip -ne '127.0.0.1') { throw 'Test port must bind only to loopback.' } }
   if ($OidcPort) {
     foreach ($binding in $taskConfig.services.keycloak.ports) { if ($binding.host_ip -ne '127.0.0.1') { throw 'Keycloak must bind only to loopback.' } }
