@@ -1183,6 +1183,17 @@ async function main() {
       return { width, theme, keyboard: true, status: detail.status, effects, ui };
     });
   }
+  await test('T19: malformed stored policy limits block explicit request parameters before submission', async () => {
+    const policyId = randomUUID(), versionId = randomUUID();
+    sql(`INSERT INTO policies(id,code,name) VALUES('${policyId}','T19-${policyId}','Legacy policy fixture');
+      INSERT INTO policy_versions(id,policy_id,version,configuration) VALUES('${versionId}','${policyId}',1,
+        '{"algorithm":"RSA","minimum_key_size":"unknown","maximum_validity_days":"unknown"}'::jsonb);`);
+    expectStatus(await call('POST', '/requests', { type: 'CREATE', policyVersionId: versionId,
+      reason: `T19 malformed limits ${stamp}`, parameters: { assetType: 'KEY', algorithm: 'RSA', keySize: 2048, validityDays: 90 },
+    }, account.accessToken), 409, 'POLICY_CONFIGURATION_INVALID');
+    assert.equal(sql(`SELECT count(*) FROM requests WHERE policy_version_id='${versionId}';`), '0');
+    return { invalidPolicyRejected: true, requestsCreated: 0 };
+  });
   function seedRequestTarget() {
     const id = randomUUID();
     sql(`INSERT INTO crypto_assets(id,asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,status,

@@ -11,7 +11,7 @@ import { cryptoProviderConfig } from '../jobs/crypto-provider-config';
 import { listOrder } from '../common/list-order';
 import { UUID_LIKE } from '../common/uuid-like.pipe';
 import type { CancelRequestDto, CreateRequestDto, DecideRequestDto, SaveDraftDto } from './request.dto';
-import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, assertParametersMatchPolicy, normalizeRequestParameters } from './request-policy';
+import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, normalizeRequestParameters, resolveProvisionParameters } from './request-policy';
 import { presentRequest, type RequestRow } from './request.presenter';
 
 const creatorAndTarget = `JOIN users u ON u.id=r.creator_id
@@ -366,7 +366,7 @@ export class RequestsService {
         AND ($2<>'CREATE' OR NOT EXISTS(SELECT 1 FROM policy_versions newer WHERE newer.policy_id=pv.policy_id
           AND newer.version>pv.version AND newer.effective_from<=statement_timestamp()))`, [dto.policyVersionId, dto.type]);
     if (!policy.rows[0]) throw new NotFoundException({ code: 'POLICY_NOT_FOUND', message: 'Chính sách không tồn tại hoặc đã ngừng áp dụng.' });
-    if (dto.type === 'CREATE') assertParametersMatchPolicy(parameters, policy.rows[0].configuration);
+    if (dto.type === 'CREATE') resolveProvisionParameters(parameters, policy.rows[0].configuration);
     if (!dto.targetAssetId) return parameters;
 
     const asset = await this.lockChangeTarget(client, dto.targetAssetId, user.id, dto.policyVersionId);
@@ -374,7 +374,7 @@ export class RequestsService {
       if (parameters.assetType && parameters.assetType !== asset.asset_type) {
         throw new ConflictException({ code: 'ASSET_TYPE_MISMATCH', message: 'Loại tài sản gia hạn phải giống tài sản hiện tại.' });
       }
-      assertParametersMatchPolicy({ ...parameters, assetType: asset.asset_type }, policy.rows[0].configuration);
+      resolveProvisionParameters({ ...parameters, assetType: asset.asset_type }, policy.rows[0].configuration);
     }
     await this.assertNoOpenTargetRequest(client, dto.targetAssetId);
     return parameters;

@@ -28,3 +28,11 @@ Ngày 07/11, bộ Chromium đầy đủ đạt 38/38 nhóm. Sau đó kiểm hìn
 | Dọn môi trường cô lập | [Đã dọn stack test và đối chiếu ID container khác](tools/test-artifacts/integration/crypta-t30-test-aa5c281b8bc4/cleanup-report.json) |
 
 Lượt runtime đầu đạt 31/33. Hai ca T07 đợi sau thư nghiệp vụ do các ca mới sinh ra trong DB test. Lượt cuối hoãn các thư nghiệp vụ có sẵn trong DB test trước khi bật SMTP loopback và đạt đủ 34 nhóm, gồm ca đợi khóa policy mới. Lượt kiểm API dùng provider MOCK.
+
+## T19 — Kiểm cấu hình policy đã lưu ngày 08/11/2026
+
+API và worker dùng cùng bộ quy tắc cho thuật toán, curve, hồ sơ chứng thư, kích thước khóa tối thiểu và thời hạn tối đa. Bản cũ có thể bỏ qua giới hạn dạng chữ khi người gửi cung cấp tham số rõ ràng. Bản mới trả `POLICY_CONFIGURATION_INVALID` nếu trường đang dùng có dữ liệu sai. Chuỗi số thập phân hợp lệ trong phiên bản cũ vẫn được đọc và áp giới hạn. Bản ghi phiên bản đã phát hành giữ nguyên trong PostgreSQL.
+
+Chín ca đối chứng unit lỗi trên bản cũ. Bộ backend trên bản sửa đạt 517/517. Qua Nginx và PostgreSQL, API từ chối policy lỗi trước khi tạo yêu cầu. Ba nhóm T20 trên Chromium đạt ở desktop, mobile và với người dùng ngoài quyền Admin. [T19 API](tools/test-artifacts/integration/crypta-t30-test-81839f7fc055/real-chromium-1794135089064/results.json) · [T20 Chromium](tools/test-artifacts/integration/crypta-t30-test-81839f7fc055/real-chromium-1794135096369/results.json)
+
+Bộ worker/PostgreSQL đạt 37/37. Yêu cầu lịch sử đã duyệt với giới hạn lỗi chuyển sang đối soát trước lần gửi đầu tiên, với 0 lần gọi provider và 0 tài sản. Các ca phiên bản cũ, hiệu lực tương lai và ngừng áp dụng vẫn đạt. Giới hạn theo nhà cung cấp và tổ hợp mục đích sử dụng cần xác nhận với provider đã chọn. [Worker](tools/test-artifacts/integration/crypta-t30-test-81839f7fc055/worker-recovery-after-4a00d269c42c/results.json)

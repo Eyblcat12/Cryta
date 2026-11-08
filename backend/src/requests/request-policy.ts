@@ -18,31 +18,53 @@ function invalidCombination(message: string): never {
   throw new ConflictException({ code: 'POLICY_PARAMETER_UNSUPPORTED', message });
 }
 
+function invalidConfiguration(): never {
+  throw new ConflictException({ code: 'POLICY_CONFIGURATION_INVALID', message: 'Cấu hình phiên bản chính sách không hợp lệ.' });
+}
+
+function policyLimit(value: unknown, maximum: number) {
+  if (value === undefined) return undefined;
+  // Older snapshots can contain decimal strings. Reject other coercions before comparing limits.
+  const limit = typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value) : value;
+  if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > maximum) invalidConfiguration();
+  return limit;
+}
+
 export function resolveProvisionParameters(
   parameters: Record<string, unknown>,
-  configuration: Record<string, unknown>,
+  configuration: unknown,
   target?: { assetType: 'KEY' | 'CERTIFICATE'; algorithm?: string | null; keySize?: number | null; usage?: string | null },
 ) {
   const normalized = normalizeRequestParameters(parameters);
-  const assetType = target?.assetType ?? normalized.assetType ?? 'KEY';
-  const algorithm = String(normalized.algorithm ?? target?.algorithm ?? configuration.algorithm ?? 'RSA').toUpperCase();
-  const curve = configuration.curve;
+  if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) invalidConfiguration();
+  const policy = configuration as Record<string, unknown>;
+  const configuredAlgorithm = typeof policy.algorithm === 'string' ? policy.algorithm.toUpperCase() : undefined;
+  if (policy.algorithm !== undefined && (!configuredAlgorithm || !['RSA', 'ECDSA', 'ED25519', 'AES'].includes(configuredAlgorithm))) invalidConfiguration();
+  const certificateProfile = policy.certificate_profile;
+  if (certificateProfile !== undefined && certificateProfile !== 'TLS_SERVER') invalidConfiguration();
+  const curve = policy.curve;
+  if (curve !== undefined && (typeof curve !== 'string' || !Object.hasOwn(CURVE_BITS, curve))) invalidConfiguration();
   const curveBits = typeof curve === 'string' ? CURVE_BITS[curve] : undefined;
+  const minimumKeySize = policyLimit(policy.minimum_key_size, Number.MAX_SAFE_INTEGER);
+  const maximumValidityDays = policyLimit(policy.maximum_validity_days, 3650);
+  const assetType = target?.assetType ?? normalized.assetType ?? 'KEY';
+  const algorithm = (normalized.algorithm ?? target?.algorithm ?? configuredAlgorithm ?? 'RSA').toUpperCase();
   const defaultBits = algorithm === 'AES' || algorithm === 'ED25519' || algorithm === 'ECDSA' ? 256 : 2048;
-  const keySize = normalized.keySize ?? target?.keySize ?? Number(configuration.minimum_key_size ?? curveBits ?? defaultBits);
-  const validityDays = normalized.validityDays ?? Number(configuration.maximum_validity_days ?? 365);
+  const keySize = normalized.keySize ?? target?.keySize ?? minimumKeySize ?? curveBits ?? defaultBits;
+  const validityDays = normalized.validityDays ?? maximumValidityDays ?? 365;
   const usage = normalized.usage ?? target?.usage ?? (algorithm === 'AES' ? 'ENCRYPTION' : 'SIGNING');
   if (normalized.assetType && normalized.assetType !== assetType) invalidCombination('Loại tài sản không khớp với tài sản hiện có.');
-  if (configuration.certificate_profile && assetType !== 'CERTIFICATE') invalidCombination('Chính sách này chỉ áp dụng cho chứng thư số.');
-  if (assetType === 'CERTIFICATE' && !configuration.certificate_profile) invalidCombination('Chứng thư số cần chính sách có hồ sơ chứng thư.');
-  if (configuration.algorithm && algorithm !== String(configuration.algorithm).toUpperCase()) invalidCombination('Thuật toán không phù hợp với chính sách đã chọn.');
+  if (certificateProfile && assetType !== 'CERTIFICATE') throw new ConflictException({ code: 'POLICY_ASSET_TYPE_MISMATCH', message: 'Chính sách này chỉ áp dụng cho chứng thư số.' });
+  if (assetType === 'CERTIFICATE' && !certificateProfile) invalidCombination('Chứng thư số cần chính sách có hồ sơ chứng thư.');
+  if (configuredAlgorithm && algorithm !== configuredAlgorithm) throw new ConflictException({ code: 'POLICY_ALGORITHM_MISMATCH', message: 'Thuật toán không phù hợp với chính sách đã chọn.' });
+  if (curveBits !== undefined && algorithm !== 'ECDSA') invalidConfiguration();
   if (assetType === 'CERTIFICATE' && algorithm === 'AES') invalidCombination('AES không dùng để cấp chứng thư số.');
-  if (!Number.isInteger(validityDays) || validityDays < 1 || validityDays > 3650) invalidCombination('Thời hạn chính sách không hợp lệ.');
-  if (configuration.maximum_validity_days && validityDays > Number(configuration.maximum_validity_days)) throw new ConflictException({ code: 'POLICY_VALIDITY_EXCEEDED', message: 'Thời hạn vượt quá mức chính sách cho phép.' });
-  if (!Number.isInteger(keySize) || keySize < 1) invalidCombination('Độ dài khóa trong chính sách không hợp lệ.');
-  if (configuration.minimum_key_size && keySize < Number(configuration.minimum_key_size)) throw new ConflictException({ code: 'POLICY_KEY_SIZE_TOO_SMALL', message: 'Độ dài khóa thấp hơn mức chính sách cho phép.' });
+  if (maximumValidityDays !== undefined && validityDays > maximumValidityDays) throw new ConflictException({ code: 'POLICY_VALIDITY_EXCEEDED', message: 'Thời hạn vượt quá mức chính sách cho phép.' });
+  if (!Number.isSafeInteger(validityDays) || validityDays < 1 || validityDays > 3650) invalidCombination('Thời hạn chính sách không hợp lệ.');
+  if (!Number.isSafeInteger(keySize) || keySize < 1) invalidCombination('Độ dài khóa trong chính sách không hợp lệ.');
+  if (minimumKeySize !== undefined && keySize < minimumKeySize) throw new ConflictException({ code: 'POLICY_KEY_SIZE_TOO_SMALL', message: 'Độ dài khóa thấp hơn mức chính sách cho phép.' });
   if (algorithm === 'RSA' && keySize < 2048) invalidCombination('RSA phải có độ dài tối thiểu 2048 bit.');
-  if (algorithm === 'ECDSA' && (!([256, 384, 521].includes(keySize)) || (curve !== undefined && (curveBits === undefined || curveBits !== keySize)))) invalidCombination('ECDSA chỉ hỗ trợ curve P-256, P-384 hoặc P-521 phù hợp độ dài khóa.');
+  if (algorithm === 'ECDSA' && (![256, 384, 521].includes(keySize) || (curveBits !== undefined && curveBits !== keySize))) invalidCombination('ECDSA chỉ hỗ trợ curve P-256, P-384 hoặc P-521 phù hợp độ dài khóa.');
   if (algorithm === 'ED25519' && keySize !== 256) invalidCombination('ED25519 chỉ hỗ trợ khóa 256 bit.');
   if (algorithm === 'AES' && ![128, 192, 256].includes(keySize)) invalidCombination('AES chỉ hỗ trợ khóa 128, 192 hoặc 256 bit.');
   if (!['RSA', 'ECDSA', 'ED25519', 'AES'].includes(algorithm)) invalidCombination('Thuật toán không được hỗ trợ.');
@@ -89,16 +111,6 @@ export function normalizeRequestParameters(parameters: Record<string, unknown>):
     normalized.usage = usage.trim();
   }
   return normalized;
-}
-
-export function assertParametersMatchPolicy(parameters: Record<string, unknown>, configuration: Record<string, unknown>) {
-  const normalized = normalizeRequestParameters(parameters);
-  const assetType = normalized.assetType ?? 'KEY';
-  if (configuration.algorithm && normalized.algorithm && normalized.algorithm !== String(configuration.algorithm).toUpperCase()) throw new ConflictException({ code: 'POLICY_ALGORITHM_MISMATCH', message: 'Thuật toán không phù hợp với chính sách đã chọn.' });
-  if (configuration.certificate_profile && assetType !== 'CERTIFICATE') throw new ConflictException({ code: 'POLICY_ASSET_TYPE_MISMATCH', message: 'Chính sách này chỉ áp dụng cho chứng thư số.' });
-  if (normalized.keySize !== undefined && configuration.minimum_key_size && normalized.keySize < Number(configuration.minimum_key_size)) throw new ConflictException({ code: 'POLICY_KEY_SIZE_TOO_SMALL', message: 'Độ dài khóa thấp hơn mức chính sách cho phép.' });
-  if (normalized.validityDays !== undefined && configuration.maximum_validity_days && normalized.validityDays > Number(configuration.maximum_validity_days)) throw new ConflictException({ code: 'POLICY_VALIDITY_EXCEEDED', message: 'Thời hạn vượt quá mức chính sách cho phép.' });
-  resolveProvisionParameters(normalized, configuration);
 }
 
 export function assertCanCreateRequest(

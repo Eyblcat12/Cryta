@@ -86,7 +86,7 @@ async function main(options) {
   const results = [], diagnostics = [];
   const report = {
     database: options.database, mode: options.mode, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    plannedTotal: options.mode === 'before' ? 3 : 36, results, diagnostics,
+    plannedTotal: options.mode === 'before' ? 3 : 37, results, diagnostics,
     clockMethod: 'Schema-local now() with explicit search_path and per-session UTC clock; service SQL and original timestamp trigger remain installed.',
     actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService'],
     compiledServiceHashes: Object.fromEntries(['jobs/asset-processing.service.js', 'jobs/crypto-provider.service.js',
@@ -412,6 +412,19 @@ async function main(options) {
         pauseConnect = async () => { entered(); await gate; }; const instance = worker(), first = instance.run();
         await started; await instance.run(); pauseConnect = undefined; release(); await first;
         const after = await snapshot(boundary.requestId); reconciliation(after, before, null, 0); return after;
+      });
+      await test('A historical approved request with malformed policy limits cannot dispatch', async () => {
+        await reset();
+        const legacy = await freshPolicy({ algorithm: 'RSA', minimum_key_size: 'unknown', maximum_validity_days: 'unknown' });
+        const requestId = await approved(0, { policyVersion: legacy.versionId });
+        await worker().run();
+        const after = await snapshot(requestId);
+        assert.equal(after.request.status, 'RECONCILIATION_REQUIRED');
+        assert.equal(after.operation.attempt_count, 0);
+        assert.equal(after.assets, 0);
+        assert.equal(provisionCalls, 0);
+        assert.deepEqual(after.audit.map(row => row.action), ['REQUEST_RECONCILIATION_REQUIRED']);
+        return { requestsQuarantined: 1, providerCalls: 0, assets: 0 };
       });
       await test('Normal Approved work still completes once after the periodic sweep', async () => {
         await reset(); const requestId = await approved(30), instance = worker(); await instance.run(); const after = await snapshot(requestId);
