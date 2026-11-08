@@ -764,7 +764,7 @@ Mỗi dòng ghi ngày, môi trường, revision, role, fixture và pass/fail/ch�
 
 #### T44 — Healthcheck, log, metrics và cảnh báo · P1 · BE/OPS
 
-06/11 đã tách liveness/readiness, kiểm log JSON, metrics Admin và cảnh báo stdout của monitor độc lập. SMTP loopback đạt năm ca. Còn nối kênh người trực, kiểm dưới tải và diễn tập provider/SMTP trên môi trường đã chọn. [Bằng chứng T44](T44_HEALTH_READINESS_2026-11-06.md).
+06/11 đã tách liveness/readiness, kiểm log JSON, metrics Admin và cảnh báo stdout của monitor độc lập. 08/11 đã đưa diễn tập dừng và phục hồi PostgreSQL cách ly vào job tích hợp CI. Còn nối kênh người trực, kiểm dưới tải và diễn tập provider/SMTP trên môi trường đã chọn. [Bằng chứng T44](T44_HEALTH_READINESS_2026-11-06.md).
 
 - [ ] Tách liveness/readiness; kiểm tra phụ thuộc theo mức ảnh hưởng, không suy provider healthy từ việc đã điền URL.
 - [ ] Thêm log có cấu trúc/correlation ID; metrics tuổi hàng đợi, lỗi provider/email, job gần nhất, DB và thời gian xử lý.

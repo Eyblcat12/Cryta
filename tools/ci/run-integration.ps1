@@ -26,6 +26,9 @@ $taskCiVerification = {
     & node -e 'process.exit(23)'
     if ($LASTEXITCODE -ne 0) { throw 'Intentional native test failure for CI propagation and cleanup verification.' }
   }
+  # Use the freshly seeded database before other suites alter its queue signals.
+  & node (Join-Path $taskCiRoot 'tools/test-real-operations-monitor.cjs') $ReportPath $taskCiMonitorTokenFile
+  if ($LASTEXITCODE -ne 0) { throw 'Operations monitor integration failed.' }
   foreach ($script in @('test-real-body-parser.cjs', 'test-real-runtime-ledger.cjs',
       'test-real-runtime-privileges.cjs', 'test-real-worker-recovery.cjs',
       'test-real-expiry-scan.cjs', 'test-real-email-delivery.cjs')) {
@@ -46,8 +49,27 @@ $taskCiVerification = {
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
 }
 
+$taskCiArtifactRoot = Join-Path $taskCiRoot 'tools/test-artifacts'
+$taskCiMonitorTokenFile = Join-Path $taskCiArtifactRoot ('ci-monitor-' + [Guid]::NewGuid().ToString('N') + '.token')
+$taskCiPreviousMonitorHash = $env:T30_TEST_MONITOR_TOKEN_SHA256
 try {
-  & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -VerifyStack $taskCiVerification
+  try {
+    if (-not $ProveFailureGate) {
+      [void][IO.Directory]::CreateDirectory($taskCiArtifactRoot)
+      $taskCiMonitorToken = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant()
+      $env:T30_TEST_MONITOR_TOKEN_SHA256 = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($taskCiMonitorToken))).ToLowerInvariant()
+      $taskCiTokenOptions = [IO.FileStreamOptions]::new()
+      $taskCiTokenOptions.Mode = [IO.FileMode]::CreateNew
+      $taskCiTokenOptions.Access = [IO.FileAccess]::Write
+      if (-not $IsWindows) { $taskCiTokenOptions.UnixCreateMode = 'UserRead, UserWrite' }
+      $taskCiTokenWriter = [IO.StreamWriter]::new($taskCiMonitorTokenFile, $taskCiTokenOptions)
+      try { $taskCiTokenWriter.WriteLine($taskCiMonitorToken) } finally { $taskCiTokenWriter.Dispose() }
+    }
+    & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -VerifyStack $taskCiVerification
+  } finally {
+    $env:T30_TEST_MONITOR_TOKEN_SHA256 = $taskCiPreviousMonitorHash
+    [IO.File]::Delete($taskCiMonitorTokenFile)
+  }
   & (Join-Path $taskCiRoot 'tools/test-isolated-stack.ps1') -RequireMfa -VerifyStack {
     param([string]$ReportPath)
     & node (Join-Path $taskCiRoot 'tools/test-real-mfa.cjs') $ReportPath $taskCiTooling

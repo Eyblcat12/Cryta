@@ -125,6 +125,7 @@ jobs:
             tools/test-artifacts/integration/**/report.json
             tools/test-artifacts/integration/**/results.json
             tools/test-artifacts/integration/**/ci-verification.json
+            tools/test-artifacts/integration/**/operations-monitor.json
             tools/test-artifacts/integration/**/*.png
           if-no-files-found: warn
           retention-days: 14
