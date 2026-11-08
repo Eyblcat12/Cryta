@@ -280,13 +280,22 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
       validFrom, expiresAt, providerScope } = receipt;
     const recorded = { providerReference, algorithm, keySize, usage, publicKeyFingerprint, serialNumber, subjectDn, issuerDn, fingerprint,
       validFrom, expiresAt, providerScope };
-    const updated = await this.pool.query(`UPDATE provider_operations
+    const values = [job.id, job.version, providerReference, JSON.stringify(recorded)];
+    const persist = () => this.pool.query(`UPDATE provider_operations
       SET status=CASE WHEN status='RECONCILIATION_REQUIRED' THEN status ELSE 'PROVIDER_SUCCEEDED' END,
           provider_reference=$3,receipt=$4::jsonb,receipt_at=NOW(),failure_class='RESULT_RECORDED',updated_at=NOW()
       WHERE request_id=$1 AND claim_version=$2 AND receipt IS NULL
-        AND status IN ('SENT','RECONCILIATION_REQUIRED') RETURNING request_id`,
-    [job.id, job.version, providerReference, JSON.stringify(recorded)]);
-    if (!updated.rowCount) throw new Error('PROVIDER_OPERATION_NOT_SENT');
+        AND status IN ('SENT','RECONCILIATION_REQUIRED') RETURNING request_id`, values);
+    try {
+      if ((await persist()).rowCount) return;
+    } catch {
+      // A lost database acknowledgment can mean the receipt already committed.
+      if ((await persist()).rowCount) return;
+    }
+    const existing = await this.pool.query(`SELECT request_id FROM provider_operations
+      WHERE request_id=$1 AND claim_version=$2 AND provider_reference=$3 AND receipt=$4::jsonb
+        AND status IN ('PROVIDER_SUCCEEDED','RECONCILIATION_REQUIRED')`, values);
+    if (!existing.rowCount) throw new Error('PROVIDER_OPERATION_NOT_SENT');
   }
 
   private async readTarget(job: Job, client: PoolClient, providerScope: string): Promise<Target | undefined> {

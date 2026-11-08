@@ -63,7 +63,7 @@ async function main(options) {
   const results = [], diagnostics = [];
   const report = {
     database: options.database, mode: options.mode, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    plannedTotal: options.mode === 'before' ? 3 : 30, results, diagnostics,
+    plannedTotal: options.mode === 'before' ? 3 : 34, results, diagnostics,
     clockMethod: 'Schema-local now() with explicit search_path and per-session UTC clock; service SQL and original timestamp trigger remain installed.',
     actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService'],
     compiledServiceHashes: Object.fromEntries(['jobs/asset-processing.service.js', 'jobs/crypto-provider.service.js',
@@ -88,7 +88,18 @@ async function main(options) {
     } catch (error) { client.release(); throw error; }
     return client;
   }
-  const workerPool = { connect, async query(text, values) { const client = await connect(); try { return await client.query(text, values); } finally { client.release(); } } };
+  let loseReceiptAcknowledgment = false;
+  const workerPool = { connect, async query(text, values) {
+    const client = await connect();
+    try {
+      const result = await client.query(text, values);
+      if (loseReceiptAcknowledgment && text.includes('receipt=$4::jsonb')) {
+        loseReceiptAcknowledgment = false;
+        throw new Error('Synthetic disconnect after PostgreSQL committed the receipt');
+      }
+      return result;
+    } finally { client.release(); }
+  } };
   const sql = (text, values) => workerPool.query(text, values);
   const actualProvider = new CryptoProviderService();
   let pauseProvider;
@@ -99,7 +110,7 @@ async function main(options) {
   const notifications = new NotificationsService(workerPool);
   const worker = () => new AssetProcessingService(workerPool, provider, notifications);
   async function reset() {
-    pauseConnect = undefined; pauseProvider = undefined; connectFailure = false; now = base;
+    pauseConnect = undefined; pauseProvider = undefined; connectFailure = false; loseReceiptAcknowledgment = false; now = base;
     assert.equal((await sql('SELECT current_database() AS name')).rows[0].name, options.database);
     await sql('TRUNCATE public.notifications,public.audit_logs,public.provider_operations,public.requests,public.crypto_assets CASCADE');
     await sql('UPDATE policies SET is_active=TRUE WHERE id=$1', [policy]);
@@ -409,6 +420,86 @@ async function main(options) {
         const processing = await snapshot(requestId); now = base + 16 * minute; await worker().run();
         pauseProvider = undefined; release(); await first; const after = await snapshot(requestId);
         reconciliation(after, processing, `mock-key-${requestId}`, 1); assert.equal(after.request.result_asset_id, null); return after;
+      });
+      async function assertCompletedFromReceipt(instance, requestId) {
+        await instance.run();
+        const after = await snapshot(requestId);
+        assert.equal(after.request.status, 'COMPLETED');
+        assert.equal(after.operation.status, 'COMPLETED');
+        assert.equal(after.operation.provider_reference, `mock-key-${requestId}`);
+        assert.equal(after.operation.attempt_count, 1);
+        assert.equal(after.assets, 1);
+        assert.equal(provisionCalls, 1);
+        assert.deepEqual(after.audit.map(entry => entry.action), ['ASSET_CREATED']);
+        await instance.run();
+        assert.deepEqual(await snapshot(requestId), after);
+        return { providerCalls: provisionCalls, assets: after.assets, audits: after.audit.length };
+      }
+      for (const failures of [1, 2]) await test(`Receipt persistence handles ${failures} PostgreSQL rollbacks without repeating the provider call`, async () => {
+        await reset();
+        const requestId = await approved();
+        await sql(`CREATE SEQUENCE worker_test_clock.receipt_writes;
+          CREATE FUNCTION worker_test_clock.reject_first_receipt() RETURNS trigger LANGUAGE plpgsql AS $$
+          BEGIN
+            IF OLD.receipt IS NULL AND NEW.receipt IS NOT NULL AND nextval('worker_test_clock.receipt_writes')<=${failures} THEN
+              RAISE EXCEPTION 'transient receipt fixture' USING ERRCODE='40001';
+            END IF;
+            RETURN NEW;
+          END $$;
+          CREATE TRIGGER worker_test_receipt_fault BEFORE UPDATE ON provider_operations
+            FOR EACH ROW EXECUTE FUNCTION worker_test_clock.reject_first_receipt()`);
+        try {
+          const instance = worker();
+          let evidence;
+          if (failures === 1) {
+            evidence = await assertCompletedFromReceipt(instance, requestId);
+          } else {
+            await instance.run();
+            const after = await snapshot(requestId);
+            assert.equal(after.request.status, 'RECONCILIATION_REQUIRED');
+            assert.equal(after.operation.attempt_count, 1);
+            assert.equal(after.operation.provider_reference, null);
+            assert.equal(after.assets, 0);
+            assert.equal(provisionCalls, 1);
+            assert.deepEqual(after.audit.map(entry => entry.action), ['REQUEST_RECONCILIATION_REQUIRED']);
+            assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'OUTCOME_UNKNOWN');
+            await instance.run();
+            assert.deepEqual(await snapshot(requestId), after);
+            evidence = { providerCalls: provisionCalls, outcome: 'OUTCOME_UNKNOWN', assets: after.assets };
+          }
+          assert.equal((await sql('SELECT last_value FROM worker_test_clock.receipt_writes')).rows[0].last_value, '2');
+          return { ...evidence, receiptWrites: 2 };
+        } finally {
+          await sql('DROP TRIGGER worker_test_receipt_fault ON provider_operations; DROP FUNCTION worker_test_clock.reject_first_receipt(); DROP SEQUENCE worker_test_clock.receipt_writes;');
+        }
+      });
+      await test('A committed receipt with a lost acknowledgment is accepted only once', async () => {
+        await reset();
+        const requestId = await approved();
+        loseReceiptAcknowledgment = true;
+        const evidence = await assertCompletedFromReceipt(worker(), requestId);
+        assert.equal(loseReceiptAcknowledgment, false);
+        return { ...evidence, acknowledgmentLost: true };
+      });
+      await test('A different stored receipt cannot be accepted or overwritten', async () => {
+        await reset();
+        const requestId = await approved();
+        const stored = { providerReference: `mock-key-${requestId}`, providerScope: 'MOCK', keySize: 4096 };
+        pauseProvider = async () => {
+          await sql(`UPDATE provider_operations SET status='PROVIDER_SUCCEEDED',provider_reference=$2,
+            receipt=$3::jsonb,receipt_at=NOW(),failure_class='RESULT_RECORDED' WHERE request_id=$1`,
+          [requestId, stored.providerReference, JSON.stringify(stored)]);
+        };
+        await worker().run();
+        const after = await snapshot(requestId);
+        assert.equal(after.request.status, 'RECONCILIATION_REQUIRED');
+        assert.equal(after.operation.attempt_count, 1);
+        assert.equal(after.assets, 0);
+        assert.equal(provisionCalls, 1);
+        const operation = (await sql('SELECT receipt,failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0];
+        assert.deepEqual(operation.receipt, stored);
+        assert.equal(operation.failure_class, 'RESULT_RECORDED');
+        return { mismatchedReceiptPreserved: true, providerCalls: provisionCalls, assets: after.assets };
       });
       await test('Final transaction failure preserves the provider receipt and rolls back the asset before reconciliation', async () => {
         await reset(); const requestId = await approved(); await installAuditFailure('ASSET_CREATED'); const instance = worker();

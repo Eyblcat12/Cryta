@@ -42,3 +42,13 @@ Giao diện tích hợp đã qua hai ca T15 trên cả [Edge](tools/test-artifac
 4. Với tác vụ đã biết chưa gửi cần kết thúc, chọn **Đóng do lỗi xử lý**, ghi lý do và xác nhận. Yêu cầu chuyển sang lỗi và người tạo nhận thông báo.
 5. Với kết quả chưa rõ hoặc tài sản thiếu liên kết provider, ghi nhận operation ID và đối chiếu với nhà cung cấp theo runbook được chốt ở T16. Giữ yêu cầu trong hàng đối soát đến khi có bằng chứng.
 6. Nếu màn hình báo lần gửi chưa rõ kết quả, chọn **Kiểm tra dữ liệu**, đọc trạng thái hiện tại và đối chiếu lịch sử trước khi kết thúc đối chiếu. Một trạng thái mới tải về cần được đối chiếu với lần thao tác đang kiểm tra.
+
+## Lỗi khi lưu biên nhận provider ngày 08/11/2026
+
+Khi provider đã trả kết quả và câu lệnh lưu gặp lỗi, worker thử lại câu lệnh đó một lần với cùng yêu cầu và phiên bản claim. Nếu biên nhận đã được lưu nhưng phản hồi từ PostgreSQL bị mất, worker kiểm mã tham chiếu và toàn bộ nội dung đã lưu trước khi tiếp tục. Điều kiện hoàn tất tài sản vẫn kiểm lease, phiên bản yêu cầu và đầu vào trong giao dịch cuối.
+
+Nếu hai lần lưu đều thất bại, worker đi theo luồng đối soát. Khi sổ thao tác chưa có biên nhận, trạng thái là **Kết quả chưa rõ**. Biên nhận khác nội dung luôn được giữ để đối soát. Các bước này chỉ tác động đến PostgreSQL, với một lần gọi provider cho thao tác gốc.
+
+Hai ca đối chứng trên image cũ chuyển yêu cầu sang đối soát sau khi câu lệnh lưu bị rollback hoặc mất xác nhận. Image mới đạt 34/34 nhóm worker. Hai tình huống này đều hoàn tất đúng một tài sản và một audit cấp phát. Hai lần rollback liên tiếp tạo một audit đối soát với kết quả chưa rõ. Ca chèn biên nhận khác xác nhận worker giữ bản ghi và chuyển sang đối soát. Mất xác nhận được mô phỏng ở client sau khi câu lệnh PostgreSQL đã commit. [Ca đối chứng](tools/test-artifacts/integration/crypta-t30-test-d57d87fea69b/worker-recovery-after-2ebc16a79361/results.json) · [Kết quả](tools/test-artifacts/integration/crypta-t30-test-391ec91fd30e/worker-recovery-after-669033f1a1f2/results.json)
+
+Hồi quy dưới tài khoản runtime đạt 51/51, gồm áp dụng biên nhận qua API, kiểm quyền và rollback audit. Stack và các database con đã được dọn. [Runtime](tools/test-artifacts/integration/crypta-t30-test-391ec91fd30e/runtime-privileges-536261618c18/results.json)
