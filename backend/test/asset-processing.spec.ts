@@ -146,7 +146,9 @@ describe('asset worker execution guards', () => {
       afterProvider: undefined as (() => void) | undefined,
       operation: { claim_version: job.version, status: 'CLAIMED', attempt_count: 0, retry_count: 0, provider_reference: null } };
     const query = vi.fn(async (sql: string) => {
-      if (sql.startsWith('SELECT * FROM requests WHERE id=')) return { rows: [structuredClone(state.request)], rowCount: 1 };
+      if (sql.startsWith('SELECT * FROM requests WHERE id=') || sql.includes('AS lease_expired')) {
+        return { rows: [structuredClone(state.request)], rowCount: 1 };
+      }
       if (sql.startsWith('SELECT status,claim_version')) return { rows: [state.operation], rowCount: 1 };
       if (sql.includes("SET status='SENT',attempt_count=attempt_count+1")) {
         state.operation.status = 'SENT'; state.operation.attempt_count = 1;

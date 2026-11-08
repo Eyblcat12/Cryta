@@ -13,6 +13,9 @@ import { CryptoProviderService, type ProvisionResult } from './crypto-provider.s
 import { cryptoProviderConfig, cryptoProviderMode } from './crypto-provider-config';
 import { automaticRetryDelays, failureCode, maximumRecoveryRetries, type FailureClass } from './provider-recovery';
 
+const CLAIM_LEASE = "INTERVAL '15 minutes'";
+const HEARTBEAT_MS = 30_000;
+
 type Job = {
   id: string;
   request_type: 'CREATE' | 'RENEW' | 'REVOKE';
@@ -92,10 +95,11 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const stale = await client.query<{ id: string; request_type: Job['request_type'] }>(`UPDATE requests
-        SET status='RECONCILIATION_REQUIRED',version=version+1,updated_at=NOW()
-        WHERE status='PROCESSING' AND updated_at<NOW()-INTERVAL '15 minutes' AND result_asset_id IS NULL
-        RETURNING id,request_type`);
+      const stale = await client.query<{ id: string; request_type: Job['request_type'] }>(`WITH expired AS (
+        SELECT id FROM requests WHERE status='PROCESSING' AND updated_at<NOW()-${CLAIM_LEASE} AND result_asset_id IS NULL
+        ORDER BY updated_at,id FOR UPDATE SKIP LOCKED LIMIT 25
+      ) UPDATE requests r SET status='RECONCILIATION_REQUIRED',version=r.version+1,updated_at=NOW()
+        FROM expired WHERE r.id=expired.id RETURNING r.id,r.request_type`);
       for (const row of stale.rows) {
         await client.query(`INSERT INTO provider_operations(request_id,operation_type,status,failure_class,last_error_code)
           VALUES($1,$2,'RECONCILIATION_REQUIRED','OUTCOME_UNKNOWN','STALE_PROCESSING')
@@ -167,6 +171,29 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
   }
 
   private async process(job: Job) {
+    const heartbeat = new DrainablePoll();
+    const timer = setInterval(() => void heartbeat.run(async () => {
+      try { await this.renewClaim(job); }
+      catch { this.logger.warn({ event: 'asset.claim_heartbeat_failed', requestId: job.id }); }
+    }), HEARTBEAT_MS);
+    try { await this.processClaim(job); }
+    finally {
+      clearInterval(timer);
+      heartbeat.stop();
+      await heartbeat.drain();
+    }
+  }
+
+  private async renewClaim(job: Job) {
+    // Skip an in-flight transaction and let its row lock protect the claim until it finishes.
+    await this.pool.query(`WITH active_claim AS (
+      SELECT id FROM requests WHERE id=$1 AND version=$2 AND status='PROCESSING'
+        AND result_asset_id IS NULL AND updated_at>=NOW()-${CLAIM_LEASE}
+      FOR UPDATE SKIP LOCKED
+    ) UPDATE requests r SET updated_at=NOW() FROM active_claim WHERE r.id=active_claim.id`, [job.id, job.version]);
+  }
+
+  private async processClaim(job: Job) {
     try {
       const prepared = await this.prepareProviderCall(job);
       const result = await this.callProvider(job, prepared);
@@ -190,14 +217,15 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
         if (current?.status === 'PROCESSING' && operation && (operation.claim_version === null || operation.claim_version === job.version)) {
           const unsent = operation.claim_version === job.version && operation.status === 'CLAIMED' &&
             operation.attempt_count === 0 && operation.provider_reference === null;
-          const code = failureCode(error);
+          const expired = error instanceof Error && error.message === 'REQUEST_PROCESSING_LEASE_EXPIRED';
+          const code = expired ? 'STALE_PROCESSING' : failureCode(error);
           const transient = unsent && current.version === job.version && code === 'PREFLIGHT_DB_BUSY';
           const delay = transient ? automaticRetryDelays[operation.retry_count] : undefined;
           if (delay !== undefined) {
             await this.scheduleRetry(client, job.id, delay, operation.retry_count, code);
           } else {
             const classification: FailureClass = operation.receipt ? 'RESULT_RECORDED'
-              : transient ? 'UNSENT_TRANSIENT' : unsent ? 'UNSENT_PERMANENT' : 'OUTCOME_UNKNOWN';
+              : unsent && (transient || expired) ? 'UNSENT_TRANSIENT' : unsent ? 'UNSENT_PERMANENT' : 'OUTCOME_UNKNOWN';
             await this.requireReconciliation(client, job.id, classification, code === 'PREFLIGHT_DB_BUSY' && !unsent ? 'PROCESSING_ERROR' : code);
           }
         }
@@ -292,10 +320,12 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
   }
 
   private async assertRequestState(client: PoolClient, job: Job) {
-    const current = (await client.query<Job>('SELECT * FROM requests WHERE id=$1 FOR UPDATE', [job.id])).rows[0];
+    const current = (await client.query<Job & { lease_expired: boolean }>(`SELECT *,updated_at<NOW()-${CLAIM_LEASE} AS lease_expired
+      FROM requests WHERE id=$1 FOR UPDATE`, [job.id])).rows[0];
     if (!current || current.status !== 'PROCESSING' || current.version !== job.version || current.result_asset_id !== null) {
       throw new Error('REQUEST_PROCESSING_LEASE_LOST');
     }
+    if (current.lease_expired) throw new Error('REQUEST_PROCESSING_LEASE_EXPIRED');
     for (const field of ['request_type', 'creator_id', 'department_id', 'policy_version_id', 'target_asset_id', 'reason', 'requested_parameters'] as const) {
       if (!isDeepStrictEqual(current[field], job[field])) throw new Error('REQUEST_PROCESSING_INPUT_CHANGED');
     }

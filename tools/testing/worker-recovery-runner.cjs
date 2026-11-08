@@ -3,6 +3,45 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const http = require('node:http');
+const { spawn } = require('node:child_process');
+const { once } = require('node:events');
+const { setTimeout: delay } = require('node:timers/promises');
+
+async function crashWorker(database, clock) {
+  const assert = require('node:assert/strict');
+  assert.match(database, /^crypta_worker_test_[a-f0-9]{12}$/);
+  assert.equal(process.env.CRYPTO_PROVIDER_MODE, 'MOCK');
+  assert.equal(process.env.SMTP_ENABLED, 'false');
+  const connection = new URL(process.env.DATABASE_URL);
+  assert.equal(connection.hostname, 'postgres');
+  assert.equal(connection.username, 'crypta_t30_test');
+  assert.equal(connection.pathname, '/crypta_t30_test');
+  connection.pathname = `/${database}`;
+  require('/app/node_modules/reflect-metadata');
+  const { Pool } = require('/app/node_modules/pg');
+  const { AssetProcessingService } = require('/app/dist/jobs/asset-processing.service.js');
+  const { NotificationsService } = require('/app/dist/notifications/notifications.service.js');
+  const pool = new Pool({ connectionString: connection.href, max: 2, statement_timeout: 10000 });
+  const connect = async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("SELECT set_config('TimeZone','UTC',false),set_config('search_path','worker_test_clock,public,pg_catalog',false),set_config('crypta.worker_test_now',$1,false)", [new Date(clock).toISOString()]);
+      return client;
+    } catch (error) { client.release(); throw error; }
+  };
+  const workerPool = { connect, async query(text, values) {
+    const client = await connect();
+    try { return await client.query(text, values); } finally { client.release(); }
+  } };
+  process.on('message', nextClock => { clock = nextClock; });
+  const provider = { async provision({ operationId }) {
+    process.send({ operationId });
+    return new Promise(() => {});
+  } };
+  const worker = new AssetProcessingService(workerPool, provider, new NotificationsService(workerPool));
+  await worker.run();
+  await pool.end();
+}
 
 async function main(options) {
   assert.match(options.project, /^crypta-t30-test-[a-f0-9]{12}$/);
@@ -24,14 +63,14 @@ async function main(options) {
   const results = [], diagnostics = [];
   const report = {
     database: options.database, mode: options.mode, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    plannedTotal: options.mode === 'before' ? 3 : 27, results, diagnostics,
+    plannedTotal: options.mode === 'before' ? 3 : 30, results, diagnostics,
     clockMethod: 'Schema-local now() with explicit search_path and per-session UTC clock; service SQL and original timestamp trigger remain installed.',
     actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService'],
     compiledServiceHashes: Object.fromEntries(['jobs/asset-processing.service.js', 'jobs/crypto-provider.service.js',
       ...(options.mode === 'after' ? ['jobs/crypto-provider-config.js'] : []),
       'notifications/notifications.service.js', 'database/migration.service.js', 'requests/request-policy.js'].map(relative => [relative,
       crypto.createHash('sha256').update(fs.readFileSync(`/app/dist/${relative}`)).digest('hex')])),
-    limitations: ['Persisted crash boundaries are exercised directly; no OS process kill or production scheduler timing is claimed.',
+    limitations: ['The SENT boundary includes a real SIGKILL of a disposable worker. CLAIMED and persisted receipt boundaries use direct fixtures and the 15-minute expiry uses a synthetic PostgreSQL clock.',
       'MOCK reference determinism does not validate a real provider idempotency or lookup contract.',
       'HTTP cases use a loopback fixture and a self-signed public certificate. Vendor integration, CA chain trust, and provider lookup remain external.'],
   };
@@ -221,6 +260,87 @@ async function main(options) {
         await reset(); const boundary = await persistBoundary('PROVIDER_SUCCEEDED'), before = await snapshot(boundary.requestId);
         now = base + 16 * minute; await Promise.all([worker().run(), worker().run()]); const after = await snapshot(boundary.requestId);
         reconciliation(after, before, boundary.reference, 1); return after;
+      });
+      await test('A locked stale request does not block another worker from claiming unrelated work', async () => {
+        await reset();
+        const locked = await persistBoundary('SENT');
+        const next = await approved();
+        now = base + 16 * minute;
+        const blocker = await connect();
+        try {
+          await blocker.query('BEGIN');
+          await blocker.query('SELECT id FROM requests WHERE id=$1 FOR UPDATE', [locked.requestId]);
+          const before = await snapshot(locked.requestId);
+          await worker().run();
+          const completed = await snapshot(next);
+          assert.equal(completed.request.status, 'COMPLETED');
+          assert.equal(completed.operation.attempt_count, 1);
+          assert.equal((await snapshot(locked.requestId)).request.status, 'PROCESSING');
+          assert.equal(provisionCalls, 1);
+          await blocker.query('ROLLBACK');
+          await worker().run();
+          const after = await snapshot(locked.requestId);
+          assert.equal(after.request.status, 'RECONCILIATION_REQUIRED');
+          assert.equal(after.request.version, before.request.version + 1);
+          assert.equal(after.audit.length, 1);
+          assert.equal(after.operation.attempt_count, 1);
+          assert.equal(provisionCalls, 1);
+          return { unrelatedCompleted: true, staleReconciledAfterUnlock: true, providerCalls: provisionCalls };
+        } finally {
+          await blocker.query('ROLLBACK');
+          blocker.release();
+        }
+      });
+      await test('An expired worker cannot renew its claim or call the provider before the next sweep', async () => {
+        await reset();
+        const requestId = await approved(), instance = worker(), job = await instance.claim();
+        const before = await snapshot(requestId);
+        now = base + 16 * minute;
+        await instance.renewClaim(job);
+        assert.deepEqual(await snapshot(requestId), before);
+        await instance.process(job);
+        const after = await snapshot(requestId);
+        reconciliation(after, before, null, 0);
+        assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'UNSENT_TRANSIENT');
+        return { expiredClaimFenced: true, providerCalls: provisionCalls };
+      });
+      await test('A second process honors a real heartbeat, then reconciles once after SIGKILL without replay', async () => {
+        await reset();
+        const requestId = await approved();
+        const child = spawn(process.execPath, ['-e', `(${crashWorker})(${JSON.stringify(options.database)},${base}).catch(() => process.exit(1))`],
+          { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+        const exited = once(child, 'exit');
+        try {
+          const [message] = await once(child, 'message', { signal: AbortSignal.timeout(10000) });
+          assert.equal(message.operationId, requestId);
+          const claimed = await snapshot(requestId);
+          assert.equal(claimed.operation.status, 'SENT');
+          child.send(base + 14 * minute);
+          const deadline = Date.now() + 38_000;
+          let renewed = claimed;
+          while (renewed.request.updated_at.getTime() === base && Date.now() < deadline) {
+            await delay(250);
+            renewed = await snapshot(requestId);
+          }
+          assert.equal(renewed.request.updated_at.getTime(), base + 14 * minute);
+          assert.equal(renewed.request.version, claimed.request.version);
+          now = base + 16 * minute;
+          await worker().run();
+          assert.deepEqual(await snapshot(requestId), renewed);
+          assert.ok(child.kill('SIGKILL'));
+          assert.deepEqual(await exited, [null, 'SIGKILL']);
+          now = base + 30 * minute;
+          await Promise.all([worker().run(), worker().run()]);
+          const after = await snapshot(requestId);
+          reconciliation(after, renewed, null, 1);
+          assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'OUTCOME_UNKNOWN');
+          await worker().run();
+          assert.deepEqual(await snapshot(requestId), after);
+          return { heartbeatObserved: true, exitSignal: 'SIGKILL', attempts: 1, reconciliations: 1, replayCalls: provisionCalls };
+        } finally {
+          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+          await exited;
+        }
       });
       await test('Audit failure rolls back request and operation together, then the next poll recovers', async () => {
         await reset(); const boundary = await persistBoundary('PROVIDER_SUCCEEDED'), before = await snapshot(boundary.requestId);

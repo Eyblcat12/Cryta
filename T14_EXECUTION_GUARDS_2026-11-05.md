@@ -70,4 +70,12 @@ Muốn chạy lại cần tạo stack test mới hoặc dùng đúng report reta
 node tools/test-real-worker-recovery.cjs <report.json-cua-stack-test> after
 ```
 
-Yêu cầu đủ **23/23**, đúng image/hash source/compiled của chính lượt chạy, cleanup DB con và inventory preservation đều đạt. Không dùng namespace đã dọn, DB vận hành hoặc đổi mode để che lỗi AFTER. Báo cáo này không đóng T14/T48 hoặc toàn dự án.
+Lượt 05/11 ở trên kiểm 23 nhóm. Runner hiện kiểm thêm các nhóm được liệt kê ở phần dưới. Báo cáo từng lượt ghi hash source, image, số nhóm dự kiến và trạng thái dọn DB con.
+
+## Gia hạn claim và quét nhiều worker ngày 08/11/2026
+
+Khi đang xử lý, worker gia hạn mốc `requests.updated_at` mỗi 30 giây nếu yêu cầu còn `PROCESSING`, phiên bản vẫn khớp và chưa hết lease 15 phút. Cả bước trước khi đánh dấu gửi và bước ghi kết quả cuối đều kiểm lease trong giao dịch. Heartbeat chỉ cập nhật thời gian, giữ nguyên phiên bản claim và dừng khi tác vụ hoàn tất. Kết quả đến muộn có thể bổ sung receipt vào đúng lần gửi để đối soát.
+
+Lượt quét lấy tối đa 25 yêu cầu hết lease mỗi lần và bỏ qua hàng đang bị khóa, để worker còn có thể nhận việc khác. Ca đối chứng trên image cũ thấy yêu cầu độc lập vẫn `APPROVED` sau khi poll. Tác vụ đã đánh dấu `SENT` mà mất phản hồi chuyển sang đối soát với kết quả chưa xác định. [Ca đối chứng](tools/test-artifacts/integration/crypta-t30-test-62e07d6b7730/worker-recovery-after-bb33bc98bb8f/results.json) · [Khóa hàng PostgreSQL](https://www.postgresql.org/docs/14/sql-select.html#SQL-FOR-UPDATE-SHARE)
+
+Image mới đạt 30/30 nhóm worker/PostgreSQL. Yêu cầu độc lập hoàn tất khi hàng quá hạn còn khóa. Worker hết lease bị chặn trước khi gửi. Trong ca hai tiến trình, worker thứ hai thấy heartbeat thật và giữ nguyên yêu cầu đang gửi. Sau SIGKILL và khi đồng hồ thử vượt lease, hai lượt quét đồng thời chỉ ghi một lần đối soát và không gọi lại provider. Thời hạn 15 phút được mô phỏng bằng đồng hồ PostgreSQL của DB test. SIGKILL thật được kiểm ở ranh giới `SENT`. Các ranh giới `CLAIMED` và receipt đã lưu dùng fixture. Mất kết nối nhiều máy và hợp đồng tra cứu provider thật còn cần nghiệm thu. [Kết quả](tools/test-artifacts/integration/crypta-t30-test-21d9770e718b/worker-recovery-after-38fbdd6b7b10/results.json)
