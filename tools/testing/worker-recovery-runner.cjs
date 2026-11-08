@@ -7,9 +7,10 @@ const { spawn } = require('node:child_process');
 const { once } = require('node:events');
 const { setTimeout: delay } = require('node:timers/promises');
 
-async function crashWorker(database, clock) {
+async function crashWorker(database, clock, boundary) {
   const assert = require('node:assert/strict');
   assert.match(database, /^crypta_worker_test_[a-f0-9]{12}$/);
+  assert.ok(['CLAIMED', 'SENT', 'BEFORE_COMMIT'].includes(boundary));
   assert.equal(process.env.CRYPTO_PROVIDER_MODE, 'MOCK');
   assert.equal(process.env.SMTP_ENABLED, 'false');
   const connection = new URL(process.env.DATABASE_URL);
@@ -20,8 +21,10 @@ async function crashWorker(database, clock) {
   require('/app/node_modules/reflect-metadata');
   const { Pool } = require('/app/node_modules/pg');
   const { AssetProcessingService } = require('/app/dist/jobs/asset-processing.service.js');
+  const { CryptoProviderService } = require('/app/dist/jobs/crypto-provider.service.js');
   const { NotificationsService } = require('/app/dist/notifications/notifications.service.js');
-  const pool = new Pool({ connectionString: connection.href, max: 2, statement_timeout: 10000 });
+  const pool = new Pool({ connectionString: connection.href, max: 2, statement_timeout: 10000,
+    application_name: `crypta-crash-fixture-${boundary}` });
   const connect = async () => {
     const client = await pool.connect();
     try {
@@ -34,11 +37,31 @@ async function crashWorker(database, clock) {
     try { return await client.query(text, values); } finally { client.release(); }
   } };
   process.on('message', nextClock => { clock = nextClock; });
-  const provider = { async provision({ operationId }) {
-    process.send({ operationId });
+  let providerCalls = 0;
+  const park = (operationId, evidence) => {
+    process.send({ operationId, providerCalls, evidence });
     return new Promise(() => {});
+  };
+  const mock = new CryptoProviderService();
+  const provider = { async provision(input) {
+    providerCalls++;
+    if (boundary === 'SENT') return park(input.operationId);
+    return mock.provision(input);
   } };
   const worker = new AssetProcessingService(workerPool, provider, new NotificationsService(workerPool));
+  if (boundary === 'CLAIMED') {
+    worker.prepareProviderCall = job => park(job.id);
+  } else if (boundary === 'BEFORE_COMMIT') {
+    const complete = worker.complete.bind(worker);
+    worker.complete = async (client, job, prepared, result) => {
+      await complete(client, job, prepared, result);
+      const { rows: [evidence] } = await client.query(`SELECT r.status, r.result_asset_id IS NOT NULL AS "hasAsset",
+        (SELECT count(*)::int FROM audit_logs WHERE request_id=r.id AND action='ASSET_CREATED') AS audits,
+        (SELECT count(*)::int FROM notifications WHERE request_id=r.id AND type='REQUEST_COMPLETED') AS notifications
+        FROM requests r WHERE r.id=$1`, [job.id]);
+      await park(job.id, evidence);
+    };
+  }
   await worker.run();
   await pool.end();
 }
@@ -63,14 +86,14 @@ async function main(options) {
   const results = [], diagnostics = [];
   const report = {
     database: options.database, mode: options.mode, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    plannedTotal: options.mode === 'before' ? 3 : 34, results, diagnostics,
+    plannedTotal: options.mode === 'before' ? 3 : 36, results, diagnostics,
     clockMethod: 'Schema-local now() with explicit search_path and per-session UTC clock; service SQL and original timestamp trigger remain installed.',
     actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService'],
     compiledServiceHashes: Object.fromEntries(['jobs/asset-processing.service.js', 'jobs/crypto-provider.service.js',
       ...(options.mode === 'after' ? ['jobs/crypto-provider-config.js'] : []),
       'notifications/notifications.service.js', 'database/migration.service.js', 'requests/request-policy.js'].map(relative => [relative,
       crypto.createHash('sha256').update(fs.readFileSync(`/app/dist/${relative}`)).digest('hex')])),
-    limitations: ['The SENT boundary includes a real SIGKILL of a disposable worker. CLAIMED and persisted receipt boundaries use direct fixtures and the 15-minute expiry uses a synthetic PostgreSQL clock.',
+    limitations: ['Three SIGKILL cases stop a disposable worker inside the isolated backend container. The 15-minute lease expiry uses a synthetic PostgreSQL clock.',
       'MOCK reference determinism does not validate a real provider idempotency or lookup contract.',
       'HTTP cases use a loopback fixture and a self-signed public certificate. Vendor integration, CA chain trust, and provider lookup remain external.'],
   };
@@ -206,6 +229,32 @@ async function main(options) {
     const assets = Number((await sql('SELECT COUNT(*)::int AS count FROM crypto_assets')).rows[0].count);
     return { request, operation, audit, assets, provisionCalls, revokeCalls };
   }
+  async function withParkedWorker(boundary, requestId, inspect) {
+    const input = JSON.stringify([options.database, base, boundary]);
+    const child = spawn(process.execPath, ['-e', `(${crashWorker})(...${input}).catch(() => process.exit(1))`],
+      { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    const exited = once(child, 'exit');
+    try {
+      const [message] = await Promise.race([
+        once(child, 'message', { signal: AbortSignal.timeout(10000) }),
+        exited.then(() => { throw new Error('Crash fixture exited before reaching the boundary'); }),
+      ]);
+      assert.equal(message.operationId, requestId);
+      await inspect(message, child);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+      assert.deepEqual(await exited, [null, 'SIGKILL']);
+    }
+    // Wait for PostgreSQL to observe the closed socket and roll back the child's transaction.
+    const deadline = Date.now() + 5000;
+    do {
+      const { rows: [{ active }] } = await sql(`SELECT count(*)::int AS active FROM pg_stat_activity
+        WHERE datname=current_database() AND application_name=$1`, [`crypta-crash-fixture-${boundary}`]);
+      if (active === 0) return;
+      await delay(50);
+    } while (Date.now() < deadline);
+    throw new Error('The killed worker still has a PostgreSQL session');
+  }
   function reconciliation(snapshotValue, prior, reference, attempts) {
     assert.equal(snapshotValue.request.status, 'RECONCILIATION_REQUIRED');
     assert.equal(snapshotValue.request.version, prior.request.version + 1);
@@ -318,17 +367,14 @@ async function main(options) {
       await test('A second process honors a real heartbeat, then reconciles once after SIGKILL without replay', async () => {
         await reset();
         const requestId = await approved();
-        const child = spawn(process.execPath, ['-e', `(${crashWorker})(${JSON.stringify(options.database)},${base}).catch(() => process.exit(1))`],
-          { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
-        const exited = once(child, 'exit');
-        try {
-          const [message] = await once(child, 'message', { signal: AbortSignal.timeout(10000) });
-          assert.equal(message.operationId, requestId);
+        let renewed;
+        await withParkedWorker('SENT', requestId, async (message, child) => {
+          assert.equal(message.providerCalls, 1);
           const claimed = await snapshot(requestId);
           assert.equal(claimed.operation.status, 'SENT');
           child.send(base + 14 * minute);
           const deadline = Date.now() + 38_000;
-          let renewed = claimed;
+          renewed = claimed;
           while (renewed.request.updated_at.getTime() === base && Date.now() < deadline) {
             await delay(250);
             renewed = await snapshot(requestId);
@@ -338,20 +384,15 @@ async function main(options) {
           now = base + 16 * minute;
           await worker().run();
           assert.deepEqual(await snapshot(requestId), renewed);
-          assert.ok(child.kill('SIGKILL'));
-          assert.deepEqual(await exited, [null, 'SIGKILL']);
-          now = base + 30 * minute;
-          await Promise.all([worker().run(), worker().run()]);
-          const after = await snapshot(requestId);
-          reconciliation(after, renewed, null, 1);
-          assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'OUTCOME_UNKNOWN');
-          await worker().run();
-          assert.deepEqual(await snapshot(requestId), after);
-          return { heartbeatObserved: true, exitSignal: 'SIGKILL', attempts: 1, reconciliations: 1, replayCalls: provisionCalls };
-        } finally {
-          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
-          await exited;
-        }
+        });
+        now = base + 30 * minute;
+        await Promise.all([worker().run(), worker().run()]);
+        const after = await snapshot(requestId);
+        reconciliation(after, renewed, null, 1);
+        assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'OUTCOME_UNKNOWN');
+        await worker().run();
+        assert.deepEqual(await snapshot(requestId), after);
+        return { heartbeatObserved: true, exitSignal: 'SIGKILL', attempts: 1, reconciliations: 1, replayCalls: provisionCalls };
       });
       await test('Audit failure rolls back request and operation together, then the next poll recovers', async () => {
         await reset(); const boundary = await persistBoundary('PROVIDER_SUCCEEDED'), before = await snapshot(boundary.requestId);
@@ -674,6 +715,76 @@ async function main(options) {
           assert.equal(second.assets,1);await instance.run();assert.equal(calls.length,2);
           return { validFrom:saved.valid_from,expiresAt:saved.expires_at,receiptContainsPublicMetadataOnly:true,invalidResultReplayed:false };
         });
+      });
+      await sql("INSERT INTO roles(code,name) VALUES('ADMIN','Worker recovery administrator') ON CONFLICT (code) DO NOTHING");
+      await sql("INSERT INTO user_roles(user_id,role_id) SELECT $1,id FROM roles WHERE code='ADMIN'", [otherOwner]);
+      const admin = { id: otherOwner, tokenVersion: 1 };
+      const completionNotices = async requestId => (await sql(`SELECT channel FROM notifications
+        WHERE request_id=$1 AND type='REQUEST_COMPLETED' ORDER BY channel`, [requestId])).rows.map(row => row.channel);
+      await test('SIGKILL after claim permits one proven-unsent retry by an administrator', async () => {
+        await reset();
+        const requestId = await approved();
+        let claimed;
+        await withParkedWorker('CLAIMED', requestId, async message => {
+          assert.equal(message.providerCalls, 0);
+          claimed = await snapshot(requestId);
+          assert.equal(claimed.request.status, 'PROCESSING');
+          assert.equal(claimed.operation.status, 'CLAIMED');
+          assert.equal(claimed.operation.attempt_count, 0);
+        });
+        now = base + 16 * minute;
+        await Promise.all([worker().run(), worker().run()]);
+        const stale = await snapshot(requestId);
+        reconciliation(stale, claimed, null, 0);
+        assert.equal((await sql('SELECT failure_class FROM provider_operations WHERE request_id=$1', [requestId])).rows[0].failure_class, 'UNSENT_TRANSIENT');
+        await worker().recover(admin, requestId, stale.request.version, 'RETRY', 'Verified unsent after worker crash');
+        await worker().run();
+        assert.equal(provisionCalls, 0);
+        now += minute;
+        await Promise.all([worker().run(), worker().run()]);
+        const completed = await snapshot(requestId);
+        assert.equal(completed.request.status, 'COMPLETED');
+        assert.equal(completed.operation.attempt_count, 1);
+        assert.equal(completed.assets, 1);
+        assert.equal(provisionCalls, 1);
+        assert.equal(provisionInputs[0].operationId, requestId);
+        assert.deepEqual(completed.audit.map(row => row.action), ['REQUEST_RECONCILIATION_REQUIRED', 'PROVIDER_RETRY_SCHEDULED', 'ASSET_CREATED']);
+        assert.deepEqual(await completionNotices(requestId), ['EMAIL', 'IN_APP']);
+        return { exitSignal: 'SIGKILL', providerCallsBeforeCrash: 0, providerCallsAfterRetry: 1, completedAssets: 1 };
+      });
+      await test('SIGKILL before commit rolls back staged writes and the saved receipt is applied exactly once', async () => {
+        await reset();
+        const requestId = await approved(), reference = `mock-key-${requestId}`;
+        let visible;
+        await withParkedWorker('BEFORE_COMMIT', requestId, async message => {
+          assert.equal(message.providerCalls, 1);
+          assert.deepEqual(message.evidence, { status: 'COMPLETED', hasAsset: true, audits: 1, notifications: 2 });
+          visible = await snapshot(requestId);
+          assert.equal(visible.request.status, 'PROCESSING');
+          assert.equal(visible.operation.status, 'PROVIDER_SUCCEEDED');
+          assert.equal(visible.operation.provider_reference, reference);
+          assert.equal(visible.assets, 0);
+          assert.equal(visible.audit.length, 0);
+          assert.deepEqual(await completionNotices(requestId), []);
+        });
+        assert.deepEqual(await snapshot(requestId), visible);
+        assert.deepEqual(await completionNotices(requestId), []);
+        now = base + 16 * minute;
+        await Promise.all([worker().run(), worker().run()]);
+        const stale = await snapshot(requestId);
+        reconciliation(stale, visible, reference, 1);
+        const confirm = () => worker().recover(admin, requestId, stale.request.version, 'CONFIRM', 'Verified receipt after worker crash');
+        const attempts = await Promise.allSettled([confirm(), confirm()]);
+        assert.equal(attempts.filter(attempt => attempt.status === 'fulfilled').length, 1);
+        assert.equal(attempts.find(attempt => attempt.status === 'rejected')?.reason?.getResponse()?.code, 'VERSION_CONFLICT');
+        const completed = await snapshot(requestId);
+        assert.equal(completed.request.status, 'COMPLETED');
+        assert.equal(completed.operation.attempt_count, 1);
+        assert.equal(completed.assets, 1);
+        assert.equal(provisionCalls, 0);
+        assert.deepEqual(completed.audit.map(row => row.action), ['REQUEST_RECONCILIATION_REQUIRED', 'ASSET_CREATED', 'PROVIDER_RESULT_CONFIRMED']);
+        assert.deepEqual(await completionNotices(requestId), ['EMAIL', 'IN_APP']);
+        return { exitSignal: 'SIGKILL', transactionRolledBack: true, providerCallsBeforeCrash: 1, replayCalls: 0, completedAssets: 1 };
       });
     }
   } finally {

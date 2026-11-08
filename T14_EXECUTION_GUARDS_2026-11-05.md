@@ -79,3 +79,13 @@ Khi đang xử lý, worker gia hạn mốc `requests.updated_at` mỗi 30 giây 
 Lượt quét lấy tối đa 25 yêu cầu hết lease mỗi lần và bỏ qua hàng đang bị khóa, để worker còn có thể nhận việc khác. Ca đối chứng trên image cũ thấy yêu cầu độc lập vẫn `APPROVED` sau khi poll. Tác vụ đã đánh dấu `SENT` mà mất phản hồi chuyển sang đối soát với kết quả chưa xác định. [Ca đối chứng](tools/test-artifacts/integration/crypta-t30-test-62e07d6b7730/worker-recovery-after-bb33bc98bb8f/results.json) · [Khóa hàng PostgreSQL](https://www.postgresql.org/docs/14/sql-select.html#SQL-FOR-UPDATE-SHARE)
 
 Image mới đạt 30/30 nhóm worker/PostgreSQL. Yêu cầu độc lập hoàn tất khi hàng quá hạn còn khóa. Worker hết lease bị chặn trước khi gửi. Trong ca hai tiến trình, worker thứ hai thấy heartbeat thật và giữ nguyên yêu cầu đang gửi. Sau SIGKILL và khi đồng hồ thử vượt lease, hai lượt quét đồng thời chỉ ghi một lần đối soát và không gọi lại provider. Thời hạn 15 phút được mô phỏng bằng đồng hồ PostgreSQL của DB test. SIGKILL thật được kiểm ở ranh giới `SENT`. Các ranh giới `CLAIMED` và receipt đã lưu dùng fixture. Mất kết nối nhiều máy và hợp đồng tra cứu provider thật còn cần nghiệm thu. [Kết quả](tools/test-artifacts/integration/crypta-t30-test-21d9770e718b/worker-recovery-after-38fbdd6b7b10/results.json)
+
+## Diễn tập SIGKILL ở ba ranh giới
+
+Bộ worker/PostgreSQL đạt 36/36 nhóm. Tiến trình con chạy mã worker đã build trong container cách ly. Runner dừng tiến trình tại điểm đã nhận việc, lúc provider đang xử lý và ngay trước commit cuối. Đồng hồ PostgreSQL thử nghiệm dùng để vượt lease 15 phút sau khi tiến trình bị kill. Ca `SENT` quan sát một heartbeat theo chu kỳ thực. [Kết quả](tools/test-artifacts/integration/crypta-t30-test-d2b3df500667/worker-recovery-after-02743e33013b/results.json)
+
+- `CLAIMED`. Ledger ghi 0 lần gửi. Sau khi hết lease, một Admin lên lịch thử lại. Hai worker cạnh tranh tạo một lần gọi provider MOCK và một tài sản, với operation ID ban đầu.
+- `SENT`. Kết quả chưa rõ tạo một bản ghi đối soát. Worker còn lại không gửi lại.
+- Trước commit. PostgreSQL rollback tài sản, audit và thông báo trong giao dịch đang mở. Biên nhận lưu trước đó vẫn đọc được. Hai lần xác nhận đồng thời chỉ có một lần thành công. Hệ thống ghi một tài sản, một audit cấp phát, một audit xác nhận và hai kênh thông báo hoàn tất.
+
+Diễn tập mất kết nối qua nhiều máy và xác minh kết quả bên ngoài với provider đích vẫn cần thực hiện tại môi trường triển khai.
