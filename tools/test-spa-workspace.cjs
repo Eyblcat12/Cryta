@@ -864,6 +864,25 @@ if(require.main===module)(async()=>{
       assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented}),false);
       await page.getByRole('dialog').getByRole('button',{name:'Hủy',exact:true}).click();await visible(page,'Yêu cầu của tôi');assert.equal(await page.getByRole('alertdialog').count(),0);assert.equal(mutations.length,0);
     },{certificateFirst:true}));
+    await test(browser, 'Certificate form preserves a draft when there is no compatible policy', () => withFixture(browser, 'USER', async ({ page, mutations }) => {
+      await page.goto(origin + '/requests/new');
+      const dialog = page.getByRole('dialog');
+      const type = dialog.getByRole('combobox', { name: /Loại tài sản/ });
+      const picker = dialog.getByLabel('Chính sách', { exact: true });
+      const reason = dialog.getByLabel('Lý do nghiệp vụ');
+      await picker.selectOption('version-1');
+      await reason.fill('Giữ lý do khi đổi loại tài sản');
+      await type.selectOption('CERTIFICATE');
+      await dialog.getByRole('status').filter({ hasText: 'Chưa có chính sách phù hợp để cấp mới tài sản này.' }).waitFor();
+      assert.ok(await picker.isDisabled());
+      assert.ok(await dialog.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).isDisabled());
+      assert.ok(await dialog.getByRole('button', { name: 'Lưu bản nháp', exact: true }).isEnabled());
+      assert.equal(await reason.inputValue(), 'Giữ lý do khi đổi loại tài sản');
+      await type.selectOption('KEY');
+      await picker.selectOption('version-1');
+      assert.ok(await dialog.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).isEnabled());
+      assert.equal(mutations.length, 0);
+    }));
     await test(browser,'Create-user Back and local close preserve input until discard is confirmed',()=>withFixture(browser,'ADMIN',async({page,mutations})=>{
       await page.goto(origin+'/dashboard');await page.getByRole('link',{name:'Người dùng & vai trò',exact:true}).click();await page.getByRole('button',{name:'Thêm người dùng'}).click();const form=page.getByRole('dialog');await form.locator('input').first().fill('Giữ tên chưa tạo');
       await page.goBack();await page.getByRole('alertdialog').getByRole('button',{name:'Ở lại',exact:true}).click();assert.equal(new URL(page.url()).pathname,'/users');assert.equal(await form.locator('input').first().inputValue(),'Giữ tên chưa tạo');

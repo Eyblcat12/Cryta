@@ -52,6 +52,10 @@ Hai nhóm qua Nginx và PostgreSQL kiểm đổi chủ, hết hạn, mất tham 
 
 Trên cùng image, Chromium đạt 3/3 nhóm T49. Bộ worker/PostgreSQL đạt 36/36 và xác nhận cả gia hạn lẫn thu hồi bị chặn trước lần gửi khi đã đến `expires_at` nhưng trạng thái tài sản vẫn là `ACTIVE`. [T49](../tools/test-artifacts/integration/crypta-t30-test-2264bcb9688a/real-chromium-1794134565572/results.json) · [Worker](../tools/test-artifacts/integration/crypta-t30-test-2264bcb9688a/worker-recovery-after-2a2254037788/results.json)
 
+### T32 — Chọn policy khi cấp chứng thư
+
+Form cấp mới lọc policy theo loại tài sản. Khi chuyển sang chứng thư, policy dành cho khóa biến mất khỏi danh sách và lý do vẫn giữ. Chromium ở 390 px giao diện tối gửi bằng bàn phím qua Nginx/PostgreSQL, nhận HTTP 201 và lưu đúng loại tài sản cùng mã phiên bản TLS. Hai ca fixture kiểm trạng thái thiếu policy, giữ lý do, còn nút lưu nháp và tự chọn policy khi form chưa chỉnh. [Ca trước sửa](../tools/test-artifacts/integration/crypta-t30-test-a9af3805cbb6/real-chromium-1794136306611/results.json) · [Kết quả](../tools/test-artifacts/integration/crypta-t30-test-3d0c19ce367c/real-chromium-1794136404167/results.json) · [Ảnh 390 px](../tools/test-artifacts/integration/crypta-t30-test-3d0c19ce367c/real-chromium-1794136404167/certificate-policy-390-dark.png)
+
 ### Lỗi phát hiện trong lúc chuẩn bị UC6
 
 **UAT-01 · P1 · FE/BE.** User gửi yêu cầu, Approver từ chối có lý do rồi User tải lại chi tiết. Bản trước thiếu người duyệt và lý do, đồng thời vẫn có mốc **Chờ kết quả xử lý**. Chrome tái hiện ở cả 1440 px sáng và 390 px tối dù PostgreSQL đã có quyết định, audit và thông báo.

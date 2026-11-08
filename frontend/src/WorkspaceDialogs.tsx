@@ -88,7 +88,7 @@ export function RequestModal({userId,scope,policyRevision,initialType,initialAss
   // Leave only after React and the router have committed the cleared dirty state.
   useEffect(()=>{if(completed)onComplete(completed.id)},[completed,onComplete]);
   useDialogBehavior(dialogRef, closeRef, onClose);
-  const compatiblePolicies=latestPolicies.filter(policy=>assetType==='CERTIFICATE'||!policy.configuration?.certificate_profile);
+  const compatiblePolicies=latestPolicies.filter(policy=>Boolean(policy.configuration?.certificate_profile)===(assetType==='CERTIFICATE'));
   const policyReady=!policiesResource.loading&&!policiesResource.error&&compatiblePolicies.some(policy=>policy.id===policyVersionId);
   useEffect(()=>{
     if(!initialDraft&&type==='CREATE'&&!compatiblePolicies.some(item=>item.id===policyVersionId))

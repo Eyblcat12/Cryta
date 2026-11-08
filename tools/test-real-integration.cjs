@@ -1309,6 +1309,39 @@ async function main() {
     }
     return { winningOperation: outcome.type, rejectedConflicts: 1, providerAttempts: outcome.attempts };
   });
+  await test('T32: certificate issuance offers only compatible policies and sends the selected version', async () => {
+    const certificate = policies.find(item => item.configuration?.certificate_profile === 'TLS_SERVER');
+    assert.ok(certificate, 'Expected a seeded certificate policy.');
+    const owner = await newPage({ width: 390, height: 844 });
+    try {
+      await owner.page.addInitScript(() => localStorage.setItem('crypta-theme', 'dark'));
+      await owner.page.goto(new URL('/requests/new', origin).href);
+      await uiLogin(owner.page, account.email, changedPassword);
+      const dialog = owner.page.getByRole('dialog');
+      const assetType = dialog.getByRole('combobox', { name: /Loại tài sản/ });
+      const picker = dialog.getByLabel('Chính sách', { exact: true });
+      const reason = dialog.getByLabel('Lý do nghiệp vụ');
+      await picker.selectOption(policy.id);
+      assert.equal(await picker.locator(`option[value="${certificate.id}"]`).count(), 0);
+      await reason.fill(`Integration certificate policy selection ${stamp}`);
+      await assetType.selectOption('CERTIFICATE');
+      await picker.locator(`option[value="${certificate.id}"]`).waitFor({ state: 'attached' });
+      assert.equal(await picker.locator(`option[value="${policy.id}"]`).count(), 0, 'A key-only policy appeared in certificate options.');
+      await picker.selectOption(certificate.id);
+      assert.equal(await reason.inputValue(), `Integration certificate policy selection ${stamp}`);
+      assert.ok(await dialog.evaluate(element => element.getBoundingClientRect().width <= innerWidth));
+      await owner.page.screenshot({ path: path.join(output, 'certificate-policy-390-dark.png'), animations: 'disabled' });
+      const submitted = owner.page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/api/v1/requests');
+      await dialog.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).press('Enter');
+      const response = await submitted;
+      assert.equal(response.status(), 201);
+      const { data: request } = await response.json();
+      assert.deepEqual([request.policyVersionId, request.parameters.assetType, request.status], [certificate.id, 'CERTIFICATE', 'PENDING']);
+      assert.equal(owner.errors.length, 0);
+      return { width: 390, theme: 'dark', keyboardSubmit: true, certificatePolicySubmitted: true };
+    } finally { await owner.context.close(); }
+  });
   await test('T49 real UI: issue, renew and revoke through User, Approver and worker', async () => {
     const owner = await newPage();
     const reviewer = await newPage();
