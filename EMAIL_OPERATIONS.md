@@ -33,8 +33,8 @@ Mẫu mời và đặt lại mật khẩu dùng link riêng có hạn dùng. Xem
 | Trạng thái | Ý nghĩa | Hành động |
 | --- | --- | --- |
 | `PENDING` | Chờ gửi hoặc SMTP từ chối tạm thời rõ ràng (4xx) | Worker tự thử lại, tối đa 5 lần. |
-| `SENDING` | Một worker đã nhận việc | Nếu quá 10 phút, worker chuyển sang cần đối soát thay vì gửi lại. |
-| `SENT` | SMTP đã chấp nhận và database đã ghi nhận | Vẫn cần kiểm tra hộp thư nếu nghiệm thu gửi thật. |
+| `SENDING` | Một worker đã nhận việc | Worker kiểm số lượt và thời hạn ngay trước SMTP. Sau 10 phút, lượt quá hạn không còn khóa sẽ chuyển sang cần đối soát. |
+| `SENT` | SMTP đã chấp nhận đúng địa chỉ đích và database đã ghi nhận | Vẫn cần kiểm tra hộp thư nếu nghiệm thu gửi thật. |
 | `FAILED` | SMTP từ chối vĩnh viễn (5xx) hoặc hết lượt thử | Kiểm tra cấu hình/địa chỉ và nguyên nhân trước khi lập yêu cầu gửi lại. |
 | `RECONCILIATION_REQUIRED` | Kết quả SMTP không chắc chắn hoặc worker/DB ngắt giữa chừng | **Không gửi lại tự động.** Kiểm tra log SMTP, Message-ID và hộp thư nhận; ghi quyết định vận hành trước khi thử lại thủ công. |
 
@@ -50,6 +50,8 @@ ORDER BY created_at DESC;
 ```
 
 Đối chiếu nhật ký SMTP và hộp thư trước khi ghi kết quả. Dù dùng Message-ID ổn định và deduplication trong database, SMTP vẫn có trường hợp cần đối soát thủ công.
+
+Worker giữ khóa trên bản ghi trong lúc chờ SMTP và ghi kết quả. Lượt quét bỏ qua bản ghi còn khóa để worker khác tiếp tục xử lý hàng đợi. Nếu PostgreSQL ngắt phiên sau DATA, dấu `SENDING` đã ghi trước khi gửi vẫn còn. Khi lượt hết hạn, hệ thống đưa thư sang đối soát. Phản hồi thành công thiếu địa chỉ đích cũng được đưa sang đối soát.
 
 Security Admin mở **Vận hành → Email cần xử lý → Xem chi tiết** để xem số lượt, thời điểm và mã tra trong Message-ID. Với bản ghi **Cần đối soát**, chọn kết quả theo nhật ký SMTP, nhập mã phiếu nội bộ và chọn **Ghi kết quả**. Nếu SMTP đã chấp nhận, nhập thời điểm trong nhật ký theo UTC. Nếu dữ liệu đã đổi, dùng **Tải lại chi tiết** và so lại bằng chứng với lượt gửi mới. Nếu mất phản hồi khi ghi, dùng **Kiểm tra dữ liệu** để đọc trạng thái hiện tại. Bản ghi **Gửi thất bại** hiển thị chẩn đoán đã lọc và chỉ cho xem.
 

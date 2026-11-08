@@ -20,7 +20,7 @@ async function main(options) {
   const department = id(), owner = id(), otherOwner = id(), policy = id(), policyVersion = id();
   const notifications = new NotificationsService(pool), provider = new CryptoProviderService();
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    loopbackSmtp: true, externalSmtp: false, plannedTotal: 14, results, compiledServiceHashes: Object.fromEntries([
+    loopbackSmtp: true, externalSmtp: false, plannedTotal: 17, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
       'jobs/asset-processing.service.js', 'database/migration.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
@@ -52,7 +52,7 @@ async function main(options) {
     catch (error) { results.push({ name, passed: false, error: error instanceof assert.AssertionError ? error.message : error.name + ': ' + String(error.message).slice(0, 200) }); }
   }
   const sockets = new Set(), messages = [], envelopes = [];
-  let dataResponse = '250 queued locally';
+  let dataResponse = '250 queued locally', delayDataResponse;
   const server = net.createServer(socket => {
     sockets.add(socket); socket.once('close', () => sockets.delete(socket)); socket.on('error', () => {}); socket.setEncoding('utf8');
     socket.write('220 localhost test\r\n'); let buffer = '', data = false, lines = [], recipients = [];
@@ -61,7 +61,11 @@ async function main(options) {
       while ((end = buffer.indexOf('\r\n')) >= 0) {
         const line = buffer.slice(0, end); buffer = buffer.slice(end + 2);
         if (data) { if (line === '.') { messages.push(lines.join('\r\n')); envelopes.push(recipients); lines = []; data = false;
-          if (dataResponse) socket.write(`${dataResponse}\r\n`); else socket.destroy();
+          if (delayDataResponse) {
+            const delay = delayDataResponse;
+            delayDataResponse = undefined;
+            delay(() => socket.write(`${dataResponse}\r\n`));
+          } else if (dataResponse) socket.write(`${dataResponse}\r\n`); else socket.destroy();
         } else lines.push(line.replace(/^\.\./, '.')); }
         else if (/^(EHLO|HELO) /.test(line)) socket.write('250 localhost\r\n');
         else if (/^MAIL FROM:/.test(line)) { recipients = []; socket.write('250 ok\r\n'); }
@@ -256,6 +260,85 @@ async function main(options) {
       await Promise.all([mailWorker().processBatch(), mailWorker().processBatch()]);
       assert.equal(messages.length - before, 1);
       return { disconnectedAfterData: 1, staleSending: 1, replayed: 0 };
+    });
+    await test('an interrupted attempt cannot use SMTP after a new attempt is claimed', async () => {
+      await reset();
+      const notification = await pendingEmail();
+      const first = mailWorker(), second = mailWorker(), original = await first.claim();
+      await sql("UPDATE notifications SET claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1", [notification]);
+      const before = messages.length;
+      await first.deliver(original);
+      assert.equal(messages.length, before, 'An expired claim cannot send before recovery even runs');
+      await second.reconcileStuck();
+      assert.equal((await deliveryState(notification)).status, 'RECONCILIATION_REQUIRED');
+      // Simulate a later authorized retry in this isolated fixture only.
+      await sql("UPDATE notifications SET delivery_status='PENDING',scheduled_for=NOW() WHERE id=$1", [notification]);
+      const replacement = await second.claim();
+      assert.equal(replacement.attempt_count, original.attempt_count + 1);
+      await first.deliver(original);
+      assert.equal(messages.length, before, 'The old claim cannot send on a new generation');
+      await second.deliver(replacement);
+      assert.equal(messages.length, before + 1);
+      assert.equal((await deliveryState(notification)).status, 'SENT');
+      return { expiredClaimSends: 0, staleGenerationSends: 0, replacementSends: 1 };
+    });
+    function holdSmtp(worker, job) {
+      const observed = new Promise(resolve => { delayDataResponse = resolve; });
+      const done = worker.deliver(job);
+      const received = Promise.race([observed, done.then(() => { throw new Error('Worker finished before SMTP DATA'); })]);
+      return { received, done };
+    }
+    await test('worker holds the claim while waiting for SMTP and recovery skips a locked stale row', async () => {
+      await reset();
+      const notification = await pendingEmail(), stale = await pendingEmail();
+      await sql("UPDATE notifications SET delivery_status='SENDING',attempt_count=1,claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1", [stale]);
+      const first = mailWorker(), second = mailWorker();
+      const job = await first.claim();
+      assert.equal(job.id, notification);
+      const smtp = holdSmtp(first, job);
+      const blocker = await pool.connect();
+      let reply;
+      try {
+        reply = await smtp.received;
+        await assert.rejects(blocker.query('SELECT 1 FROM notifications WHERE id=$1 FOR UPDATE NOWAIT', [notification]), { code: '55P03' });
+        await blocker.query('BEGIN');
+        await blocker.query('SELECT 1 FROM notifications WHERE id=$1 FOR UPDATE', [stale]);
+        await second.reconcileStuck();
+        assert.equal((await deliveryState(stale)).status, 'SENDING');
+      } finally {
+        await blocker.query('ROLLBACK').finally(() => blocker.release());
+        reply?.();
+        delayDataResponse = undefined;
+        await smtp.done;
+      }
+      assert.equal((await deliveryState(notification)).status, 'SENT');
+      await second.reconcileStuck();
+      assert.equal((await deliveryState(stale)).status, 'RECONCILIATION_REQUIRED');
+      return { smtpProtectedByRowLock: true, lockedStaleRowSkipped: true, recoveredAfterUnlock: true };
+    });
+    await test('a PostgreSQL disconnect while SMTP is acknowledging leaves the claim for reconciliation', async () => {
+      await reset();
+      const notification = await pendingEmail(), worker = mailWorker();
+      const before = messages.length;
+      const smtp = holdSmtp(worker, await worker.claim());
+      let reply;
+      try {
+        reply = await smtp.received;
+        const { rows } = await sql(`SELECT pid FROM pg_stat_activity WHERE datname=current_database()
+          AND state='idle in transaction' AND query LIKE '%AND attempt_count=$2%'`);
+        assert.equal(rows.length, 1);
+        assert.equal((await sql('SELECT pg_terminate_backend($1) AS terminated', [rows[0].pid])).rows[0].terminated, true);
+      } finally {
+        reply?.();
+        delayDataResponse = undefined;
+        await smtp.done;
+      }
+      assert.equal((await deliveryState(notification)).status, 'SENDING');
+      await sql("UPDATE notifications SET claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1", [notification]);
+      await mailWorker().processBatch();
+      assert.equal((await deliveryState(notification)).status, 'RECONCILIATION_REQUIRED');
+      assert.equal(messages.length - before, 1);
+      return { postgresTerminatedAfterData: true, smtpMessages: 1, replayed: 0 };
     });
     report.success = results.length === report.plannedTotal && results.every(value => value.passed);
     return report;

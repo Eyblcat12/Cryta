@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 import { EmailWorkerService } from '../src/notifications/email-worker.service';
 
-const job = { id: 'notification-1', type: 'REQUEST_APPROVED', recipient_email: 'user@example.test', recipient_name: 'User', request_id: 'request-1', asset_id: null };
+const job = { id: 'notification-1', attempt_count: 1, type: 'REQUEST_APPROVED', recipient_email: 'user@example.test', recipient_name: 'User', request_id: 'request-1', asset_id: null };
 
 function setup(sendMail: () => Promise<unknown>, update: (sql: string, values?: unknown[]) => Promise<unknown> = async () => ({ rowCount: 1 })) {
   const query = vi.fn(update);
-  const worker = new EmailWorkerService({ query } as unknown as Pool);
+  const client = { query, on: vi.fn(), removeListener: vi.fn(), release: vi.fn() };
+  const worker = new EmailWorkerService({ query, connect: async () => client } as unknown as Pool);
   Object.assign(worker, { transporter: { sendMail: vi.fn(sendMail) } });
   const previous = process.env.SMTP_FROM, previousUrl = process.env.APP_URL;
   process.env.SMTP_FROM = 'Crypta <notify@example.test>';
@@ -23,7 +24,7 @@ describe('email delivery uncertainty', () => {
     let accept!: () => void;
     const sent = new Promise<void>(resolve => { sending = resolve; });
     const smtpResult = new Promise<void>(resolve => { accept = resolve; });
-    const { worker, query, restore } = setup(async () => { sending(); await smtpResult; });
+    const { worker, query, restore } = setup(async () => { sending(); await smtpResult; return { accepted: [job.recipient_email] }; });
     const claim = vi.fn().mockResolvedValueOnce(job).mockResolvedValue(undefined);
     Object.assign(worker, { claim });
     try {
@@ -44,13 +45,13 @@ describe('email delivery uncertainty', () => {
   });
   it('does not send an expiry alert after the recipient loses eligibility', async () => {
     const send = vi.fn(async () => ({}));
-    const { worker, query, restore } = setup(send, async sql => sql.startsWith('SELECT 1 FROM notifications') ? { rows: [], rowCount: 0 } : { rowCount: 1 });
+    const { worker, query, restore } = setup(send, async sql => ({ rowCount: sql.includes("role.code='APPROVER'") ? 0 : 1 }));
     try {
       await worker['deliver']({ ...job, type: 'ASSET_EXPIRED', asset_id: 'asset-1', request_id: null });
       expect(send).not.toHaveBeenCalled();
-      expect(query.mock.calls[0][0]).toContain("role.code='APPROVER'");
-      expect(query.mock.calls[0][1]).toEqual([job.id]);
-      expect(query.mock.calls[1][0]).toContain("delivery_status='FAILED'");
+      const eligibility = query.mock.calls.find(([sql]) => sql.includes("role.code='APPROVER'"));
+      expect(eligibility?.[1]).toEqual([job.id]);
+      expect(query.mock.calls.some(([sql]) => sql.includes("delivery_status='FAILED'"))).toBe(true);
     } finally { restore(); }
   });
   it('marks invalid application URL as known unsent without contacting SMTP', async () => {
@@ -60,18 +61,21 @@ describe('email delivery uncertainty', () => {
     try {
       await worker['deliver'](job);
       expect(send).not.toHaveBeenCalled();
-      expect(query.mock.calls[0][0]).toContain("delivery_status='FAILED'");
-      expect(query.mock.calls[0][1]).toEqual(['notification-1', 'Email content could not be prepared']);
+      const failure = query.mock.calls.find(([sql]) => sql.includes("delivery_status='FAILED'"));
+      expect(failure?.[1]).toEqual(['notification-1', 'Email content could not be prepared']);
     } finally { restore(); }
   });
 
   it('does not retry when SMTP accepted but database acknowledgement failed', async () => {
-    const { worker, query, restore } = setup(async () => ({ accepted: ['user@example.test'] }), async () => { throw new Error('DB unavailable'); });
+    const { worker, query, restore } = setup(async () => ({ accepted: ['user@example.test'] }), async sql => {
+      if (sql.includes("delivery_status='SENT'")) throw new Error('DB unavailable');
+      return { rowCount: 1 };
+    });
     try {
       await worker['deliver'](job);
-      expect(query).toHaveBeenCalledTimes(1);
-      expect(query.mock.calls[0][0]).toContain("delivery_status='SENT'");
-      expect(query.mock.calls[0][0]).not.toContain("delivery_status='PENDING'");
+      expect(query.mock.calls.filter(([sql]) => sql.includes("delivery_status='SENT'"))).toHaveLength(1);
+      expect(query.mock.calls.some(([sql]) => sql.includes("delivery_status='PENDING'"))).toBe(false);
+      expect(query).toHaveBeenCalledWith('ROLLBACK');
     } finally { restore(); }
   });
 
@@ -81,7 +85,7 @@ describe('email delivery uncertainty', () => {
     const { worker, query, restore } = setup(async () => { throw new Error(`connection reset: ${secret}`); });
     try {
       await worker['deliver'](job);
-      expect(query.mock.calls[0][0]).toContain("delivery_status='RECONCILIATION_REQUIRED'");
+      expect(query.mock.calls.some(([sql]) => sql.includes("delivery_status='RECONCILIATION_REQUIRED'"))).toBe(true);
       expect(JSON.stringify(query.mock.calls)).not.toContain(secret);
       expect(JSON.stringify(warn.mock.calls)).not.toContain(secret);
     } finally { restore(); }
@@ -95,9 +99,31 @@ describe('email delivery uncertainty', () => {
     });
     try {
       await worker['deliver'](job);
-      expect(query.mock.calls[0][0]).toContain("ELSE 'PENDING'");
-      expect(query.mock.calls[0][1]).toEqual(['notification-1', 'SMTP rejected delivery (451)', 451]);
+      const retry = query.mock.calls.find(([sql]) => sql.includes("ELSE 'PENDING'"));
+      expect(retry?.[1]).toEqual(['notification-1', 'SMTP rejected delivery (451)', 451]);
       expect(JSON.stringify(warn.mock.calls)).not.toContain(secret);
+    } finally { restore(); }
+  });
+
+  it('does not reach SMTP after the claimed attempt is replaced', async () => {
+    const send = vi.fn();
+    const { worker, query, restore } = setup(send, async sql => ({ rowCount: sql.includes('FOR UPDATE') ? 0 : 1 }));
+    try {
+      await worker['deliver'](job);
+      expect(send).not.toHaveBeenCalled();
+      const fence = query.mock.calls.find(([sql]) => sql.includes('FOR UPDATE'));
+      expect(fence?.[1]).toEqual([job.id, job.attempt_count]);
+      expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE'))).toBe(false);
+    } finally { restore(); }
+  });
+
+  it('holds an unconfirmed SMTP reply for reconciliation even if sendMail resolves', async () => {
+    const { worker, query, restore } = setup(async () => ({ accepted: ['other@example.test'] }));
+    try {
+      await worker['deliver'](job);
+      const writes = query.mock.calls.filter(([sql]) => sql.startsWith('UPDATE'));
+      expect(writes).toHaveLength(1);
+      expect(writes[0][0]).toContain("delivery_status='RECONCILIATION_REQUIRED'");
     } finally { restore(); }
   });
 });

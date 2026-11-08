@@ -616,8 +616,9 @@ async function main(options){
    const notification=(await sql("SELECT id FROM notifications WHERE asset_id=$1 AND recipient_id=$2 AND channel='IN_APP'",[asset,sessions.user.user.id])).rows[0];assert(notification);await api('PATCH',`/notifications/${notification.id}/read`,null,sessions.user,200);assert((await sql('SELECT read_at FROM notifications WHERE id=$1',[notification.id])).rows[0].read_at);return{assetId:asset,notificationId:notification.id};
   });
   await test('Email queue claim and SENT bookkeeping use runtime grants with a fake transport only',async()=>{
-   const email=new EmailWorkerService(runtime);let sent=0;const old=process.env.SMTP_FROM;process.env.SMTP_FROM='Crypta <no-reply@example.test>';email.transporter={sendMail:async()=>{sent++;}};
-   try{const job=await email.claim();assert(job);await email.deliver(job);assert.equal(sent,1);assert.equal((await sql('SELECT delivery_status FROM notifications WHERE id=$1',[job.id])).rows[0].delivery_status,'SENT');return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0};}finally{if(old===undefined)delete process.env.SMTP_FROM;else process.env.SMTP_FROM=old;}
+   const email=new EmailWorkerService(runtime);let sent=0;const old=process.env.SMTP_FROM;process.env.SMTP_FROM='Crypta <no-reply@example.test>';
+   email.transporter={sendMail:async({to})=>{sent++;return{accepted:[to]}}};
+   try{const job=await email.claim();assert(job);await email.deliver(job);await email.reconcileStuck();assert.equal(sent,1);assert.equal((await sql('SELECT delivery_status FROM notifications WHERE id=$1',[job.id])).rows[0].delivery_status,'SENT');return{queueId:job.id,fakeTransportCalls:sent,smtpNetworkCalls:0};}finally{if(old===undefined)delete process.env.SMTP_FROM;else process.env.SMTP_FROM=old;}
   });
   await test('Dashboard, asset/history, audit, notification and operations metrics reads are available under runtime',async()=>{
    for(const endpoint of ['/dashboard?role=ADMIN','/users?page=1&pageSize=25','/audit-logs?page=1&pageSize=25','/notifications/status','/notifications/delivery-issues?page=1&pageSize=25'])await api('GET',endpoint,null,sessions.admin,200);

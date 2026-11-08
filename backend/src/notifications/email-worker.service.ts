@@ -1,6 +1,6 @@
 import { BeforeApplicationShutdown, Inject, Injectable, Logger, OnApplicationShutdown, OnModuleDestroy, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import nodemailer, { type Transporter } from 'nodemailer';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DrainablePoll } from '../common/drainable-poll';
 import { DATABASE_POOL } from '../database/database.constants';
 import { OperationsMetricsService } from '../operations/operations-metrics.service';
@@ -8,8 +8,15 @@ import { accountEmail, emailConfiguration, mfaSecurityChangedEmail, notification
 import { deriveAccountActionToken, matchesAccountActionHash, readAccountActionKey, type AccountActionPurpose } from '../auth/account-action-token';
 import { ASSET_ALERT_RECIPIENT } from './asset-alert-recipient';
 
-type Job = { id:string; type:string; recipient_email:string; recipient_name:string; request_id:string|null; asset_id:string|null; created_at?:Date; asset_expires_at?:Date|null };
+type Job = { id:string; attempt_count:number; type:string; recipient_email:string; recipient_name:string; request_id:string|null; asset_id:string|null; created_at?:Date; asset_expires_at?:Date|null };
 type AccountDelivery = { id: string; user_id: string; purpose: AccountActionPurpose; token_hash: string; created_at: Date; expires_at: Date };
+
+function includesRecipient(recipients: unknown, email: string) {
+  return Array.isArray(recipients) && recipients.some(item => {
+    const address = typeof item === 'string' ? item : (item as { address?: unknown } | null)?.address;
+    return typeof address === 'string' && address.toLowerCase() === email.toLowerCase();
+  });
+}
 
 @Injectable()
 export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown, OnApplicationShutdown {
@@ -71,12 +78,8 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     const result=await this.transporter!.sendMail({from:this.from(),to,messageId:`<email-test-${operationId}@${domain}>`,subject:'Crypta - Kiểm tra cấu hình email',text:'Cấu hình SMTP của Crypta đang hoạt động.',html:'<p>Cấu hình SMTP của <strong>Crypta</strong> đang hoạt động.</p>'});
     const accepted:unknown=result.accepted;
     if(!Array.isArray(accepted))throw new Error('SMTP_TEST_RESULT_UNCONFIRMED');
-    const matches=(item:unknown)=>{
-      const address=typeof item==='string'?item:item&&typeof item==='object'?(item as {address?:unknown}).address:undefined;
-      return typeof address==='string'&&address.toLowerCase()===to.toLowerCase();
-    };
-    if(accepted.some(matches))return{accepted:true};
-    if(Array.isArray(result.rejected)&&result.rejected.some(matches))return{accepted:false};
+    if(includesRecipient(accepted,to))return{accepted:true};
+    if(includesRecipient(result.rejected,to))return{accepted:false};
     throw new Error('SMTP_TEST_RESULT_UNCONFIRMED');
   }
   private processBatch(): Promise<void> {
@@ -99,52 +102,106 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
       this.logger.error({ event: 'email.poll_failed' });
     }
   }
-  private async reconcileStuck(){const result=await this.pool.query(`UPDATE notifications SET delivery_status='RECONCILIATION_REQUIRED',error_message='SMTP outcome unknown after worker interruption; verify provider before retry' WHERE channel='EMAIL' AND delivery_status='SENDING' AND COALESCE(claimed_at,scheduled_for)<NOW()-INTERVAL '10 minutes' RETURNING id`);if(result.rowCount)this.logger.warn(`${result.rowCount} email cần kiểm tra kết quả gửi trước khi thử lại.`)}
-  private async claim():Promise<Job|undefined>{const client=await this.pool.connect();try{await client.query('BEGIN');const found=await client.query<Job>(`SELECT n.id,n.type,n.request_id,n.asset_id,n.created_at,a.expires_at AS asset_expires_at,u.email AS recipient_email,u.display_name AS recipient_name FROM notifications n JOIN users u ON u.id=n.recipient_id LEFT JOIN crypto_assets a ON a.id=n.asset_id WHERE n.channel='EMAIL' AND n.delivery_status='PENDING' AND n.scheduled_for<=NOW() ORDER BY n.scheduled_for,n.id FOR UPDATE OF n SKIP LOCKED LIMIT 1`);const job=found.rows[0];if(job)await client.query(`UPDATE notifications SET delivery_status='SENDING',attempt_count=attempt_count+1,claimed_at=NOW() WHERE id=$1`,[job.id]);await client.query('COMMIT');return job}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}}
+  private async reconcileStuck() {
+    const result = await this.pool.query(`WITH stale AS (
+      SELECT id FROM notifications
+      WHERE channel='EMAIL' AND delivery_status='SENDING'
+        AND COALESCE(claimed_at,scheduled_for)<NOW()-INTERVAL '10 minutes'
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE notifications n SET delivery_status='RECONCILIATION_REQUIRED',
+      error_message='SMTP outcome unknown after worker interruption; verify provider before retry'
+    FROM stale WHERE n.id=stale.id RETURNING n.id`);
+    if (result.rowCount) this.logger.warn(`${result.rowCount} email cần kiểm tra kết quả gửi trước khi thử lại.`);
+  }
+
+  private async claim(): Promise<Job | undefined> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: [job] } = await client.query<Job>(`SELECT n.id,n.attempt_count+1 AS attempt_count,
+        n.type,n.request_id,n.asset_id,n.created_at,a.expires_at AS asset_expires_at,
+        u.email AS recipient_email,u.display_name AS recipient_name
+        FROM notifications n JOIN users u ON u.id=n.recipient_id LEFT JOIN crypto_assets a ON a.id=n.asset_id
+        WHERE n.channel='EMAIL' AND n.delivery_status='PENDING' AND n.scheduled_for<=NOW()
+        ORDER BY n.scheduled_for,n.id FOR UPDATE OF n SKIP LOCKED LIMIT 1`);
+      if (job) await client.query(`UPDATE notifications SET delivery_status='SENDING',attempt_count=$2,claimed_at=NOW() WHERE id=$1`, [job.id, job.attempt_count]);
+      await client.query('COMMIT');
+      return job;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally { client.release(); }
+  }
+
   private async deliver(job: Job) {
+    const client = await this.pool.connect();
+    let connectionLost = false, smtpAccepted = false;
+    const onConnectionError = () => { connectionLost = true; };
+    client.on('error', onConnectionError);
+    try {
+      await client.query('BEGIN');
+      // Serialize SMTP with recovery for this claim. A crashed worker releases
+      // the row lock, but the committed SENDING marker survives for reconciliation.
+      const current = await client.query(`SELECT 1 FROM notifications
+        WHERE id=$1 AND channel='EMAIL' AND delivery_status='SENDING' AND attempt_count=$2
+          AND COALESCE(claimed_at,scheduled_for)>=NOW()-INTERVAL '10 minutes'
+        FOR UPDATE`, [job.id, job.attempt_count]);
+      if (current.rowCount && !connectionLost) {
+        smtpAccepted = await this.sendClaim(client, job);
+        if (smtpAccepted) await client.query(`UPDATE notifications SET delivery_status='SENT',sent_at=clock_timestamp(),error_message=NULL
+          WHERE id=$1`, [job.id]);
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      if (!connectionLost) await client.query('ROLLBACK').catch(onConnectionError);
+      if (!smtpAccepted) throw error;
+      this.logger.error({ event: 'email.acknowledgement_failed', notificationId: job.id });
+    } finally {
+      client.removeListener('error', onConnectionError);
+      client.release(connectionLost);
+    }
+  }
+
+  private async sendClaim(client: PoolClient, job: Job) {
     let message;
-    try { message = await this.message(job); }
+    try { message = await this.message(client, job); }
     catch {
       // No SMTP call was made; a preparation failure is a known unsent result.
-      await this.pool.query(`UPDATE notifications SET delivery_status='FAILED',failed_at=NOW(),error_message=$2
-        WHERE id=$1 AND delivery_status='SENDING'`, [job.id, 'Email content could not be prepared']);
+      await client.query(`UPDATE notifications SET delivery_status='FAILED',failed_at=clock_timestamp(),error_message=$2
+        WHERE id=$1`, [job.id, 'Email content could not be prepared']);
       this.logger.error({ event: 'email.content_failed', notificationId: job.id });
-      return;
+      return false;
     }
     try {
-      await this.transporter!.sendMail({
+      const result = await this.transporter!.sendMail({
         from: this.from(), to: job.recipient_email, messageId: this.messageId(job.id),
         subject: message.subject, text: message.text, html: message.html,
       });
+      if (!includesRecipient(result?.accepted, job.recipient_email)) throw new Error('SMTP_RESULT_UNCONFIRMED');
     } catch (error) {
       const code = (error as { responseCode?: unknown })?.responseCode;
       if (typeof code === 'number' && Number.isInteger(code) && code >= 400 && code < 600) {
-        await this.pool.query(`UPDATE notifications
+        await client.query(`UPDATE notifications
           SET delivery_status=CASE WHEN $3::int>=500 OR attempt_count>=5 THEN 'FAILED' ELSE 'PENDING' END,
-            failed_at=CASE WHEN $3::int>=500 OR attempt_count>=5 THEN NOW() ELSE NULL END,
-            scheduled_for=NOW()+(LEAST(attempt_count,5)*INTERVAL '2 minutes'),error_message=$2
-          WHERE id=$1 AND delivery_status='SENDING'`, [job.id, `SMTP rejected delivery (${code})`, code]);
+            failed_at=CASE WHEN $3::int>=500 OR attempt_count>=5 THEN clock_timestamp() ELSE NULL END,
+            scheduled_for=clock_timestamp()+(LEAST(attempt_count,5)*INTERVAL '2 minutes'),error_message=$2
+          WHERE id=$1`, [job.id, `SMTP rejected delivery (${code})`, code]);
         this.logger.warn({ event: 'email.delivery_rejected', notificationId: job.id, smtpStatus: code });
       } else {
-        await this.pool.query(`UPDATE notifications
-          SET delivery_status='RECONCILIATION_REQUIRED',error_message=$2 WHERE id=$1 AND delivery_status='SENDING'`,
+        await client.query(`UPDATE notifications
+          SET delivery_status='RECONCILIATION_REQUIRED',error_message=$2 WHERE id=$1`,
           [job.id, 'SMTP outcome unknown; verify provider before retry']);
         this.logger.warn({ event: 'email.delivery_uncertain', notificationId: job.id });
       }
-      return;
+      return false;
     }
-
-    try {
-      await this.pool.query(`UPDATE notifications SET delivery_status='SENT',sent_at=NOW(),error_message=NULL
-        WHERE id=$1 AND delivery_status='SENDING'`, [job.id]);
-    } catch {
-      this.logger.error({ event: 'email.acknowledgement_failed', notificationId: job.id });
-    }
+    return true;
   }
-  private async message(job: Job) {
+  private async message(reader: Pick<PoolClient, 'query'>, job: Job) {
     const config = emailConfiguration(process.env);
     if(job.type==='ASSET_EXPIRING'||job.type==='ASSET_EXPIRED'){
-      const eligible=await this.pool.query(`SELECT 1 FROM notifications n JOIN crypto_assets a ON a.id=n.asset_id
+      const eligible=await reader.query(`SELECT 1 FROM notifications n JOIN crypto_assets a ON a.id=n.asset_id
         JOIN users u ON u.id=n.recipient_id AND u.status='ACTIVE' JOIN departments d ON d.id=u.department_id AND d.is_active
         WHERE n.id=$1 AND n.channel='EMAIL' AND n.delivery_status='SENDING' AND ${ASSET_ALERT_RECIPIENT}`,[job.id]);
       if(!eligible.rowCount)throw new Error('ASSET_ALERT_RECIPIENT_NO_LONGER_ELIGIBLE');
@@ -152,7 +209,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     if (job.type === 'PASSWORD_RESET_COMPLETED') return passwordResetCompletedEmail(job.recipient_name, config);
     if (job.type === 'MFA_SECURITY_CHANGED') return mfaSecurityChangedEmail(job.recipient_name, job.created_at ?? null, config);
     if (job.type === 'REQUEST_SUBMITTED') {
-      const eligible = await this.pool.query(`SELECT 1 FROM notifications n
+      const eligible = await reader.query(`SELECT 1 FROM notifications n
         JOIN requests r ON r.id=n.request_id AND r.submitted_at IS NOT NULL
         JOIN users u ON u.id=n.recipient_id AND u.status='ACTIVE'
         JOIN departments d ON d.id=u.department_id AND d.is_active
@@ -162,7 +219,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
       if (!eligible.rowCount) throw new Error('REQUEST_APPROVAL_RECIPIENT_NO_LONGER_ELIGIBLE');
     }
     if (job.type === 'REQUEST_SECOND_APPROVAL') {
-      const eligible = await this.pool.query(`SELECT 1 FROM notifications n
+      const eligible = await reader.query(`SELECT 1 FROM notifications n
         JOIN requests r ON r.id=n.request_id AND r.status='PENDING'
         JOIN policy_versions pv ON pv.id=r.policy_version_id AND pv.configuration->'approval_levels'='2'::jsonb
         JOIN request_decisions first ON first.request_id=r.id AND first.approval_level=1 AND first.decision='APPROVED'
@@ -176,7 +233,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     }
     if (job.type === 'INVITATION' || job.type === 'PASSWORD_RESET') {
       if (process.env.ACCOUNT_ACTIONS_ENABLED !== 'true') throw new Error('ACCOUNT_ACTIONS_DISABLED');
-      const result = await this.pool.query<AccountDelivery>(`SELECT a.id,a.user_id,a.purpose,a.token_hash,a.created_at,a.expires_at
+      const result = await reader.query<AccountDelivery>(`SELECT a.id,a.user_id,a.purpose,a.token_hash,a.created_at,a.expires_at
         FROM notifications n JOIN account_actions a ON a.id=n.account_action_id
         JOIN users u ON u.id=a.user_id JOIN departments d ON d.id=u.department_id
         WHERE n.id=$1 AND n.delivery_status='SENDING' AND d.is_active AND u.token_version=a.token_version

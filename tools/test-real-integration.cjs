@@ -692,7 +692,8 @@ async function main() {
           const rect = element.getBoundingClientRect();
           return rect.top >= 0 && rect.bottom <= innerHeight + 1;
         }), true, 'Dialog must stay inside the viewport');
-        assert.ok((await submit().boundingBox()).height >= 44);
+        // Measure the laid-out target, independently of the dialog's entrance transform.
+        assert.ok(await submit().evaluate(element => element.offsetHeight) >= 44);
         await page.screenshot({ path: path.join(output, `t28-email-delivery-${width}-${theme}.png`), animations: 'disabled' });
 
         if (outcome === 'ACCEPTED') {
