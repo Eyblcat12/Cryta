@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const [reportArgument, playwrightDirectory, channel = 'msedge'] = process.argv.slice(2);
 const results = [];
@@ -97,6 +97,42 @@ async function main() {
   const ownerRequest = await createRequest(account, 'owner');
   const otherRequest = await createRequest(finance, 'finance');
   const ownApproverRequest = await createRequest(approver, 'self-approval');
+  await test('T21: Nginx logs safe fields and correlates a denied API call with PostgreSQL audit', async () => {
+    const frontend = containers.find(container => container.Config.Labels['com.docker.compose.service'] === 'frontend');
+    assert.ok(frontend, 'Expected the isolated frontend container.');
+    const marker = `t21-redaction-${randomUUID()}`;
+    const denied = await fetch(new URL(`/api/v1/audit-logs?search=${marker}`, origin), {
+      headers: { Referer: `https://example.test/${marker}`, Authorization: `Bearer ${marker}`,
+        Cookie: `fixture=${marker}`, 'X-Request-Id': marker },
+      signal: AbortSignal.timeout(15000),
+    });
+    assert.equal(denied.status, 401);
+    const correlationId = denied.headers.get('x-request-id');
+    assert.match(correlationId, /^req_[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+    await denied.arrayBuffer();
+    const missing = await fetch(new URL(`/assets/${marker}.js`, origin), { signal: AbortSignal.timeout(15000) });
+    assert.equal(missing.status, 404);
+    await missing.arrayBuffer();
+    const logs = spawnSync('docker', ['logs', '--tail', '300', frontend.Id], {
+      encoding: 'utf8', timeout: 30000, maxBuffer: 2 * 1024 * 1024,
+    });
+    assert.equal(logs.status, 0, 'Unable to read isolated Nginx logs.');
+    const raw = logs.stdout + '\n' + logs.stderr;
+    assert.ok(!raw.includes(marker), 'Synthetic sensitive value was found in the Nginx logs.');
+    const access = raw.split(/\r?\n/).filter(line => line.startsWith('{')).map(line => JSON.parse(line))
+      .filter(record => record.event === 'nginx.access');
+    const record = access.find(entry => entry.correlationId === correlationId);
+    assert.ok(record, 'No Nginx access record matched the server-generated audit ID.');
+    assert.match(record.proxyRequestId, /^[0-9a-f]{32}$/);
+    assert.deepEqual([record.method, record.surface, record.status, record.upstreamStatus], ['GET', 'api', '401', '401']);
+    assert.ok(access.some(entry => entry.surface === 'web' && entry.status === '404' && entry.correlationId === '-'));
+    const audit = JSON.parse(sql(`SELECT jsonb_agg(jsonb_build_object('action',action,'metadata',metadata))
+      FROM audit_logs WHERE metadata->>'correlationId'='${correlationId}';`));
+    assert.deepEqual(audit, [{ action: 'HTTP_REQUEST_DENIED', metadata: {
+      correlationId, method: 'GET', route: '/api/v1/audit-logs', httpStatus: 401,
+    } }]);
+    return { apiStatus: 401, staticStatus: 404, serverCorrelationMatched: true, syntheticValueExcluded: true };
+  });
   await test('M API/DB: logout validates cookie format, secret and authenticated session owner', async () => {
     const victim = await createUser();
     const sessions = [];
@@ -664,7 +700,12 @@ async function main() {
       SELECT id::uuid,'${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL',id,'RECONCILIATION_REQUIRED',
         CASE WHEN id='${exhausted}' THEN 5 ELSE 2 END FROM unnest(ARRAY[${ids}]::text[]) AS fixture(id);`);
     try {
-      expectStatus(await retry(eligible, proof, approver), 403, 'ADMIN_REQUIRED');
+      const denied = await retry(eligible, proof, approver);
+      expectStatus(denied, 403, 'ADMIN_REQUIRED');
+      assert.match(denied.requestId, /^req_[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+      assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE action='HTTP_REQUEST_DENIED'
+        AND actor_id='${approver.user.id}' AND entity_id='/api/v1/notifications/delivery-issues/:id/retry'
+        AND metadata->>'correlationId'='${denied.requestId}';`), '1');
       expectStatus(await retry(eligible), 409, 'EMAIL_DELIVERY_CHANGED');
       for (const [id, attemptCount] of [[eligible, 2], [exhausted, 5], [auditFault, 2]]) {
         expectStatus(await call('POST', `${delivery(id)}/reconcile`, { ...proof, attemptCount, outcome: 'UNSENT' }, admin.accessToken), 201);

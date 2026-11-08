@@ -41,6 +41,14 @@ describe('durable HTTP rejection audit', () => {
     expect(query.mock.calls[0][1][2]).toBe('HTTP_REQUEST_FAILED');
     expect(query.mock.calls[0][1][4]).toBe('FAILED');
   });
+  it('records denied email retry scheduling with only its route template', async () => {
+    const { service, query } = setup();
+    const route = '/api/v1/notifications/delivery-issues/:id/retry';
+    await service.record(request({ route: { path: route }, originalUrl: route.replace(':id', secret) }), 409);
+    expect(query).toHaveBeenCalledOnce();
+    expect(JSON.parse(query.mock.calls[0][1][5])).toEqual({ correlationId, method: 'POST', route, httpStatus: 409 });
+    expect(JSON.stringify(query.mock.calls)).not.toContain(secret);
+  });
   it('logs only safe correlation fields if durable storage is unavailable', async () => {
     const log = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
     const { service, query } = setup(); query.mockRejectedValue(new Error(`postgres://${secret}`));

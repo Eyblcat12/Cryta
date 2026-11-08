@@ -130,6 +130,19 @@ async function main(reportArg, tokenArg) {
     try {
       docker(['stop', '--time', '10', postgres.Id]);
       assert.equal(docker(['inspect', '--format', '{{.State.Running}}', postgres.Id]), 'false');
+      const marker = `audit-fallback-${randomUUID()}`;
+      const denied = await probe(`/users/reference-data?probe=${marker}`, marker);
+      assert.equal(denied.status, 401);
+      const correlationId = denied.headers.get('x-request-id');
+      assert.match(correlationId, /^req_[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/);
+      await denied.arrayBuffer();
+      const logs = docker(['logs', '--tail', '300', backend.Id], undefined, true);
+      assert.ok(!logs.includes(marker), 'Synthetic sensitive value was found in the audit fallback logs.');
+      const fallback = logs.split(/\r?\n/).filter(line => line.startsWith('{')).map(line => JSON.parse(line).message)
+        .find(message => message?.event === 'audit.http_failure_not_persisted' && message.correlationId === correlationId);
+      assert.deepEqual(fallback, { event: 'audit.http_failure_not_persisted', correlationId, method: 'GET',
+        route: '/api/v1/users/reference-data', httpStatus: 401 });
+      reportOut.auditFallback = { status: 401, correlationMatched: true, syntheticValueExcluded: true };
       const outage = await sample();
       assert.equal(outage.API_UNAVAILABLE, false);
       assert.equal(outage.DATABASE_UNAVAILABLE, true);

@@ -16,6 +16,7 @@ const writeRoutes = new Set([
   '/users', '/users/invitations', '/users/:id/invitation', '/users/:id/status', '/users/:id/access', '/users/:id/department',
   '/departments/:id', '/departments/:id/status', '/policies', '/policies/:id/versions', '/policies/:id/deactivate',
   '/notifications/read-all', '/notifications/:id/read', '/notifications/test-email', '/notifications/delivery-issues/:id/reconcile',
+  '/notifications/delivery-issues/:id/retry',
   '/operations/provider-issues/:id/actions',
   '/reports', '/reports/preview', '/reports/:id/cancel',
 ]);

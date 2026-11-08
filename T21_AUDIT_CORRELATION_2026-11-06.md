@@ -32,7 +32,7 @@ API audit thêm bộ lọc chính xác `correlationId=req_UUID`, dùng tham số
 - Backend [344/344 unit](tools/test-artifacts/audit-correlation-20261106/backend-unit.json) và build đạt. Có kiểm concurrent context, audit secret/redaction, filter đợi ghi, wrong-secret/replay, rollback logout/refresh/nháp và retry nháp không lặp audit.
 - Runner runtime LOGIN đã bổ sung hai nhóm HTTP/DB và mở rộng ca rollback yêu cầu; tổng dự kiến 42 nhóm. Kiểm failure audit tồn tại sau rollback, actor ẩn danh, correlation lookup, cùng runtime role, wrong-secret không thu hồi và logout rollback. Đã cập nhật assertion metadata T07 để kiểm correlation thay vì `{}`.
 - Đã chạy PostgreSQL trên image mới. [Runtime LOGIN 48/48](tools/test-artifacts/integration/crypta-t30-test-03f9d55db610/runtime-privileges-70488ce7aad4/results.json) xác nhận audit lỗi còn sau rollback, correlation tra được, quyền runtime ngăn sửa/xóa audit và log API không chứa credential của fixture.
-- Còn kiểm log Nginx/startup, dữ liệu SMTP lịch sử, đường lưu fallback bền vững, tra cứu correlation qua proxy. T21/T22 tiếp tục trạng thái một phần.
+- Các cổng còn mở của lượt 06/11 được cập nhật ở các mục bên dưới.
 
 [Runner DB](tools/testing/runtime-privileges-runner.cjs), [ảnh chụp hash nguồn/build](tools/test-artifacts/audit-correlation-20261106/source-snapshot.json).
 
@@ -57,3 +57,13 @@ Ca hồi quy phát hiện vùng bị lồng trên bản trước. Chromium và F
 Migration `026_audit_correlation_index` thêm chỉ mục cho truy vấn theo mã truy vết đầy đủ. PostgreSQL dùng chỉ mục cho cả truy vấn đếm và trang có thứ tự theo thời gian, rồi theo ID nếu trùng thời gian. Ca kiểm xác nhận phân trang ổn định, quyền Security Admin và khả năng giữ các giá trị JSON lịch sử quá dài để đưa vào chỉ mục. [Ca kiểm PostgreSQL](tools/testing/runtime-privileges-runner.cjs)
 
 Trên stack cục bộ với 75.000 dòng thử và 12 dòng khớp, cả hai truy vấn giảm từ 1.353 xuống 4 khối dữ liệu truy cập. Thời gian thực thi của truy vấn đếm giảm từ 12,465 xuống 0,066 ms. Truy vấn lấy trang hai giảm từ 19,036 xuống 0,232 ms. Bộ kiểm quyền runtime đạt 51/51. [Kết quả cục bộ](tools/test-artifacts/integration/crypta-t30-test-4a973c3c2c01/runtime-privileges-ca98387bac11/results.json)
+
+## Log qua proxy và khi mất PostgreSQL ngày 08/11/2026
+
+Ca hồi quy tái hiện dữ liệu giả trong log Nginx của image cũ. Định dạng JSON mới ghi mã proxy, mã truy vết do backend tạo nếu hợp lệ, nhóm API/web, method, trạng thái và thời gian xử lý. Log lỗi thô ở cấp server được tắt vì có thể chứa URL và referrer. Nginx tiếp tục ghi chẩn đoán khởi động ở cấp tiến trình. [Ca trước sửa](tools/test-artifacts/integration/crypta-t30-test-d03b0681af37/real-chromium-1794130485288/results.json) · [Tài liệu log Nginx](https://nginx.org/en/docs/http/ngx_http_log_module.html)
+
+Trên Nginx/PostgreSQL cách ly, HTTP 401 có cùng mã truy vết ở phản hồi, log proxy và audit DB. Log loại dữ liệu giả chèn vào đường dẫn tệp, query, referrer, cookie và Authorization. Quyết định từ chối lên lịch gửi lại SMTP ghi route mẫu và mã truy vết vào audit. Khi tắt PostgreSQL, API phát `audit.http_failure_not_persisted` với cùng mã truy vết và trường an toàn. Monitor báo lỗi và xác nhận phục hồi sau khi khởi động lại PostgreSQL. [T21](tools/test-artifacts/integration/crypta-t30-test-4e11453051ca/real-chromium-1794130608026/results.json) · [T28](tools/test-artifacts/integration/crypta-t30-test-4e11453051ca/real-chromium-1794130627878/results.json) · [Mất DB](tools/test-artifacts/integration/crypta-t30-test-4e11453051ca/operations-monitor.json)
+
+Diễn tập SIGTERM đạt 2/2. Sau khi backend thoát, Nginx ghi HTTP 502 và mã proxy. Cả hai luồng log của container đều loại dữ liệu giả trong query và referrer của probe. Stack được dọn sau kiểm. [Báo cáo](tools/test-artifacts/integration/crypta-t30-test-69e83aa8549e/shutdown-916ccdd8edd4/results.json)
+
+Nghiệm thu môi trường đích còn cần kiểm log khởi động với cấu hình đích, dữ liệu SMTP lịch sử, log của ingress TLS và nơi thu thập fallback độc lập với PostgreSQL. Vận hành cần chốt thời hạn lưu, quyền đọc và thử truy xuất sau diễn tập mất DB. [Runbook](RELEASE_RUNBOOK.md#cấu-hình-docker-production)

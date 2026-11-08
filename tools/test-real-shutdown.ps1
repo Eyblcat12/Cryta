@@ -70,7 +70,7 @@ $taskReport = [ordered]@{
   provider = 'MOCK'
   smtpEnabled = $false
   passed = 0
-  total = 1
+  total = 2
   success = $false
 }
 $taskBlocker = $false
@@ -147,8 +147,28 @@ FROM requests r JOIN provider_operations op ON op.request_id=r.id WHERE r.id='$t
   $taskReport.apiConnectionsRemaining = [int](Invoke-TestSql "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND application_name IN ('crypta-api','crypta-readiness','crypta-failure-audit');")
   if ($taskReport.apiConnectionsRemaining -ne 0) { throw 'API connections survived shutdown.' }
   $taskReport.passed = 1
-  $taskReport.success = $true
   Write-Host 'PASS real SIGTERM drains one transaction, rejects new work and closes API connections.'
+
+  $taskMarker = 'shutdown-probe-' + [guid]::NewGuid().ToString('N')
+  # A removed endpoint can refuse the connection or time out at Nginx's default 60-second limit.
+  $proxyFailure = Invoke-WebRequest -Uri "$($taskStack.origin)/api/v1/health/live?probe=$taskMarker" `
+    -Headers @{ Referer = "https://example.test/$taskMarker" } -SkipHttpErrorCheck -TimeoutSec 75 -NoProxy
+  $proxyStatus = [string]$proxyFailure.StatusCode
+  if ($proxyStatus -cnotin @('502', '504')) { throw 'The stopped backend should produce HTTP 502 or 504 at the proxy.' }
+  $proxyLogs = & docker logs --tail 300 $taskFrontend 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to read isolated Nginx logs.' }
+  if ($proxyLogs.Contains($taskMarker)) { throw 'Synthetic sensitive value was found in the Nginx outage logs.' }
+  $proxyRecord = $proxyLogs -split '\r?\n' | Where-Object { $_.StartsWith('{') } |
+    ForEach-Object { $_ | ConvertFrom-Json } | Where-Object {
+      $_.event -ceq 'nginx.access' -and $_.surface -ceq 'api' -and $_.method -ceq 'GET' -and
+        $_.status -ceq $proxyStatus -and $_.upstreamStatus -ceq $proxyStatus -and
+        $_.correlationId -ceq '-' -and $_.proxyRequestId -cmatch '^[0-9a-f]{32}$'
+    } | Select-Object -Last 1
+  if (-not $proxyRecord) { throw 'No safe Nginx access record described the upstream outage.' }
+  $taskReport.proxyOutage = @{ status = [int]$proxyStatus; accessRecordPresent = $true; syntheticValueExcluded = $true }
+  $taskReport.passed = 2
+  $taskReport.success = $true
+  Write-Host 'PASS Nginx records the upstream outage without logging raw request data.'
 } finally {
   try {
     if ($taskBlocker) { Release-TestBlocker }
