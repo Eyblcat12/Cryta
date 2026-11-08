@@ -9,6 +9,7 @@ import type { AuthUser } from '../common/auth-user';
 import { NotificationsService } from '../notifications/notifications.service';
 import { OperationsMetricsService } from '../operations/operations-metrics.service';
 import { assertAssetCanChange, normalizeRequestParameters, resolveProvisionParameters } from '../requests/request-policy';
+import { readRequestTargetKey } from '../requests/request-target-key';
 import { CryptoProviderService, type ProvisionResult } from './crypto-provider.service';
 import { cryptoProviderConfig, cryptoProviderMode } from './crypto-provider-config';
 import { automaticRetryDelays, failureCode, maximumRecoveryRetries, type FailureClass } from './provider-recovery';
@@ -42,7 +43,7 @@ type Target = {
   provider_reference: string | null;
   provider_scope: string | null;
   algorithm: string | null;
-  key_size: number | null;
+  keySize: number | null;
   usage: string | null;
 };
 
@@ -311,21 +312,14 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
     if (target.policy_version_id !== job.policy_version_id) throw new Error('ASSET_POLICY_MISMATCH');
     if (!target.provider_reference) throw new Error('PROVIDER_REFERENCE_REQUIRED');
     if (target.provider_scope !== providerScope) throw new Error('CRYPTO_PROVIDER_SCOPE_MISMATCH');
-    if (target.asset_type === 'KEY') {
-      const key = (await client.query<Pick<Target, 'algorithm' | 'key_size' | 'usage'>>(
-        'SELECT algorithm,key_size,usage FROM cryptographic_keys WHERE asset_id=$1 FOR SHARE', [target.id])).rows[0];
-      target.algorithm = key?.algorithm ?? null;
-      target.key_size = key?.key_size ?? null;
-      target.usage = key?.usage ?? null;
-    }
-    return target;
+    return target.asset_type === 'KEY' ? { ...target, ...await readRequestTargetKey(client, target.id) } : target;
   }
 
   private targetSnapshot(target: Target, includeScope = true) {
     return { id: target.id, ownerId: target.owner_id, departmentId: target.department_id,
       status: target.status, version: target.version, policyVersionId: target.policy_version_id,
       assetType: target.asset_type, providerReference: target.provider_reference,
-      algorithm: target.algorithm, keySize: target.key_size, usage: target.usage,
+      algorithm: target.algorithm, keySize: target.keySize, usage: target.usage,
       ...(includeScope && { providerScope: target.provider_scope }) };
   }
 
@@ -358,7 +352,7 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
       return { target, configuration, providerScope };
     }
     const parameters = resolveProvisionParameters(job.requested_parameters ?? {}, configuration,
-      target && { assetType: target.asset_type, algorithm: target.algorithm, keySize: target.key_size, usage: target.usage });
+      target && { assetType: target.asset_type, algorithm: target.algorithm, keySize: target.keySize, usage: target.usage });
     return { target, configuration, providerScope, parameters };
   }
 

@@ -12,6 +12,7 @@ import { listOrder } from '../common/list-order';
 import { UUID_LIKE } from '../common/uuid-like.pipe';
 import type { CancelRequestDto, CreateRequestDto, DecideRequestDto, SaveDraftDto } from './request.dto';
 import { assertAssetCanChange, assertCanCreateRequest, assertCanDecide, normalizeRequestParameters, resolveProvisionParameters } from './request-policy';
+import { readRequestTargetKey } from './request-target-key';
 import { presentRequest, type RequestRow } from './request.presenter';
 
 const creatorAndTarget = `JOIN users u ON u.id=r.creator_id
@@ -235,7 +236,7 @@ export class RequestsService {
     try {
       await client.query('BEGIN');
       user = await this.lockCurrentUser(client, user);
-      const found = await client.query<RequestRow>(`SELECT r.*,${approvalColumns}
+      const found = await client.query<RequestRow & { policy_configuration: unknown }>(`SELECT r.*,pv.configuration AS policy_configuration,${approvalColumns}
         FROM requests r LEFT JOIN policy_versions pv ON pv.id=r.policy_version_id WHERE r.id=$1 FOR UPDATE OF r`, [requestId]);
       const request = found.rows[0];
       if (!request || request.submitted_at === null) throw missingRequest();
@@ -250,8 +251,11 @@ export class RequestsService {
         if (first) { level = 2; firstApprover = first.approver_id; }
       }
       if (dto.decision === 'APPROVED' && request.request_type !== 'CREATE') {
-        await this.lockChangeTarget(client, request.target_asset_id, request.creator_id, request.policy_version_id);
-        await this.assertNoOpenTargetRequest(client, request.target_asset_id, request.id);
+        const asset = await this.lockChangeTarget(client, request.target_asset_id, request.creator_id, request.policy_version_id);
+        if (request.request_type === 'RENEW') {
+          await this.validateRenewal(client, asset, normalizeRequestParameters(request.requested_parameters ?? {}), request.policy_configuration);
+        }
+        await this.assertNoOpenTargetRequest(client, asset.id, request.id);
       }
       await client.query(`INSERT INTO request_decisions (request_id,approver_id,decision,comment,approval_level)
         VALUES ($1,$2,$3,$4,$5)`, [requestId, user.id, dto.decision, dto.comment?.trim() ?? null, level]);
@@ -371,20 +375,26 @@ export class RequestsService {
 
     const asset = await this.lockChangeTarget(client, dto.targetAssetId, user.id, dto.policyVersionId);
     if (dto.type === 'RENEW') {
-      if (parameters.assetType && parameters.assetType !== asset.asset_type) {
-        throw new ConflictException({ code: 'ASSET_TYPE_MISMATCH', message: 'Loại tài sản gia hạn phải giống tài sản hiện tại.' });
-      }
-      resolveProvisionParameters({ ...parameters, assetType: asset.asset_type }, policy.rows[0].configuration);
+      await this.validateRenewal(client, asset, parameters, policy.rows[0].configuration);
     }
     await this.assertNoOpenTargetRequest(client, dto.targetAssetId);
     return parameters;
   }
 
+  private async validateRenewal(client: PoolClient, asset: { id: string; asset_type: 'KEY' | 'CERTIFICATE' },
+    parameters: ReturnType<typeof normalizeRequestParameters>, configuration: unknown) {
+    if (parameters.assetType && parameters.assetType !== asset.asset_type) {
+      throw new ConflictException({ code: 'ASSET_TYPE_MISMATCH', message: 'Loại tài sản gia hạn phải giống tài sản hiện tại.' });
+    }
+    const key = asset.asset_type === 'KEY' ? await readRequestTargetKey(client, asset.id) : undefined;
+    resolveProvisionParameters(parameters, configuration, { assetType: asset.asset_type, ...key });
+  }
+
   private async lockChangeTarget(client: PoolClient, assetId: string | null, ownerId: string, policyVersionId: string | null) {
     if (!assetId) throw new ConflictException({ code: 'TARGET_ASSET_REQUIRED', message: 'Gia hạn hoặc thu hồi phải có tài sản mục tiêu.' });
-    const result = await client.query<{ owner_id: string; status: string; expired: boolean; policy_version_id: string;
+    const result = await client.query<{ id: string; owner_id: string; status: string; expired: boolean; policy_version_id: string;
       asset_type: 'KEY' | 'CERTIFICATE'; provider_scope: string | null; provider_reference: string | null }>(`SELECT
-      owner_id,status,expires_at<=statement_timestamp() AS expired,policy_version_id,asset_type,provider_scope,provider_reference
+      id,owner_id,status,expires_at<=statement_timestamp() AS expired,policy_version_id,asset_type,provider_scope,provider_reference
       FROM crypto_assets WHERE id=$1 FOR UPDATE`, [assetId]);
     const asset = result.rows[0];
     if (!asset) throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản.' });
@@ -401,7 +411,7 @@ export class RequestsService {
     return asset;
   }
 
-  private async assertNoOpenTargetRequest(client: PoolClient, assetId: string | null, requestId: string | null = null) {
+  private async assertNoOpenTargetRequest(client: PoolClient, assetId: string, requestId: string | null = null) {
     const duplicate = await client.query(`SELECT 1 FROM requests WHERE target_asset_id=$1
       AND id IS DISTINCT FROM $2::uuid AND status IN ('PENDING','APPROVED','PROCESSING','RECONCILIATION_REQUIRED') LIMIT 1`, [assetId, requestId]);
     if (duplicate.rowCount) {

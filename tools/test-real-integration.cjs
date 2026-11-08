@@ -80,7 +80,7 @@ async function main() {
   const reference = expectStatus(await call('GET', '/users/reference-data', undefined, admin.accessToken), 200);
   const it = reference.departments.find(d => d.code === 'IT').id;
   const policies = expectStatus(await call('GET', '/policies', undefined, dev.accessToken), 200);
-  const policy = policies.find(p => p.configuration.algorithm === 'RSA' && Number(p.configuration.minimum_key_size) >= 2048);
+  const policy = policies.find(p => p.code === 'RSA_STANDARD');
   assert.ok(policy);
   async function createUser(roles = ['USER'], scopes = [], activate = true) {
     const email = `integration.${randomUUID()}@example.test`;
@@ -1188,26 +1188,71 @@ async function main() {
     sql(`INSERT INTO policies(id,code,name) VALUES('${policyId}','T19-${policyId}','Legacy policy fixture');
       INSERT INTO policy_versions(id,policy_id,version,configuration) VALUES('${versionId}','${policyId}',1,
         '{"algorithm":"RSA","minimum_key_size":"unknown","maximum_validity_days":"unknown"}'::jsonb);`);
-    expectStatus(await call('POST', '/requests', { type: 'CREATE', policyVersionId: versionId,
-      reason: `T19 malformed limits ${stamp}`, parameters: { assetType: 'KEY', algorithm: 'RSA', keySize: 2048, validityDays: 90 },
-    }, account.accessToken), 409, 'POLICY_CONFIGURATION_INVALID');
-    assert.equal(sql(`SELECT count(*) FROM requests WHERE policy_version_id='${versionId}';`), '0');
-    return { invalidPolicyRejected: true, requestsCreated: 0 };
+    try {
+      expectStatus(await call('POST', '/requests', { type: 'CREATE', policyVersionId: versionId,
+        reason: `T19 malformed limits ${stamp}`, parameters: { assetType: 'KEY', algorithm: 'RSA', keySize: 2048, validityDays: 90 },
+      }, account.accessToken), 409, 'POLICY_CONFIGURATION_INVALID');
+      assert.equal(sql(`SELECT count(*) FROM requests WHERE policy_version_id='${versionId}';`), '0');
+      return { invalidPolicyRejected: true, requestsCreated: 0 };
+    } finally {
+      sql(`UPDATE policies SET is_active=false WHERE id='${policyId}';`);
+    }
   });
-  function seedRequestTarget() {
+  function seedRequestTarget(policyVersionId = policy.id, keySize = 2048) {
     const id = randomUUID();
     sql(`INSERT INTO crypto_assets(id,asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,status,
       valid_from,expires_at,provider_scope,provider_reference)
-      VALUES('${id}','T10-${id}','KEY','${account.user.id}','${it}','${policy.id}','T10 target','ACTIVE',
+      VALUES('${id}','T10-${id}','KEY','${account.user.id}','${it}','${policyVersionId}','T10 target','ACTIVE',
         NOW()-INTERVAL '1 day',NOW()+INTERVAL '30 days','MOCK','mock-key-${id}');
       INSERT INTO cryptographic_keys(asset_id,algorithm,key_size,usage,public_key_fingerprint)
-      VALUES('${id}','RSA',2048,'SIGNING','t10-fingerprint-${id}');`);
+      VALUES('${id}','RSA',${keySize},'SIGNING','t10-fingerprint-${id}');`);
     return id;
   }
   const targetRequest = (targetAssetId, type) => ({ type, targetAssetId, policyVersionId: policy.id,
     reason: `Integration T10 ${type} ${stamp}`, parameters: {} });
   const decideTargetRequest = (request, decision) => call('POST', `/requests/${request.id}/decision`,
     { decision, version: String(request.version), comment: 'Integration target verification' }, approver.accessToken);
+  await test('T03: renewal validates inherited key metadata at submission and approval', async () => {
+    const policyId = randomUUID(), versionId = randomUUID(), draftId = randomUUID();
+    sql(`INSERT INTO policies(id,code,name) VALUES('${policyId}','T03-${policyId}','Renewal metadata fixture');
+      INSERT INTO policy_versions(id,policy_id,version,configuration) VALUES('${versionId}','${policyId}',1,
+        '{"algorithm":"RSA","minimum_key_size":3072,"maximum_validity_days":90}'::jsonb);`);
+    const target = seedRequestTarget(versionId);
+    const input = { ...targetRequest(target, 'RENEW'), policyVersionId: versionId };
+    const submit = body => call('POST', '/requests', body, account.accessToken);
+    expectStatus(await submit(input), 409, 'POLICY_KEY_SIZE_TOO_SMALL');
+    assert.equal(sql(`SELECT count(*) FROM requests WHERE target_asset_id='${target}';`), '0');
+    const draft = expectStatus(await call('PUT', `/requests/drafts/${draftId}`, input, account.accessToken), 200);
+    expectStatus(await call('POST', `/requests/${draftId}/submit`, { version: draft.version }, account.accessToken),
+      409, 'POLICY_KEY_SIZE_TOO_SMALL');
+    assert.equal(sql(`SELECT status FROM requests WHERE id='${draftId}';`), 'DRAFT');
+
+    const changedTarget = seedRequestTarget(versionId, 3072);
+    const changed = expectStatus(await submit({ ...input, targetAssetId: changedTarget }), 201);
+    sql(`UPDATE cryptographic_keys SET key_size=2048 WHERE asset_id='${changedTarget}';`);
+    expectStatus(await decideTargetRequest(changed, 'APPROVED'), 409, 'POLICY_KEY_SIZE_TOO_SMALL');
+    assert.equal(sql(`SELECT count(*) FROM request_decisions WHERE request_id='${changed.id}';`), '0');
+    expectStatus(await decideTargetRequest(changed, 'REJECTED'), 201);
+
+    sql(`INSERT INTO policy_versions(policy_id,version,configuration) VALUES('${policyId}',2,
+      '{"algorithm":"RSA","minimum_key_size":4096,"maximum_validity_days":30}'::jsonb);`);
+    const valid = expectStatus(await submit({ ...input, parameters: { keySize: 3072, validityDays: 60 } }), 201);
+    expectStatus(await decideTargetRequest(valid, 'APPROVED'), 201);
+    const deadline = Date.now() + 15000;
+    let result;
+    do {
+      result = sql(`SELECT json_build_object('policyVersionId',a.policy_version_id,'keySize',k.key_size,'usage',k.usage,
+        'days',extract(epoch FROM (a.expires_at-a.valid_from))/86400,'attempts',op.attempt_count)
+        FROM requests r JOIN crypto_assets a ON a.id=r.result_asset_id
+        JOIN cryptographic_keys k ON k.asset_id=a.id JOIN provider_operations op ON op.request_id=r.id
+        WHERE r.id='${valid.id}' AND r.status='COMPLETED';`);
+      if (result) break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    } while (Date.now() < deadline);
+    assert.ok(result, 'The worker did not complete the corrected renewal.');
+    assert.deepEqual(JSON.parse(result), { policyVersionId: versionId, keySize: 3072, usage: 'SIGNING', days: 60, attempts: 1 });
+    return { rejectedBoundaries: 3, correctSize: 3072, originalPolicyRetained: true, providerAttempts: 1 };
+  });
   await test('T10: approval revalidates asset ownership and expiry while rejection remains available', async () => {
     const checks = [
       { type: 'RENEW', change: `owner_id='${finance.user.id}'`, httpStatus: 403, code: 'ASSET_NOT_OWNED' },
@@ -1286,6 +1331,7 @@ async function main() {
       }
       const subject = `Nghiệp vụ kiểm thử ${type} ${index + 1} ${stamp}`;
       const requestForm = owner.page.getByRole('dialog');
+      if (type === 'CREATE') await requestForm.getByLabel('Chính sách', { exact: true }).selectOption(policy.id);
       let draftPath;
       if (draft) {
         const incompleteReason = 'Nháp';
