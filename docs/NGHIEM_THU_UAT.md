@@ -44,6 +44,14 @@ Các kết quả dưới đây là kiểm thử kỹ thuật hỗ trợ nghiệm
 | UC8–UC10 | Luồng tạo/ngừng policy đã được duyệt và kiểm qua giao diện trên PostgreSQL. Audit correlation, quyền runtime, quản trị tài khoản và chuyển đơn vị có kiểm riêng. [Policy](../T20_POLICY_LIFECYCLE_2026-11-06.md) · [Audit](../T21_AUDIT_CORRELATION_2026-11-06.md) · [Quyền DB](../T43_RUNTIME_LOGIN_2026-11-06.md) · [Chuyển đơn vị](../T08_DEPARTMENT_ADMINISTRATION_2026-11-06.md) | Rà với cơ cấu đơn vị thử, các vai trò nghiệp vụ và chính sách của môi trường đích. |
 | UC11–UC12 | 20 ca PostgreSQL về ngưỡng, scope, thu hồi và restart. Chromium qua Nginx xác nhận UI cho ba vai trò nhận và loại Approver ngoài phạm vi sau khi job catch-up. SMTP loopback kiểm thư và người nhận ở lượt riêng. [Cảnh báo hết hạn](../T27_HARDENING_2026-11-06.md) | Xác minh hộp thư ngoài, lịch quét định kỳ và giám sát trên môi trường đích. |
 
+### T10 — Kiểm lại tài sản khi duyệt
+
+Ca đối chứng cho thấy bản cũ vẫn duyệt yêu cầu sau khi tài sản đổi chủ. Bản sửa khóa và kiểm lại chủ sở hữu, trạng thái, ngày hết hạn, policy gắn với tài sản và tham chiếu provider trước khi ghi phê duyệt gia hạn hoặc thu hồi. Bước gửi và worker cùng kiểm mốc hết hạn, kể cả khi bộ quét chưa đổi trạng thái. Nếu phê duyệt bị chặn, Approver vẫn có thể từ chối yêu cầu.
+
+Hai nhóm qua Nginx và PostgreSQL kiểm đổi chủ, hết hạn, mất tham chiếu và hai lượt gửi đồng thời cho một tài sản. Khi bị chặn, yêu cầu giữ `PENDING` và phiên bản cũ, chưa có quyết định duyệt, audit duyệt, thông báo duyệt hoặc lượt gửi provider. Trong ca cạnh tranh, chỉ một yêu cầu được gửi và một lần gọi provider hoàn tất. [Ca trước sửa](../tools/test-artifacts/integration/crypta-t30-test-8bf8ed325be8/real-chromium-1794134427898/results.json) · [Kết quả T10](../tools/test-artifacts/integration/crypta-t30-test-2264bcb9688a/real-chromium-1794134552926/results.json)
+
+Trên cùng image, Chromium đạt 3/3 nhóm T49. Bộ worker/PostgreSQL đạt 36/36 và xác nhận cả gia hạn lẫn thu hồi bị chặn trước lần gửi khi đã đến `expires_at` nhưng trạng thái tài sản vẫn là `ACTIVE`. [T49](../tools/test-artifacts/integration/crypta-t30-test-2264bcb9688a/real-chromium-1794134565572/results.json) · [Worker](../tools/test-artifacts/integration/crypta-t30-test-2264bcb9688a/worker-recovery-after-2a2254037788/results.json)
+
 ### Lỗi phát hiện trong lúc chuẩn bị UC6
 
 **UAT-01 · P1 · FE/BE.** User gửi yêu cầu, Approver từ chối có lý do rồi User tải lại chi tiết. Bản trước thiếu người duyệt và lý do, đồng thời vẫn có mốc **Chờ kết quả xử lý**. Chrome tái hiện ở cả 1440 px sáng và 390 px tối dù PostgreSQL đã có quyết định, audit và thông báo.

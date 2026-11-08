@@ -249,6 +249,10 @@ export class RequestsService {
         if (first?.approver_id === user.id) throw new ForbiddenException({ code: 'SECOND_APPROVER_REQUIRED', message: 'Cấp hai cần một người duyệt khác trong cùng phạm vi.' });
         if (first) { level = 2; firstApprover = first.approver_id; }
       }
+      if (dto.decision === 'APPROVED' && request.request_type !== 'CREATE') {
+        await this.lockChangeTarget(client, request.target_asset_id, request.creator_id, request.policy_version_id);
+        await this.assertNoOpenTargetRequest(client, request.target_asset_id, request.id);
+      }
       await client.query(`INSERT INTO request_decisions (request_id,approver_id,decision,comment,approval_level)
         VALUES ($1,$2,$3,$4,$5)`, [requestId, user.id, dto.decision, dto.comment?.trim() ?? null, level]);
       const partial = needsTwo && level === 1 && dto.decision === 'APPROVED';
@@ -365,29 +369,44 @@ export class RequestsService {
     if (dto.type === 'CREATE') assertParametersMatchPolicy(parameters, policy.rows[0].configuration);
     if (!dto.targetAssetId) return parameters;
 
-    const result = await client.query<{ owner_id: string; status: string; policy_version_id: string; asset_type: 'KEY'|'CERTIFICATE'; provider_scope: string | null }>(
-      'SELECT owner_id, status, policy_version_id, asset_type, provider_scope FROM crypto_assets WHERE id = $1 FOR UPDATE', [dto.targetAssetId]);
-    const asset = result.rows[0];
-    if (!asset) throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản.' });
-    assertAssetCanChange({ ownerId: asset.owner_id, status: asset.status }, user.id);
-    if (asset.provider_scope !== cryptoProviderConfig().scope) {
-      throw new ConflictException({ code: 'CRYPTO_PROVIDER_SCOPE_MISMATCH', message: 'Tài sản chưa được xác minh với nhà cung cấp đang cấu hình.' });
-    }
-    if (asset.policy_version_id !== dto.policyVersionId) {
-      throw new ConflictException({ code: 'ASSET_POLICY_MISMATCH', message: 'Yêu cầu phải dùng chính sách gắn với tài sản.' });
-    }
+    const asset = await this.lockChangeTarget(client, dto.targetAssetId, user.id, dto.policyVersionId);
     if (dto.type === 'RENEW') {
       if (parameters.assetType && parameters.assetType !== asset.asset_type) {
         throw new ConflictException({ code: 'ASSET_TYPE_MISMATCH', message: 'Loại tài sản gia hạn phải giống tài sản hiện tại.' });
       }
       assertParametersMatchPolicy({ ...parameters, assetType: asset.asset_type }, policy.rows[0].configuration);
     }
-    const duplicate = await client.query(`SELECT 1 FROM requests WHERE target_asset_id=$1
-      AND status IN ('PENDING','APPROVED','PROCESSING','RECONCILIATION_REQUIRED')`, [dto.targetAssetId]);
-    if (duplicate.rowCount) {
-      throw new ConflictException({ code: 'DUPLICATE_OPEN_REQUEST', message: 'Tài sản đã có yêu cầu cùng loại đang xử lý.' });
-    }
+    await this.assertNoOpenTargetRequest(client, dto.targetAssetId);
     return parameters;
+  }
+
+  private async lockChangeTarget(client: PoolClient, assetId: string | null, ownerId: string, policyVersionId: string | null) {
+    if (!assetId) throw new ConflictException({ code: 'TARGET_ASSET_REQUIRED', message: 'Gia hạn hoặc thu hồi phải có tài sản mục tiêu.' });
+    const result = await client.query<{ owner_id: string; status: string; expired: boolean; policy_version_id: string;
+      asset_type: 'KEY' | 'CERTIFICATE'; provider_scope: string | null; provider_reference: string | null }>(`SELECT
+      owner_id,status,expires_at<=statement_timestamp() AS expired,policy_version_id,asset_type,provider_scope,provider_reference
+      FROM crypto_assets WHERE id=$1 FOR UPDATE`, [assetId]);
+    const asset = result.rows[0];
+    if (!asset) throw new NotFoundException({ code: 'ASSET_NOT_FOUND', message: 'Không tìm thấy tài sản.' });
+    assertAssetCanChange({ ownerId: asset.owner_id, status: asset.status, expired: asset.expired }, ownerId);
+    if (asset.provider_scope !== cryptoProviderConfig().scope) {
+      throw new ConflictException({ code: 'CRYPTO_PROVIDER_SCOPE_MISMATCH', message: 'Tài sản chưa được xác minh với nhà cung cấp đang cấu hình.' });
+    }
+    if (!asset.provider_reference) {
+      throw new ConflictException({ code: 'PROVIDER_REFERENCE_REQUIRED', message: 'Tài sản chưa có mã tham chiếu từ nhà cung cấp.' });
+    }
+    if (asset.policy_version_id !== policyVersionId) {
+      throw new ConflictException({ code: 'ASSET_POLICY_MISMATCH', message: 'Yêu cầu phải dùng chính sách gắn với tài sản.' });
+    }
+    return asset;
+  }
+
+  private async assertNoOpenTargetRequest(client: PoolClient, assetId: string | null, requestId: string | null = null) {
+    const duplicate = await client.query(`SELECT 1 FROM requests WHERE target_asset_id=$1
+      AND id IS DISTINCT FROM $2::uuid AND status IN ('PENDING','APPROVED','PROCESSING','RECONCILIATION_REQUIRED') LIMIT 1`, [assetId, requestId]);
+    if (duplicate.rowCount) {
+      throw new ConflictException({ code: 'DUPLICATE_OPEN_REQUEST', message: 'Tài sản đã có một yêu cầu khác đang xử lý.' });
+    }
   }
 
   private async recordSubmission(client: PoolClient, user: AuthUser, id: string, dto: CreateRequestDto) {

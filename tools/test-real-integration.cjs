@@ -1183,6 +1183,76 @@ async function main() {
       return { width, theme, keyboard: true, status: detail.status, effects, ui };
     });
   }
+  function seedRequestTarget() {
+    const id = randomUUID();
+    sql(`INSERT INTO crypto_assets(id,asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,status,
+      valid_from,expires_at,provider_scope,provider_reference)
+      VALUES('${id}','T10-${id}','KEY','${account.user.id}','${it}','${policy.id}','T10 target','ACTIVE',
+        NOW()-INTERVAL '1 day',NOW()+INTERVAL '30 days','MOCK','mock-key-${id}');
+      INSERT INTO cryptographic_keys(asset_id,algorithm,key_size,usage,public_key_fingerprint)
+      VALUES('${id}','RSA',2048,'SIGNING','t10-fingerprint-${id}');`);
+    return id;
+  }
+  const targetRequest = (targetAssetId, type) => ({ type, targetAssetId, policyVersionId: policy.id,
+    reason: `Integration T10 ${type} ${stamp}`, parameters: {} });
+  const decideTargetRequest = (request, decision) => call('POST', `/requests/${request.id}/decision`,
+    { decision, version: String(request.version), comment: 'Integration target verification' }, approver.accessToken);
+  await test('T10: approval revalidates asset ownership and expiry while rejection remains available', async () => {
+    const checks = [
+      { type: 'RENEW', change: `owner_id='${finance.user.id}'`, httpStatus: 403, code: 'ASSET_NOT_OWNED' },
+      { type: 'REVOKE', change: "expires_at=NOW()-INTERVAL '1 second'", httpStatus: 409, code: 'INVALID_ASSET_STATE' },
+      { type: 'REVOKE', change: 'provider_reference=NULL', httpStatus: 409, code: 'PROVIDER_REFERENCE_REQUIRED' },
+    ];
+    for (const { type, change, httpStatus, code } of checks) {
+      const asset = seedRequestTarget();
+      const request = expectStatus(await call('POST', '/requests', targetRequest(asset, type), account.accessToken), 201);
+      sql(`UPDATE crypto_assets SET ${change} WHERE id='${asset}';`);
+      expectStatus(await decideTargetRequest(request, 'APPROVED'), httpStatus, code);
+      const before = JSON.parse(sql(`SELECT json_build_object('status',r.status,'version',r.version,
+        'decisions',(SELECT count(*) FROM request_decisions WHERE request_id=r.id),
+        'approvals',(SELECT count(*) FROM audit_logs WHERE request_id=r.id AND action='REQUEST_APPROVED'),
+        'notices',(SELECT count(*) FROM notifications WHERE request_id=r.id AND type='REQUEST_APPROVED'),
+        'provider',(SELECT count(*) FROM provider_operations WHERE request_id=r.id))
+        FROM requests r WHERE r.id='${request.id}';`));
+      assert.deepEqual(before, { status: 'PENDING', version: request.version, decisions: 0, approvals: 0, notices: 0, provider: 0 });
+      assert.equal(expectStatus(await decideTargetRequest(request, 'REJECTED'), 201).status, 'REJECTED');
+    }
+    return { changedTargetsDenied: checks.length, approvalEffects: 0, rejectionAvailable: true };
+  });
+  await test('T10: concurrent renewal and revocation submit only one open request and one provider attempt', async () => {
+    const asset = seedRequestTarget();
+    const responses = await Promise.all(['RENEW', 'REVOKE'].map(type =>
+      call('POST', '/requests', targetRequest(asset, type), account.accessToken)));
+    assert.deepEqual(responses.map(result => result.status).sort(), [201, 409]);
+    expectStatus(responses.find(result => result.status === 409), 409, 'DUPLICATE_OPEN_REQUEST');
+    const request = expectStatus(responses.find(result => result.status === 201), 201);
+    assert.equal(sql(`SELECT count(*) FROM requests WHERE target_asset_id='${asset}';`), '1');
+    expectStatus(await decideTargetRequest(request, 'APPROVED'), 201);
+    const deadline = Date.now() + 15000;
+    let outcome;
+    do {
+      outcome = JSON.parse(sql(`SELECT json_build_object('status',r.status,'type',r.request_type,
+        'targetStatus',a.status,'resultId',r.result_asset_id,'attempts',op.attempt_count,
+        'successors',(SELECT count(*) FROM crypto_assets WHERE replaces_asset_id=a.id))
+        FROM requests r JOIN crypto_assets a ON a.id=r.target_asset_id
+        LEFT JOIN provider_operations op ON op.request_id=r.id WHERE r.id='${request.id}';`));
+      if (outcome.status === 'COMPLETED') break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    } while (Date.now() < deadline);
+    assert.equal(outcome.status, 'COMPLETED');
+    assert.equal(outcome.attempts, 1);
+    if (outcome.type === 'RENEW') {
+      assert.equal(outcome.targetStatus, 'SUPERSEDED');
+      assert.equal(outcome.successors, 1);
+      assert.ok(outcome.resultId !== asset);
+    } else {
+      assert.equal(outcome.type, 'REVOKE');
+      assert.equal(outcome.targetStatus, 'REVOKED');
+      assert.equal(outcome.successors, 0);
+      assert.equal(outcome.resultId, asset);
+    }
+    return { winningOperation: outcome.type, rejectedConflicts: 1, providerAttempts: outcome.attempts };
+  });
   await test('T49 real UI: issue, renew and revoke through User, Approver and worker', async () => {
     const owner = await newPage();
     const reviewer = await newPage();

@@ -38,6 +38,7 @@ type Target = {
   policy_version_id: string;
   status: string;
   version: number;
+  expired: boolean;
   provider_reference: string | null;
   provider_scope: string | null;
   algorithm: string | null;
@@ -304,9 +305,9 @@ export class AssetProcessingService implements OnModuleInit, OnModuleDestroy, Be
       return undefined;
     }
     if (!job.target_asset_id) throw new Error('TARGET_ASSET_REQUIRED');
-    const target = (await client.query<Target>('SELECT * FROM crypto_assets WHERE id=$1 FOR UPDATE', [job.target_asset_id])).rows[0];
+    const target = (await client.query<Target>('SELECT *,expires_at<=NOW() AS expired FROM crypto_assets WHERE id=$1 FOR UPDATE', [job.target_asset_id])).rows[0];
     if (!target) throw new Error('ASSET_NOT_FOUND');
-    assertAssetCanChange({ ownerId: target.owner_id, status: target.status }, job.creator_id);
+    assertAssetCanChange({ ownerId: target.owner_id, status: target.status, expired: target.expired }, job.creator_id);
     if (target.policy_version_id !== job.policy_version_id) throw new Error('ASSET_POLICY_MISMATCH');
     if (!target.provider_reference) throw new Error('PROVIDER_REFERENCE_REQUIRED');
     if (target.provider_scope !== providerScope) throw new Error('CRYPTO_PROVIDER_SCOPE_MISMATCH');

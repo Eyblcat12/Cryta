@@ -556,6 +556,7 @@ async function main(options) {
         const otherPolicy=await freshPolicy({algorithm:'RSA',maximum_validity_days:90});
         const mutations=[['owner','UPDATE crypto_assets SET owner_id=$2 WHERE id=$1',otherOwner],
           ...['REGISTERED','EXPIRED','REVOKED','SUPERSEDED'].map(state=>[state,'UPDATE crypto_assets SET status=$2 WHERE id=$1',state]),
+          ['elapsed validity before scan','UPDATE crypto_assets SET expires_at=$2 WHERE id=$1',new Date(base)],
           ['policy','UPDATE crypto_assets SET policy_version_id=$2 WHERE id=$1',otherPolicy.versionId],
           ['reference','UPDATE crypto_assets SET provider_reference=$2 WHERE id=$1',null]];
         for(const [name,mutation,value] of mutations){

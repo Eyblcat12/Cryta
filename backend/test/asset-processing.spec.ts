@@ -154,7 +154,7 @@ describe('asset worker execution guards', () => {
         state.operation.status = 'SENT'; state.operation.attempt_count = 1;
       }
       if (sql.includes('SELECT pv.configuration')) return { rows: state.policyAvailable ? [{ configuration: structuredClone(state.configuration) }] : [], rowCount: state.policyAvailable ? 1 : 0 };
-      if (sql.startsWith('SELECT * FROM crypto_assets')) return { rows: [structuredClone(state.target)], rowCount: 1 };
+      if (sql.includes('FROM crypto_assets WHERE id=$1 FOR UPDATE')) return { rows: [structuredClone(state.target)], rowCount: 1 };
       if (sql.startsWith('SELECT algorithm,key_size,usage')) return { rows: [structuredClone(state.target)], rowCount: 1 };
       if (sql.includes("SET status='RECONCILIATION_REQUIRED'") && sql.includes('UPDATE requests')) {
         state.request.status = 'RECONCILIATION_REQUIRED'; state.request.version += 1;
@@ -178,7 +178,7 @@ describe('asset worker execution guards', () => {
 
   for (const type of ['RENEW', 'REVOKE'] as const) {
     it.each([
-      ['owner', { owner_id: 'foreign-owner' }], ['state', { status: 'EXPIRED' }],
+      ['owner', { owner_id: 'foreign-owner' }], ['state', { status: 'EXPIRED' }], ['expiry before scan', { expired: true }],
       ['policy', { policy_version_id: 'different-policy' }], ['provider reference', { provider_reference: null }],
     ])(`rejects ${type} with changed target %s before provider or attempt`, async (_name, mutation) => {
       const test = harness(claimed(type)); Object.assign(test.state.target, mutation);

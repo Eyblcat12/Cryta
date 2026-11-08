@@ -115,11 +115,11 @@ export function assertCanCreateRequest(
   }
 }
 
-export function assertAssetCanChange(asset: { ownerId: string; status: string }, userId: string) {
+export function assertAssetCanChange(asset: { ownerId: string; status: string; expired?: boolean }, userId: string) {
   if (asset.ownerId !== userId) {
     throw new ForbiddenException({ code: 'ASSET_NOT_OWNED', message: 'Bạn không có quyền thay đổi tài sản này.' });
   }
-  if (!['ACTIVE', 'EXPIRING_SOON'].includes(asset.status)) {
+  if (asset.expired || !['ACTIVE', 'EXPIRING_SOON'].includes(asset.status)) {
     throw new ConflictException({ code: 'INVALID_ASSET_STATE', message: 'Trạng thái hiện tại không cho phép gia hạn hoặc thu hồi.' });
   }
 }
