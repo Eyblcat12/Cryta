@@ -552,6 +552,15 @@ async function main() {
       const ownerData = await dashboard('USER', dev.accessToken);
       const approverData = await dashboard('APPROVER', approver.accessToken);
       const adminData = await dashboard('ADMIN', admin.accessToken);
+      const statusCounts = JSON.parse(sql(`SELECT json_object_agg(status,n) FROM (
+        SELECT status,count(*) AS n FROM crypto_assets GROUP BY status) counts;`));
+      assert.deepEqual(Object.fromEntries(adminData.composition.map(({ label, value }) => [label, value])), statusCounts);
+      assert.equal(adminData.composition.length, Object.keys(statusCounts).length);
+      assert.equal(adminData.metrics.total_assets, Object.values(statusCounts).reduce((total, value) => total + value, 0));
+      assert.equal(adminData.metrics.expiring, statusCounts.EXPIRING_SOON ?? 0);
+      assert.equal(metrics.total_assets, adminData.metrics.total_assets);
+      assert.equal(metrics.expiring, adminData.metrics.expiring);
+      assert.ok(!Object.hasOwn(metrics, 'composition'));
       for (const [session, label, total, unit] of [
         [dev, 'Yêu cầu tháng này', ownerData.trend.at(-1).value, 'yêu cầu'],
         [approver, 'Quyết định trong 7 ngày', approverData.trend.reduce((sum, item) => sum + item.value, 0), 'quyết định'],

@@ -23,7 +23,10 @@ export class DashboardService {
 
   async summary(user:AuthUser,requested?:unknown) {
     const role=this.role(user,requested);
-    if(role==='ADMIN')return {role,metrics:await this.adminMetrics(),services:this.services()};
+    if (role === 'ADMIN') {
+      const { metrics } = await this.adminMetrics();
+      return { role, metrics, services: this.services() };
+    }
     return {role,metrics:role==='APPROVER'?await this.approverMetrics(user):await this.ownerMetrics(user)};
   }
 
@@ -40,8 +43,8 @@ export class DashboardService {
     const unit = daily ? 'day' : 'month';
     const lookback = daily ? '6 days' : '5 months';
     const format = daily ? 'YYYY-MM-DD' : 'YYYY-MM';
-    // Keep the timestamp column usable by range indexes. The extra UTC day at
-    // each end covers timezone offsets and repeated local midnights.
+    // Resolve the bounds once, leaving the timestamp usable by range indexes.
+    // The extra UTC day at each end covers timezone offsets and repeated local midnights.
     return this.pool.query<{ period: string; value: number }>(`
       WITH calendar AS (
         SELECT date_trunc('${unit}', NOW() AT TIME ZONE $1::text) AS last_bucket
@@ -50,9 +53,9 @@ export class DashboardService {
         FROM calendar
       ), totals AS (
         SELECT date_trunc('${unit}', ${timestamp} AT TIME ZONE $1::text) AS period, COUNT(*)::int AS value
-        FROM ${table} CROSS JOIN calendar
-        WHERE ${timestamp} >= ((last_bucket - INTERVAL '${lookback}') AT TIME ZONE 'UTC') - INTERVAL '24 hours'
-          AND ${timestamp} < ((last_bucket + INTERVAL '1 ${unit}') AT TIME ZONE 'UTC') + INTERVAL '24 hours'
+        FROM ${table}
+        WHERE ${timestamp} >= (SELECT ((last_bucket - INTERVAL '${lookback}') AT TIME ZONE 'UTC') - INTERVAL '24 hours' FROM calendar)
+          AND ${timestamp} < (SELECT ((last_bucket + INTERVAL '1 ${unit}') AT TIME ZONE 'UTC') + INTERVAL '24 hours' FROM calendar)
           ${scope}
         GROUP BY 1
       )
@@ -103,9 +106,12 @@ export class DashboardService {
   }
 
   private async adminMetrics() {
-    const result=await this.pool.query(`SELECT
-      (SELECT COUNT(*)::int FROM crypto_assets) total_assets,
-      (SELECT COUNT(*)::int FROM crypto_assets WHERE status='EXPIRING_SOON') expiring,
+    const result=await this.pool.query(`WITH asset_counts AS (
+      SELECT status AS label, COUNT(*)::int AS value FROM crypto_assets GROUP BY status
+    ) SELECT
+      (SELECT COALESCE(SUM(value),0)::int FROM asset_counts) total_assets,
+      (SELECT COALESCE(MAX(value) FILTER (WHERE label='EXPIRING_SOON'),0)::int FROM asset_counts) expiring,
+      (SELECT COALESCE(json_agg(asset_counts ORDER BY value DESC),'[]'::json) FROM asset_counts) composition,
       (SELECT COUNT(*)::int FROM users WHERE status='ACTIVE') active_users,
       (SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='ADMIN') admin_users,
       (SELECT COUNT(DISTINCT ur.user_id)::int FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE r.code='APPROVER') approver_users,
@@ -115,17 +121,17 @@ export class DashboardService {
       (SELECT COUNT(*)::int FROM notifications WHERE channel='EMAIL' AND delivery_status='FAILED') failed_jobs,
       (SELECT COUNT(*)::int FROM notifications WHERE channel='EMAIL' AND delivery_status='RECONCILIATION_REQUIRED') email_reconciliation,
       (SELECT COUNT(*)::int FROM departments WHERE is_active) departments`);
-    return result.rows[0];
+    const { composition, ...metrics } = result.rows[0];
+    return { metrics, composition };
   }
 
   private services() {return {cryptoProvider:cryptoProviderMode(),email:process.env.SMTP_ENABLED==='true'?'ENABLED':'DISABLED',expiryScan:'ACTIVE'}}
 
   private async admin(timeZone: string) {
-    const [metrics,trend,composition]=await Promise.all([
+    const [{ metrics, composition }, trend] = await Promise.all([
       this.adminMetrics(),
       this.trend('assets', timeZone),
-      this.pool.query(`SELECT status label,COUNT(*)::int value FROM crypto_assets GROUP BY status ORDER BY value DESC`),
     ]);
-    return {role:'ADMIN',metrics,trend:trend.rows,composition:composition.rows,services:this.services()};
+    return { role: 'ADMIN', metrics, trend: trend.rows, composition, services: this.services() };
   }
 }

@@ -50,10 +50,12 @@ describe('page dashboard and shell summary contracts',()=>{
     expect(query).not.toHaveBeenCalled();
   });
   it('retains the historical default role and only reads counters for an Admin summary',async()=>{
-    const query=vi.fn(async(_sql:string)=>({rows:[{total_assets:1000,active_users:35}]}));
+    const query=vi.fn(async(_sql:string)=>({rows:[{total_assets:1000,active_users:35,composition:[{label:'ACTIVE',value:1000}]}]}));
     const service=new DashboardService({query} as unknown as Pool);
     const result=await service.summary({...user,roles:['USER','APPROVER','ADMIN']});
-    expect(result.role).toBe('ADMIN');expect(result.metrics.total_assets).toBe(1000);expect(query).toHaveBeenCalledTimes(1);expect(result).toHaveProperty('services');expect(result).not.toHaveProperty('trend');
+    expect(result.role).toBe('ADMIN');expect(result.metrics).toEqual({total_assets:1000,active_users:35});
+    expect(query).toHaveBeenCalledTimes(1);expect(result).toHaveProperty('services');expect(result).not.toHaveProperty('trend');
+    expect(result).not.toHaveProperty('composition');
     expect(query.mock.calls[0][0]).toContain("channel='EMAIL' AND delivery_status='FAILED'");
     expect(query.mock.calls[0][0]).toContain("channel='EMAIL' AND delivery_status='RECONCILIATION_REQUIRED'");
   });
