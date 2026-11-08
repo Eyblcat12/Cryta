@@ -14,7 +14,43 @@ node tools/build-release-images.cjs <full-commit-sha> <release-version>
 
 Sau khi kiểm tích hợp đạt, GitHub Actions dùng script này trên commit của lượt chạy với phiên bản tạm `0.0.0-ci.<run-id>.<attempt>`. Artifact `release-build-manifest` lưu SHA commit, nhãn, ID của hai image và hash của context. Image của lượt CI nằm trên runner tạm. Khi bàn giao, lưu image với phiên bản đã duyệt theo quy trình dưới đây. [Workflow](.github/workflows/ci.yml)
 
-Giữ manifest, `.env.example` và changelog cùng bản phát hành. Khi chuyển image sang máy khác, lưu archive bằng `docker image save` và đối chiếu SHA-256 của archive trước `docker image load`. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Base image trong Dockerfile hiện theo tag. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
+Giữ manifest, `.env.example` và changelog cùng bản phát hành. Thêm `--archive` để đóng gói hai image thành `images.tar` và ghi kích thước, SHA-256 vào manifest. Chuyển archive và manifest đã duyệt cùng nhau. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Base image trong Dockerfile hiện theo tag. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
+
+```powershell
+node tools/build-release-images.cjs <full-commit-sha> <release-version> --archive
+```
+
+Trên máy nhận, đặt `$packageDirectory` thành đường dẫn chứa `manifest.json` và `images.tar`. Kiểm hash và tag trước khi nạp. Đối chiếu image ID và nhãn revision sau khi nạp.
+
+```powershell
+$manifest = Get-Content -Raw -LiteralPath (Join-Path $packageDirectory 'manifest.json') | ConvertFrom-Json
+$archive = Join-Path $packageDirectory 'images.tar'
+if ($manifest.archive.file -ne 'images.tar' -or
+    (Get-Item -LiteralPath $archive).Length -ne $manifest.archive.sizeBytes -or
+    (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine $manifest.archive.sha256) {
+  throw 'Image archive checksum mismatch.'
+}
+$localTags = @(docker image ls --format '{{.Repository}}:{{.Tag}}')
+if ($LASTEXITCODE -ne 0) { throw 'Cannot list local image tags.' }
+foreach ($image in $manifest.images) {
+  if ($image.tag -in $localTags) { throw "Image tag already exists locally: $($image.tag)" }
+}
+docker image load --input $archive
+if ($LASTEXITCODE -ne 0) { throw 'Image load failed.' }
+foreach ($image in $manifest.images) {
+  $raw = docker image inspect $image.tag
+  if ($LASTEXITCODE -ne 0) { throw "Cannot inspect $($image.tag)" }
+  $loaded = ($raw -join "`n") | ConvertFrom-Json
+  if ($loaded.Id -ne $image.imageId -or
+      $loaded.Config.Labels.'org.opencontainers.image.revision' -ne $manifest.revision -or
+      $loaded.Config.Labels.'org.opencontainers.image.version' -ne $manifest.version -or
+      $loaded.Config.Labels.'org.crypta.context.sha256' -ne $image.contextSha256) {
+    throw "Unexpected image identity: $($image.tag)"
+  }
+}
+```
+
+Diễn tập 08/11/2026 dùng phiên bản cục bộ `0.0.0-rehearsal.20261108.1` của commit `fd45771`. Bản sao archive bị đổi một byte bị chặn bởi kiểm hash. Bản hợp lệ nạp lại hai tag đã gỡ, khôi phục đúng image ID và nhãn trong 9,4 giây. Stack PostgreSQL/Nginx dùng đúng hai image đã nạp, chạy smoke trong 20,37 giây với `--no-build --pull never`, rồi được dọn. Lượt này dùng Docker trên cùng máy, dữ liệu giả, provider MOCK và SMTP tắt. [Manifest](tools/test-artifacts/releases/0.0.0-rehearsal.20261108.1-fd4577145db8/manifest.json) · [Báo cáo nạp lại](tools/test-artifacts/releases/0.0.0-rehearsal.20261108.1-fd4577145db8/archive-rehearsal.json)
 
 Frontend đóng gói mặc định dùng `VITE_ROUTE_MOTION=off`. Thay đổi riêng hiệu ứng chuyển trang chỉ cần đổi image frontend tương thích với API hiện tại. Giữ digest frontend trước khi thử image khác, rồi chạy smoke URL sâu và điều hướng sau khi chuyển image. [Điều hướng và kết quả đo](IMPLEMENTATION_TRACKER.md)
 
