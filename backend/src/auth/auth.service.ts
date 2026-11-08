@@ -14,6 +14,12 @@ type UserRow = { id: string; email: string; display_name: string; department_id:
 type SessionContext = { ipAddress?: string; userAgent?: string };
 const LOGIN_DUMMY_HASH = '$2b$10$fAkKnLzQme9j8f1gZyyPaOcWpLPJBV1TFz.iD.LKLcLfx/TQHv3p.';
 const invalidCredentials = () => new UnauthorizedException({ code: 'INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng.' });
+const refreshChain = `WITH RECURSIVE refresh_chain AS (
+  SELECT id,replaced_by,revoked_at,expires_at FROM auth_sessions WHERE id=$1 AND user_id=$2 AND token_hash=$3
+  UNION
+  SELECT next.id,next.replaced_by,next.revoked_at,next.expires_at FROM auth_sessions next
+  JOIN refresh_chain previous ON next.id=previous.replaced_by WHERE next.user_id=$2
+)`;
 
 @Injectable()
 export class AuthService {
@@ -85,6 +91,7 @@ export class AuthService {
     const parts = rawToken.split('.');
     const [sessionId, secret] = parts;
     if (parts.length !== 2 || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId) || !secret) throw this.invalidSession();
+    const tokenHash = this.hash(secret);
     const client = await this.pool.connect();
     let committed = false;
     try {
@@ -100,7 +107,7 @@ export class AuthService {
         FROM auth_sessions WHERE id = $1 FOR UPDATE`, [sessionId]);
       const session = found.rows[0];
       // A guessed session UUID with a wrong secret must not revoke another user's sessions.
-      if (!session || session.token_hash !== this.hash(secret)) throw this.invalidSession();
+      if (!session || session.token_hash !== tokenHash) throw this.invalidSession();
       const user = await this.getUserById(session.user_id, client);
       const oidcSessionId = session.oidc_session_id ?? undefined;
       const verified = session.mfa_token_version === user.tokenVersion;
@@ -108,7 +115,7 @@ export class AuthService {
       if (user.mfaRequired && !verified) throw this.invalidSession();
       if (session.revoked_at || session.expires_at <= new Date()) {
         if (!session.revoked_at || !session.replaced_by ||
-            !await this.hasActiveRefreshSuccessor(client, session.replaced_by, session.user_id)) throw this.invalidSession();
+            !await this.hasActiveRefreshSuccessor(client, sessionId, session.user_id, tokenHash)) throw this.invalidSession();
         await client.query('UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, NOW()) WHERE user_id = $1', [session.user_id]);
         if (oidcSessionId) await this.oidc?.endSession(client, oidcSessionId, user.id);
         await this.appendAuthAudit(client, session.user_id, 'SESSION_REPLAY_REJECTED', 'DENIED');
@@ -133,14 +140,10 @@ export class AuthService {
     finally { client.release(); }
   }
 
-  private async hasActiveRefreshSuccessor(client: PoolClient, successorId: string, userId: string) {
+  private async hasActiveRefreshSuccessor(client: PoolClient, sessionId: string, userId: string, tokenHash: string) {
     // Refresh, logout and credential revocation hold the same user lock while changing this chain.
-    const active = await client.query(`WITH RECURSIVE successors AS (
-      SELECT id,replaced_by,revoked_at,expires_at FROM auth_sessions WHERE id=$1 AND user_id=$2
-      UNION
-      SELECT next.id,next.replaced_by,next.revoked_at,next.expires_at FROM auth_sessions next
-      JOIN successors previous ON next.id=previous.replaced_by WHERE next.user_id=$2
-    ) SELECT id FROM successors WHERE revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [successorId, userId]);
+    const active = await client.query(`${refreshChain}
+      SELECT id FROM refresh_chain WHERE revoked_at IS NULL AND expires_at>NOW() LIMIT 1`, [sessionId, userId, tokenHash]);
     return Boolean(active.rowCount);
   }
 
@@ -273,9 +276,10 @@ export class AuthService {
       const parts = rawToken?.split('.');
       if (parts?.length === 2) {
         const [sessionId, secret] = parts;
-        // Logout remains idempotent and scoped to the authenticated owner.
+        // A refresh may have rotated this cookie while logout was waiting for the user lock.
         if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId) && secret) {
-          await client.query('UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, NOW()) WHERE id = $1 AND user_id = $2 AND token_hash = $3', [sessionId, actorId, this.hash(secret)]);
+          await client.query(`${refreshChain} UPDATE auth_sessions SET revoked_at=NOW()
+            WHERE id IN (SELECT id FROM refresh_chain) AND revoked_at IS NULL`, [sessionId, actorId, this.hash(secret)]);
         }
       }
       await this.appendAuthAudit(client, actorId, 'LOGOUT', 'SUCCESS');

@@ -15,7 +15,7 @@ function setup(sessionOverrides: Record<string, unknown> = {}, failAudit = false
     if (sql.includes('SELECT user_id FROM auth_sessions')) return { rows: [{ user_id: owner }] };
     if (sql.includes('user_id, token_hash, expires_at')) return { rows: [session] };
     if (sql.includes('FROM users u')) return { rows: [{ id: owner, status: 'ACTIVE', token_version: 1, roles: ['USER'], scopes: [], mfa_enrolled: enrolled }] };
-    if (sql.startsWith('WITH RECURSIVE successors')) return { rowCount: Number(activeSuccessor) };
+    if (sql.startsWith('WITH RECURSIVE refresh_chain')) return { rowCount: Number(activeSuccessor) };
     if (sql.includes('INSERT INTO audit_logs') && failAudit) throw new Error('audit unavailable');
     return { rows: [], rowCount: 1 };
   });

@@ -314,6 +314,22 @@ async function main() {
     assert.equal(replayAudits(), auditsBefore + 1);
     assert.equal(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${account.id}' AND revoked_at IS NULL`), '0');
   });
+  await test('T06: logout with a rotated cookie revokes the live successor only in that session chain', async () => {
+    const user = await createUser();
+    const signIn = () => call('POST', '/auth/login', { email: user.email, password: changedPassword });
+    const refresh = cookie => call('POST', '/auth/refresh', undefined, undefined, cookie);
+    const original = await signIn(), independent = await signIn();
+    expectStatus(original, 200); expectStatus(independent, 200);
+    const rotated = await refresh(original.cookie); expectStatus(rotated, 200);
+    const latest = await refresh(rotated.cookie); expectStatus(latest, 200);
+    assert.ok(original.cookie && latest.cookie && original.cookie !== latest.cookie);
+    expectStatus(await call('POST', '/auth/logout', undefined, original.data.accessToken, original.cookie), 200);
+    expectStatus(await refresh(latest.cookie), 401, 'SESSION_INVALID');
+    expectStatus(await refresh(independent.cookie), 200);
+    assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE actor_id='${user.id}' AND action='LOGOUT';`), '1');
+    assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE actor_id='${user.id}' AND action='SESSION_REPLAY_REJECTED';`), '0');
+    return { rotations: 2, successorRefreshStatus: 401, independentRefreshStatus: 200 };
+  });
   await test('M API/DB: simultaneous refresh/access change leaves no surviving old session', async () => {
     const outcomes = [];
     for (let round = 0; round < 3; round++) {

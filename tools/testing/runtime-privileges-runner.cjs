@@ -161,8 +161,13 @@ async function main(options){
   await test('Compiled API starts in validate mode using only the runtime LOGIN role',async()=>{await startApi(passwords.runtime);const active=(await sql("SELECT DISTINCT usename FROM pg_stat_activity WHERE datname=$1 AND application_name='crypta-api'",[options.database])).rows;assert.deepEqual(active,[{usename:roles.runtime}]);return{apiProcessId:child.pid,databaseUsers:active};});
   assert(child&&childExit===undefined,'Restricted API must be live for HTTP verification.');
   await test('Login, refresh rotation and logout work with the restricted role',async()=>{
-   const s=await login('dev.nguyen@congty.com');const refresh=await api('POST','/auth/refresh',null,s,200);s.token=refresh.data.accessToken;s.cookie=refresh.cookie;await api('GET','/auth/me',null,s,200);await api('POST','/auth/logout',null,s,200);const denied=await api('POST','/auth/refresh',null,s);assert.equal(denied.status,401);
-   sessions.user=await login('dev.nguyen@congty.com');sessions.admin=await login('admin@congty.com');sessions.approver=await login('it.manager@congty.com');return{refreshAfterLogout:denied.status};
+   const original=await login('dev.nguyen@congty.com');
+   const refreshed=await api('POST','/auth/refresh',null,original,200);
+   const successor={token:refreshed.data.accessToken,cookie:refreshed.cookie};
+   await api('GET','/auth/me',null,successor,200);
+   await api('POST','/auth/logout',null,original,200);
+   const denied=await api('POST','/auth/refresh',null,successor,401);
+   sessions.user=await login('dev.nguyen@congty.com');sessions.admin=await login('admin@congty.com');sessions.approver=await login('it.manager@congty.com');return{refreshAfterLogout:denied.status,logoutUsedRotatedCookie:true};
   });
   await test('HTTP audit correlates successes and denials without retaining submitted secrets or guessing an actor',async()=>{
    const marker='private-audit-'+crypto.randomBytes(12).toString('hex');

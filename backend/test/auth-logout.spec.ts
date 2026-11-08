@@ -11,14 +11,15 @@ function setup(){const query=vi.fn().mockResolvedValue({rows:[],rowCount:0}),rel
 describe('logout session boundaries',()=>{
   it.each(['not-a-uuid.secret',id,`${id}.`,`${id}.secret.extra`])('ignores malformed cookies without a UUID database write: %s',async cookie=>{
     const {service,query}=setup();await expect(service.logout(cookie,owner)).resolves.toEqual({loggedOut:true});
-    expect(query.mock.calls.every(([sql])=>!sql.startsWith('UPDATE auth_sessions'))).toBe(true);
+    expect(query.mock.calls.every(([sql])=>!sql.includes('UPDATE auth_sessions'))).toBe(true);
     expect(query).toHaveBeenCalledTimes(4);expect(query.mock.calls[2][1]).toEqual([owner,'LOGOUT','SUCCESS','{}']);
     expect(query.mock.calls[0][0]).toBe('BEGIN');expect(query.mock.calls.at(-1)?.[0]).toBe('COMMIT');
   });
   it('requires the authenticated owner and hashed secret when revoking a valid session',async()=>{
     const {service,query}=setup();await service.logout(`${id}.fixture-secret`,owner);
     const [sql,values]=query.mock.calls[2];
-    expect(sql).toContain('WHERE id = $1 AND user_id = $2 AND token_hash = $3');
+    expect(sql).toContain('WHERE id=$1 AND user_id=$2 AND token_hash=$3');
+    expect(sql).toContain('ON next.id=previous.replaced_by WHERE next.user_id=$2');
     expect(values).toEqual([id,owner,createHash('sha256').update('fixture-secret').digest('hex')]);
     expect(query).toHaveBeenCalledTimes(5);
     expect(query.mock.calls[1][0]).toBe('SELECT id FROM users WHERE id=$1 FOR UPDATE');
@@ -30,7 +31,7 @@ describe('logout session boundaries',()=>{
     const {service,query,release}=setup();
     query.mockImplementation(async(sql:string)=>{if(sql.includes('INSERT INTO audit_logs'))throw new Error('audit unavailable');return {rows:[],rowCount:0}});
     await expect(service.logout(`${id}.fixture-secret`,owner)).rejects.toThrow('audit unavailable');
-    expect(query.mock.calls.map(([sql])=>sql.split(' ')[0])).toEqual(['BEGIN','SELECT','UPDATE','INSERT','ROLLBACK']);
+    expect(query.mock.calls.map(([sql])=>sql.split(' ')[0])).toEqual(['BEGIN','SELECT','WITH','INSERT','ROLLBACK']);
     expect(release).toHaveBeenCalledOnce();
   });
 });
