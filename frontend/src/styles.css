@@ -913,6 +913,33 @@ form.help-content > .mutation-fields > .form-row{display:grid;gap:12px}
 .provider-confirmation-check{display:flex;align-items:center;gap:10px;min-height:44px}
 .provider-confirmation-check input{flex:none;width:20px;height:20px}
 @media(max-width:560px){.provider-dialog-body{padding-inline:16px}}
+
+.email-list-read { position: relative; }
+.email-list-read .table-pending { top: 4px; }
+.email-delivery-list { display: none; }
+.email-delivery-body { padding: 16px 24px 12px; overflow-wrap: anywhere; }
+.email-delivery-body > p { margin: 0 0 12px; }
+.email-delivery-body > p:empty { display: none; }
+.email-delivery-body .detail-grid { margin: 12px 0; }
+.email-delivery-body .email-message-id { grid-column: 1 / -1; }
+.email-delivery-dialog .icon-button { flex-shrink: 0; }
+.decision-dialog .email-reconciliation-form { padding-top: 12px; border-top: 1px solid var(--border); }
+.decision-dialog .email-reconciliation-form footer { position: sticky; bottom: 0; }
+.email-reconciliation-form h3 { margin: 0; }
+.email-reconciliation-form .form-field input,
+.email-reconciliation-form .form-field select { min-width: 0; min-height: 44px; padding-inline: 10px; }
+.email-view-details, .email-reconciliation-form button[type="submit"] { min-height: 44px; }
+@media (max-width: 700px) {
+  .email-delivery-table { display: none; }
+  .email-delivery-list { display: block; list-style: none; margin: 0; padding: 0; }
+  .email-delivery-list li { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: center; min-height: 106px; padding: 10px 12px; overflow-wrap: anywhere; }
+  .email-delivery-list li + li { border-top: 1px solid var(--border); }
+  .email-delivery-list li > div { grid-row: span 2; min-width: 0; }
+  .email-delivery-list li > .status-pill { justify-self: end; }
+}
+@media (max-width: 560px) {
+  .email-delivery-body { padding-inline: 16px; }
+}
 .organization-usage{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
 .organization-usage div{padding:12px;border:1px solid var(--border);border-radius:8px}
 .organization-usage dd{margin:4px 0 0;font-weight:700;font-size:20px}

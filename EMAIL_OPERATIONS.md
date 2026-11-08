@@ -18,7 +18,7 @@ Audit không lưu địa chỉ nhận đầy đủ, chỉ domain, operation ID v
 
 Khi bật SMTP, đặt `APP_URL` thành origin của frontend, ví dụ `https://crypta.example.com`. URL không có user/password, path, query hoặc fragment. HTTP chỉ được phép trên localhost/127.0.0.1/IPv6 loopback để thử local. `APP_ORIGIN` tiếp tục dùng cho CORS; khi đổi domain phải cấu hình cả hai. Thiếu hoặc sai `APP_URL` làm startup SMTP dừng trước khi kết nối. `APP_TIME_ZONE` là múi giờ IANA hợp lệ, mặc định `Asia/Ho_Chi_Minh`; thư hiển thị rõ múi giờ bên cạnh thời gian.
 
-Tám sự kiện đang hỗ trợ gồm yêu cầu mới/được duyệt/bị từ chối/hoàn tất/cần đối soát và tài sản sắp hết hạn/đã hết hạn/thu hồi. HTML và plain text chỉ có tên người nhận, sự kiện, mã tham chiếu và thời gian; không sao chép lý do yêu cầu, private key hoặc token phiên. Link mở chi tiết yêu cầu/tài sản và vẫn phải qua đăng nhập, kiểm quyền của ứng dụng. Dữ liệu cũ thiếu mã hợp lệ mở trung tâm thông báo; thiếu thời gian thì bỏ dòng thời gian thay vì hiển thị thời điểm giả.
+Các mẫu nghiệp vụ bao gồm yêu cầu mới, chờ phê duyệt cấp hai, được duyệt, bị từ chối, hoàn tất, lỗi hoặc cần đối soát, cùng các sự kiện tài sản sắp hết hạn, đã hết hạn và thu hồi. Nội dung HTML và plain text dùng tên người nhận, sự kiện, mã tham chiếu và thời gian. Liên kết tới yêu cầu hoặc tài sản tiếp tục qua đăng nhập và kiểm quyền. Dữ liệu cũ thiếu mã hợp lệ mở trung tâm thông báo. Khi thiếu thời gian, thư bỏ dòng thời gian. Worker cũng hỗ trợ thư mời, đặt lại mật khẩu, báo đã đổi mật khẩu và báo thay đổi MFA.
 
 Worker ghi thông báo kết quả cùng transaction trạng thái/audit. Nếu ghi thông báo hoàn tất lỗi sau khi provider đã trả kết quả, asset/hoàn tất rollback và receipt được giữ để đối soát. Không tự gọi lại provider. Mỗi kết quả và mỗi kênh có một deduplication key. Chuẩn bị nội dung lỗi trước khi gọi SMTP là kết quả chắc chắn chưa gửi: trạng thái FAILED với thông báo chuẩn; không xếp vào kết quả SMTP chưa rõ.
 
@@ -50,6 +50,8 @@ ORDER BY created_at DESC;
 ```
 
 Đối chiếu nhật ký SMTP và hộp thư trước khi ghi kết quả. Dù dùng Message-ID ổn định và deduplication trong database, SMTP vẫn có trường hợp cần đối soát thủ công.
+
+Security Admin mở **Vận hành → Email cần xử lý → Xem chi tiết** để xem số lượt, thời điểm và mã tra trong Message-ID. Với bản ghi **Cần đối soát**, chọn kết quả theo nhật ký SMTP, nhập mã phiếu nội bộ và chọn **Ghi kết quả**. Nếu SMTP đã chấp nhận, nhập thời điểm trong nhật ký theo UTC. Nếu dữ liệu đã đổi, dùng **Tải lại chi tiết** và so lại bằng chứng với lượt gửi mới. Nếu mất phản hồi khi ghi, dùng **Kiểm tra dữ liệu** để đọc trạng thái hiện tại. Bản ghi **Gửi thất bại** hiển thị chẩn đoán đã lọc và chỉ cho xem.
 
 Security Admin có thể xem danh sách chỉ đọc tại mục **Email cần xử lý** trên dashboard. API `GET /api/v1/notifications/delivery-issues` chỉ trả metadata vận hành cần thiết (không trả thông báo lỗi SMTP thô) và yêu cầu quyền Admin.
 

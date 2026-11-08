@@ -16,12 +16,16 @@ Migration `010_execution_notifications` mở rộng constraint loại thông bá
 | Quyền/migration | Runtime LOGIN23/23, CLI/ledger10/10 với mười migration. Database/role con đã dọn. | [Runtime](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/runtime-privileges-ae0d69c898be/results.json), [Ledger](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/runtime-ledger-66f513a111c8/results.json) |
 | Hồi quy Edge | 26/26 trên bundle mới DM9eNE0S, CSS DnaRrvye; OFF DoDyDc6W. Không chạy lại full fixture ba engine trong pha này. | [Integration](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/real-msedge-1793943544919/results.json) |
 
-Hai mẫu tài khoản INVITATION/PASSWORD_RESET có action riêng, hạn dùng và token giả trong preview. Chúng chưa được bật gửi hoặc nối API cấp/tiêu thụ token. T07 còn phải thực hiện token một lần, hash/hạn dùng, giới hạn tần suất, phản hồi không tiết lộ tài khoản và thu hồi phiên. Không dùng template làm bằng chứng đã hoàn thiện phục hồi tài khoản.
+Trong lượt T24 ban đầu, hai mẫu tài khoản INVITATION/PASSWORD_RESET dùng mã giả và hạn dùng riêng để kiểm bản xem trước. Kết quả tích hợp gửi thư và tiêu thụ mã được ghi riêng trong lượt T07.
 
 Giữ riêng [unit đầu223/233](tools/test-artifacts/email-templates-20261106/backend-initial.json): mười lỗi do phép so sánh giả định thứ tự ngày/giờ khác định dạng vi-VN thực tế. Đã kiểm giá trị giờ và múi giờ mà không áp thứ tự sai. Hai lượt email đầu giữ report lỗi setup, [lượt1](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/email-delivery-after-caa350600fa9/results.json), [lượt2](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/email-delivery-after-be2ef4e2f8ca/results.json): phép kiểm Message-ID chưa xử lý MIME folding. Lượt cuối nhận đủ10 SMTP DATA và header hợp lệ. Test link đầu chọn class không tồn tại; sau đổi selector sang main, lượt3/3 đạt. Các sửa này nằm ở test, không thay hành vi sản phẩm để làm test đạt.
 
 [Bản chụp](tools/test-artifacts/frontend-artifacts/email-templates-20261106-final/source-manifest.json) gồm225 file, SHA256 `3e208880c1be10e8a992dd00fa5521887c207707ad9c148975cdeaa1ee63d130`. [Provenance](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/email-templates-provenance.json) đối chiếu13 source, năm compiled và sáu frontend asset. Hai archive build được giải nén/đối chiếu byte.
 
-Đây là SMTP loopback và browser HTML preview, chưa chứng minh Inbox/Spam, email client hoặc SMTP nhà cung cấp. T24 còn nối mẫu tài khoản khi T07 hoàn tất và nghiệm thu nội dung/tần suất với người dùng; T25 còn dịch vụ, DNS/TLS và hộp thư thật. Chưa nghiệm thu toàn bộ release.
+Các phép kiểm dùng SMTP loopback và bản xem trước HTML. Nghiệm thu T24 còn kiểm nội dung, tần suất và hiển thị ở ứng dụng email. T25 còn chọn dịch vụ, DNS/TLS và hộp thư thật.
 
 Sau khi dừng riêng backend thử, [backup/restore](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/backup-restore-ab28cfc6a650/results.json) đạt11/11, dữ liệu17 bảng và sequence khớp. [Cleanup](tools/test-artifacts/integration/crypta-t30-test-1c5890caaad3/cleanup-report.json) xác nhận0 container/volume/network thử và giữ nguyên tám container khác. [Verifier](tools/test-artifacts/frontend-artifacts/email-templates-20261106-final/evidence-verification.json) đối chiếu source, compiled, build, report, ảnh, backup và liên kết local.
+
+## Đối chiếu với T07 ngày 08/11/2026
+
+Worker đã nối hai mẫu với API cấp và tiêu thụ mã. Lượt T07 đạt 6/6 ca trên Edge desktop sáng và Chrome mobile tối qua SMTP loopback, từ thư mời đến kích hoạt và từ thư reset đến đặt lại mật khẩu. Ca kiểm cũng xác nhận từ chối dùng lại link và thu hồi phiên. Thư báo đổi mật khẩu đã được đưa vào hàng đợi. [Bằng chứng T07](T07_ACCOUNT_ACTIONS_2026-11-06.md)

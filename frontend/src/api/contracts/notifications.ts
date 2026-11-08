@@ -6,3 +6,15 @@ export interface EmailIssueResponse {
   id:string; type:string; status:string; attemptCount:number; createdAt:string;
   claimedAt:string|null; failedAt:string|null; recipientEmail:string; recipientName:string;
 }
+
+export interface EmailDeliveryDetail extends EmailIssueResponse {
+  sentAt: string | null;
+  smtpStatus: number | null;
+  failure: 'OUTCOME_UNKNOWN' | 'SMTP_PERMANENT_REJECTION' | 'SMTP_TEMPORARY_REJECTION' | 'PREPARATION_FAILED' | 'VERIFIED_UNSENT' | null;
+  messageIdPrefix: string;
+}
+
+export type EmailReconciliation = {
+  attemptCount: number;
+  evidenceReference: string;
+} & ({ outcome: 'UNSENT' } | { outcome: 'ACCEPTED'; acceptedAt: string });

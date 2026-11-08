@@ -1,7 +1,7 @@
 import type { Asset, AuthUser, RequestItem,UserRole } from './types';
 import type { AssetResponse,AssetHistoryEvent,AssetHistoryResponse } from './api/contracts/assets';
 import type { DraftFields, RequestResponse } from './api/contracts/requests';
-import type { NotificationResponse,EmailIssueResponse } from './api/contracts/notifications';
+import type { NotificationResponse,EmailIssueResponse,EmailDeliveryDetail,EmailReconciliation } from './api/contracts/notifications';
 import type { UserResponse,UserReferenceResponse } from './api/contracts/users';
 import type { DepartmentResponse,DepartmentDetail } from './api/contracts/departments';
 import type { AdminPolicy, PolicyConfigurationInput, PolicyResponse, PolicyVersion } from './api/contracts/policies';
@@ -288,6 +288,16 @@ export const api={
   markNotificationRead(id:string){return mutate({kind:'notification-read',key:'notifications:read',targetId:id,resources:mutationResources.notification,reviewPath:'/notifications'},`/notifications/${id}/read`,{method:'PATCH'})},
   testEmail(email:string){return mutate<{sent:boolean;to:string}>({kind:'email-test',key:'email:test',resources:['email'],reviewPath:'/operations/email'},'/notifications/test-email',{method:'POST',body:JSON.stringify({email})})},
   emailIssuesPage(options:{page:number;pageSize:number;status?:string},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);return request<PageResponse<EmailIssueResponse>>(`/notifications/delivery-issues?${params}`,{signal})},
+  emailDelivery(id: string, signal?: AbortSignal) {
+    return request<EmailDeliveryDetail>(`/notifications/delivery-issues/${encodeURIComponent(id)}`, { signal, cache: 'no-store' });
+  },
+  reconcileEmailDelivery(id: string, body: EmailReconciliation) {
+    const expectedStatus = body.outcome === 'ACCEPTED' ? 'SENT' : 'FAILED';
+    return mutate<{ id: string; status: 'SENT' | 'FAILED' }>({
+      kind: 'email-reconciliation', key: `email:${id}`, targetId: id, expectedStatus,
+      resources: ['email', 'summary', 'dashboard', 'audit'], reviewPath: '/operations/email',
+    }, `/notifications/delivery-issues/${encodeURIComponent(id)}/reconcile`, { method: 'POST', body: JSON.stringify(body) });
+  },
   providerIssues(options:{page:number;pageSize:number;status?:string},signal?:AbortSignal){
     const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});
     if(options.status)params.set('status',options.status);

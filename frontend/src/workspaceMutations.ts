@@ -1,6 +1,6 @@
 import type { WorkspaceResource } from './workspaceRefresh';
 
-export type MutationKind='request-create'|'request-draft-save'|'request-draft-submit'|'request-decision'|'request-cancel'|'user-create'|'user-invite'|'user-invite-resend'|'user-status'|'user-access'|'user-department'|'department-save'|'department-status'|'policy-create'|'policy-version'|'policy-deactivate'|'notification-read'|'email-test'|'provider-recovery';
+export type MutationKind='request-create'|'request-draft-save'|'request-draft-submit'|'request-decision'|'request-cancel'|'user-create'|'user-invite'|'user-invite-resend'|'user-status'|'user-access'|'user-department'|'department-save'|'department-status'|'policy-create'|'policy-version'|'policy-deactivate'|'notification-read'|'email-test'|'email-reconciliation'|'provider-recovery';
 export interface MutationInput {
   kind:MutationKind; key:string; targetId?:string; email?:string; expectedStatus?:string; expectedVersion?:number; expectedDepartmentId?:string; expectedCode?:string;
   resources:readonly WorkspaceResource[]; reviewPath:string;
@@ -57,6 +57,7 @@ export const mutationLabels:Record<MutationKind,string>={
   'user-create':'Tạo tài khoản','user-status':'Cập nhật trạng thái tài khoản','user-access':'Cập nhật quyền truy cập',
   'policy-create':'Tạo chính sách','policy-version':'Phát hành chính sách','policy-deactivate':'Ngừng áp dụng chính sách',
   'notification-read':'Đánh dấu thông báo đã đọc','email-test':'Gửi email kiểm tra',
+  'email-reconciliation':'Ghi kết quả đối soát email',
   'provider-recovery':'Xử lý đối soát provider',
 };
 export const mutationSuccess:Record<MutationKind,string>={
@@ -69,6 +70,7 @@ export const mutationSuccess:Record<MutationKind,string>={
   'policy-create':'Đã tạo chính sách.','policy-version':'Đã phát hành phiên bản chính sách.','policy-deactivate':'Đã ngừng áp dụng chính sách.',
   'notification-read':'Đã cập nhật trạng thái đã đọc.',
   'email-test':'Máy chủ đã xác nhận gửi email kiểm tra.',
+  'email-reconciliation':'Đã ghi kết quả đối soát email.',
   'provider-recovery':'Đã ghi nhận thao tác đối soát.',
 };
 export function validAcknowledgment(item:MutationInput,value:unknown){
@@ -90,7 +92,7 @@ export function validAcknowledgment(item:MutationInput,value:unknown){
       const approval=data.approval as {levels?:unknown;approved?:unknown}|undefined;
       return Number.isSafeInteger(item.expectedVersion)&&data.version===item.expectedVersion!+1&&approval?.levels===2&&approval.approved===1;
     }
-    case 'user-status':return data.id===item.targetId&&data.status===item.expectedStatus;
+    case 'user-status':case 'email-reconciliation':return data.id===item.targetId&&data.status===item.expectedStatus;
     case 'provider-recovery':return data.id===item.targetId&&data.status===item.expectedStatus&&data.version===item.expectedVersion!+1;
     case 'user-create':return identified&&typeof item.email==='string'&&data.email===item.email;
     case 'user-invite':return identified&&typeof item.email==='string'&&data.email===item.email&&data.invitationPending===true&&data.status==='INACTIVE';

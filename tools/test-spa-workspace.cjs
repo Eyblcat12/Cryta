@@ -80,6 +80,11 @@ async function fixture(browser,role='USER',options={}){
       else if(endpoint.endsWith('/cancel'))data={id:endpoint.split('/')[2],status:'CANCELLED'};
       else if(endpoint.startsWith('/notifications/')&&endpoint.includes('read'))data={updated:1};
       else if(endpoint==='/notifications/test-email')data={sent:true,to:request.postDataJSON().email};
+      else if(state.emailRecovery&&endpoint==='/notifications/delivery-issues/email-1/reconcile'){
+        state.emailReconciled=true;
+        status=503;
+        data={error:{code:'UNAVAILABLE',message:'Phản hồi sau thao tác không khả dụng.'}};
+      }
       else data={id:'fixture-created',status:'PENDING'};
       if(state.mutationStarted)state.mutationStarted(endpoint);
       if(state.mutationGate&&!endpoint.startsWith('/auth/'))await state.mutationGate;
@@ -152,11 +157,18 @@ async function fixture(browser,role='USER',options={}){
     else if(endpoint==='/users/summary')data={total:35,active:35,roles:{USER:35,APPROVER:1,ADMIN:1}};
     else if(endpoint==='/operations/provider-issues')data={items:[],total:0,page:Number(params.get('page')??1),pageSize:Number(params.get('pageSize')??25)};
     else if(endpoint==='/reports')data=[];
+    else if(state.emailRecovery&&endpoint==='/notifications/delivery-issues/email-1'){
+      if(state.emailDetailGate)await state.emailDetailGate;
+      data={...emailItems[0],status:state.emailReconciled?'FAILED':'RECONCILIATION_REQUIRED',attemptCount:2,
+        failure:state.emailReconciled?'VERIFIED_UNSENT':'OUTCOME_UNKNOWN',smtpStatus:null,sentAt:null,messageIdPrefix:'notification-email-1'};
+    }
     else if(endpoint==='/audit-logs'||endpoint==='/notifications/delivery-issues'){
       const isAudit=endpoint==='/audit-logs';
       const delay=isAudit?state.auditDelay:state.emailDelay;
       if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
-      data=paged(isAudit?(state.auditItems?auditItems:[]):(state.emailItems?emailItems:[]),params);
+      const emailRows=state.emailRecovery?emailItems.map((item,index)=>index===0&&!state.emailReconciled
+        ?{...item,status:'RECONCILIATION_REQUIRED',attemptCount:2}:item):emailItems;
+      data=paged(isAudit?(state.auditItems?auditItems:[]):(state.emailItems?emailRows:[]),params);
       if(endpoint==='/audit-logs'&&state.auditFail){status=503;data={error:{code:'UNAVAILABLE',message:'Audit Log tạm thời không khả dụng.'}}}
       if(!isAudit&&state.emailFail){status=503;data={error:{code:'UNAVAILABLE',message:'Email tạm thời không khả dụng.'}}}
       if(isAudit?state.auditDenied:state.emailDenied){status=403;data={error:{code:'FORBIDDEN',message:'Quyền xem danh sách đã thay đổi.'}}}
@@ -259,6 +271,7 @@ if(require.main===module)(async()=>{
       const before=await geometry();
       assert.equal(await section.locator('tbody tr:not([aria-hidden])').count(),0);state.tableReadGate=null;release();
       if(item.role==='USER'&&width===390)await section.locator('.asset-mobile-list button.asset-mobile-card').first().waitFor();
+      else if(item.route==='/operations/email'&&width===390)await section.getByRole('list', { name: 'Danh sách email cần xử lý' }).getByText(/Người nhận 1 ·/).waitFor();
       else await section.getByText(item.ready,{exact:true}).first().waitFor();
       const after=await geometry();assert(Math.abs(after.footer-before.footer)<=2,`pagination moved by ${(after.footer-before.footer).toFixed(1)}px`);
       assert.equal(before.columns.length,after.columns.length);for(let i=0;i<before.columns.length;i++)assert(Math.abs(before.columns[i]-after.columns[i])<=2,`column ${i} changed width`);
@@ -266,6 +279,46 @@ if(require.main===module)(async()=>{
       await page.screenshot({path:path.join(output,`n4-table-${item.role}-${item.route.replaceAll('/','-')}-${width}.png`),fullPage:true});
       }finally{state.tableReadGate=null;release()}
     },{[item.delay]:1100,...(item.data?{[item.data]:true}:{})}));
+
+    await test(browser,'/operations/email checks the saved state when reconciliation acknowledgment is lost',()=>withFixture(browser,'ADMIN',async({page,state,mutations})=>{
+      let release;
+      state.emailDetailGate=new Promise(resolve=>{release=resolve});
+      try{
+        await page.setViewportSize({width:390,height:900});
+        await page.addInitScript(()=>localStorage.setItem('crypta-theme','dark'));
+        await page.goto(origin+'/operations/email');
+        await page.getByRole('button',{name:'Xem chi tiết Yêu cầu đã được duyệt · email-1',exact:true}).click();
+        const dialog=page.getByRole('dialog',{name:'Chi tiết lần gửi'});
+        await dialog.getByRole('status').filter({hasText:'Đang tải chi tiết lần gửi…'}).waitFor();
+        assert.equal(await dialog.getByRole('button',{name:'Ghi kết quả'}).count(),0);
+        state.emailDetailGate=null;release();
+        await dialog.getByRole('combobox',{name:'Kết quả đã xác minh'}).selectOption('UNSENT');
+        const evidence=dialog.getByRole('textbox',{name:/Mã phiếu đối soát/});
+        await evidence.fill('a@b.test');
+        const submit=dialog.getByRole('button',{name:'Ghi kết quả'});
+        await submit.click();
+        await dialog.getByText(/Nhập mã phiếu từ 4 đến 64 ký tự/).waitFor();
+        assert.equal(mutations.length,0);
+        await evidence.fill('SMTP-2041');
+        assert.equal(await dialog.evaluate(element=>getComputedStyle(element.parentElement).position),'fixed');
+        await page.screenshot({path:path.join(output,'t28-detail-mobile-dark.png'),animations:'disabled'});
+        await submit.click();
+        await dialog.getByText(/Chưa xác nhận kết quả: Ghi kết quả đối soát email/).waitFor();
+        assert.equal(await evidence.inputValue(),'SMTP-2041');
+        assert.equal(await submit.isDisabled(),true);
+        assert.equal(mutations.length,1);
+        assert.deepEqual(mutations[0].body,{attemptCount:2,evidenceReference:'SMTP-2041',outcome:'UNSENT'});
+        await dialog.getByRole('button',{name:'Kiểm tra dữ liệu'}).click();
+        await dialog.getByText(/Trạng thái hiện tại của email: Đã xác minh SMTP chưa chấp nhận/).waitFor();
+        await dialog.getByRole('checkbox',{name:/Tôi đã đối chiếu/}).check();
+        await dialog.getByRole('button',{name:'Kết thúc đối chiếu'}).click();
+        await dialog.getByRole('button',{name:'Tải lại chi tiết',exact:true}).click();
+        await dialog.getByText('Quản trị viên đã xác minh SMTP chưa chấp nhận thư.').waitFor();
+        assert.equal(await submit.isDisabled(),true);
+        assert.equal(await evidence.inputValue(),'SMTP-2041');
+        assert.equal(mutations.length,1);
+      }finally{state.emailDetailGate=null;release()}
+    },{emailItems:true,emailRecovery:true}));
 
     for(const item of tableCases)for(const width of item.role==='USER'?[1440,390]:[1440])await test(browser,`N4-table refresh ${item.role} ${item.route} ${width}px retains only same-query data and locks actions`,()=>withFixture(browser,item.role,async({page,state,mutations,calls})=>{
       await page.setViewportSize({width,height:1000});await page.goto(origin+item.route);

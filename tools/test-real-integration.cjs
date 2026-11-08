@@ -548,6 +548,112 @@ async function main() {
       sql(`DELETE FROM notifications WHERE id IN (${ids});`);
     }
   });
+  for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
+    await test(`T28 UI: email delivery detail and evidence on ${width}px ${theme}`, async () => {
+      const unknown = randomUUID(), failed = randomUUID();
+      const acceptedAt = new Date(Date.now() - 60_000).toISOString().slice(0, 19);
+      const evidence = `SMTP-T28-${width}`;
+      sql(`INSERT INTO notifications(id,recipient_id,request_id,type,channel,deduplication_key,delivery_status,
+        attempt_count,created_at,claimed_at,failed_at,error_message)
+        VALUES ('${unknown}','${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL','${unknown}',
+          'RECONCILIATION_REQUIRED',2,NOW()-INTERVAL '2 minutes',NOW()-INTERVAL '90 seconds',NULL,'raw diagnostic: relay.example.invalid'),
+        ('${failed}','${account.user.id}','${ownerRequest.id}','REQUEST_APPROVED','EMAIL','${failed}',
+          'FAILED',1,NOW(),NOW(),NOW(),'SMTP rejected delivery (550)');`);
+      const { context, page, calls, errors } = await newPage({ width, height: 900 });
+      await context.addInitScript(value => localStorage.setItem('crypta-theme', value), theme);
+      const deliveryPath = id => `/notifications/delivery-issues/${id}`;
+      const detailButton = id => page.getByRole('button', { name: `Xem chi tiết Yêu cầu đã được duyệt · ${id}` });
+      const dialog = page.getByRole('dialog', { name: 'Chi tiết lần gửi' });
+      const close = () => dialog.getByRole('button', { name: 'Đóng', exact: true });
+      const submit = () => dialog.getByRole('button', { name: 'Ghi kết quả' });
+      const referenceInput = () => dialog.getByRole('textbox', { name: /Mã phiếu đối soát/ });
+      const requestCount = () => calls.filter(call => call === `POST ${deliveryPath(unknown)}/reconcile`).length;
+      try {
+        await page.goto(new URL('/operations/email', origin).href);
+        await uiLogin(page, 'admin@congty.com');
+        await page.getByRole('heading', { level: 1, name: 'Email cần xử lý' }).waitFor();
+        await page.waitForFunction(value => document.documentElement.dataset.theme === value, theme);
+        const failPath = '**/api/v1' + deliveryPath(failed);
+        await page.route(failPath, route => route.fulfill({ status: 503, json: { error: {
+          code: 'TEST_UNAVAILABLE', message: 'Chi tiết tạm thời không khả dụng.',
+        } } }), { times: 1 });
+        const failedButton = detailButton(failed);
+        await failedButton.focus();
+        await page.keyboard.press('Enter');
+        await dialog.getByRole('alert').filter({ hasText: /Chi tiết tạm thời/ }).waitFor();
+        await dialog.getByRole('button', { name: 'Thử tải lại' }).click();
+        await dialog.getByText('SMTP từ chối vĩnh viễn (550).').waitFor();
+        assert.equal(await submit().count(), 0);
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden' });
+        await failedButton.evaluate(element => new Promise(resolve => requestAnimationFrame(resolve)));
+        assert.equal(await failedButton.evaluate(element => document.activeElement === element), true);
+
+        await detailButton(unknown).click();
+        await dialog.getByText(`notification-${unknown}`, { exact: true }).waitFor();
+        assert.equal(await dialog.getByText(/relay\.example\.invalid/).count(), 0);
+        await close().focus();
+        await page.keyboard.press('Shift+Tab');
+        assert.equal(await submit().evaluate(element => document.activeElement === element), true);
+        await page.keyboard.press('Tab');
+        assert.equal(await close().evaluate(element => document.activeElement === element), true);
+        const selection = dialog.getByRole('combobox', { name: 'Kết quả đã xác minh' });
+        const outcome = width === 1440 ? 'ACCEPTED' : 'UNSENT';
+        await selection.selectOption(outcome);
+        const timestamp = dialog.getByLabel('Thời điểm SMTP chấp nhận (UTC)');
+        if (outcome === 'ACCEPTED') await timestamp.fill(acceptedAt);
+        else assert.equal(await timestamp.count(), 0);
+        await referenceInput().fill(evidence);
+        await page.keyboard.press('Escape');
+        await page.getByRole('alertdialog').getByRole('button', { name: 'Ở lại' }).click();
+        assert.equal(await referenceInput().inputValue(), evidence);
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+        assert.equal(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth + 1), true);
+        assert.equal(await dialog.evaluate(element => {
+          const rect = element.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= innerHeight + 1;
+        }), true, 'Dialog must stay inside the viewport');
+        assert.ok((await submit().boundingBox()).height >= 44);
+        await page.screenshot({ path: path.join(output, `t28-email-delivery-${width}-${theme}.png`), animations: 'disabled' });
+
+        if (outcome === 'ACCEPTED') {
+          sql(`UPDATE notifications SET attempt_count=3 WHERE id='${unknown}';`);
+          await submit().click();
+          await dialog.getByRole('alert').filter({ hasText: /Trạng thái lần gửi đã thay đổi/ }).waitFor();
+          assert.equal(await referenceInput().inputValue(), evidence);
+          assert.equal(await submit().isDisabled(), true);
+          await dialog.getByRole('button', { name: 'Tải lại chi tiết', exact: true }).click();
+          await dialog.getByText(/^3 lượt/).waitFor();
+          assert.equal(await referenceInput().inputValue(), evidence);
+          assert.equal(new Date((await timestamp.inputValue()) + 'Z').toISOString(), acceptedAt + '.000Z');
+        }
+        await submit().click();
+        await dialog.waitFor({ state: 'hidden' });
+        await page.getByText('Đã ghi kết quả đối soát email.', { exact: true }).waitFor();
+        await page.waitForFunction(() => document.activeElement?.id === 'email-health-title');
+        const expectedStatus = outcome === 'ACCEPTED' ? 'SENT' : 'FAILED';
+        const details = expectStatus(await call('GET', deliveryPath(unknown), undefined, admin.accessToken), 200);
+        assert.equal(details.status, expectedStatus);
+        assert.equal(details.sentAt, outcome === 'ACCEPTED' ? acceptedAt + '.000Z' : null);
+        assert.equal(details.attemptCount, outcome === 'ACCEPTED' ? 3 : 2);
+        assert.equal(requestCount(), outcome === 'ACCEPTED' ? 2 : 1);
+        assert.equal(calls.filter(call => call === 'POST /notifications/test-email').length, 0);
+        assert.equal(sql(`SELECT count(*) FROM audit_logs WHERE entity_type='EMAIL_DELIVERY' AND entity_id='${unknown}'
+          AND metadata->>'evidenceReference'='${evidence}' AND metadata->>'correlationId' IS NOT NULL;`), '1');
+        if (outcome === 'ACCEPTED') await detailButton(unknown).waitFor({ state: 'hidden' });
+        else {
+          await detailButton(unknown).click();
+          await dialog.getByText('Quản trị viên đã xác minh SMTP chưa chấp nhận thư.').waitFor();
+          assert.equal(await submit().count(), 0);
+        }
+        assert.deepEqual(errors, []);
+        return { width, theme, expectedStatus, evidenceAuditEvents: 1, conflictPreservedDraft: outcome === 'ACCEPTED', keyboard: true, layout: true };
+      } finally {
+        await context.close();
+        sql(`DELETE FROM notifications WHERE id IN ('${unknown}','${failed}');`);
+      }
+    });
+  }
   await test('T22: audit search, redacted event detail and export use the same scope and filters', async () => {
     const user = await createUser(['USER'], [], false);
     const disabled = await call('PATCH', `/users/${user.id}/status`, { status: 'INACTIVE' }, admin.accessToken);
