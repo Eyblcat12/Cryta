@@ -53,7 +53,8 @@ async function main() {
   const port = await getPort();
   const upstream = `http://127.0.0.1:${port}`;
   const rootToken = secret(), clientToken = secret();
-  let container, nativeProcess, bridge, cleanupCompleted = false, failure;
+  let container, nativeProcess, bridge, cleanupCompleted = false, failure, cleanupFailure;
+  const fixtureContainers = () => docker(['ps', '-a', '--filter', 'label=org.crypta.openbao-test=' + id, '--format', '{{.ID}}', '--no-trunc']);
   const request = (base, pathname, method, headers, body) => fetch(base + pathname, {
     method, redirect: 'error', signal: AbortSignal.timeout(12_000),
     headers: { ...headers, ...(body !== undefined && { 'Content-Type': 'application/json' }) },
@@ -83,7 +84,6 @@ async function main() {
     }
     if (container) {
       docker(['stop', '--time', '2', container]);
-      container = undefined;
     }
   }
   try {
@@ -92,7 +92,7 @@ async function main() {
       nativeProcess = spawn(binary, ['server', '-dev', '-dev-listen-address=127.0.0.1:' + port], { env, windowsHide: true, stdio: 'ignore' });
       await once(nativeProcess, 'spawn');
     } else {
-      container = docker(['run', '--rm', '--detach', '--name', name, '--label', 'org.crypta.openbao-test=' + id,
+      container = docker(['run', '--detach', '--name', name, '--label', 'org.crypta.openbao-test=' + id,
         '--publish', `127.0.0.1:${port}:8200`, '--env', 'BAO_DEV_ROOT_TOKEN_ID', '--env', 'SKIP_SETCAP=true',
         image, 'server', '-dev', '-dev-listen-address=0.0.0.0:8200'], env);
       assert.match(container, /^[a-f0-9]{64}$/);
@@ -216,20 +216,28 @@ path "crypta-journal/data/crypta-test/operations/*" { capabilities = ["create","
         await new Promise(resolve => bridge.close(resolve));
       }
       if (nativeProcess) await stopProvider();
-      if (container) {
-        const owned = docker(['ps', '-a', '--filter', 'label=org.crypta.openbao-test=' + id, '--format', '{{.ID}}', '--no-trunc']);
-        if (owned === container) docker(['rm', '--force', container]);
-        else if (owned) throw new Error('OpenBao test container identity changed.');
+      if (!binary) {
+        const owned = fixtureContainers();
+        if (owned) {
+          assert.match(owned, /^[a-f0-9]{64}$/);
+          if (container) assert.equal(owned, container, 'OpenBao test container identity changed.');
+          assert.equal(docker(['inspect', '--format', '{{.Name}}', owned]), '/' + name);
+          docker(['rm', '--force', owned]);
+        }
       }
       cleanupCompleted = binary ? Boolean(!nativeProcess || nativeProcess.exitCode !== null || nativeProcess.signalCode !== null)
-        : !docker(['ps', '-a', '--filter', 'label=org.crypta.openbao-test=' + id, '--format', '{{.ID}}']);
+        : !fixtureContainers();
+      if (!cleanupCompleted) cleanupFailure = 'OpenBao fixture still exists after cleanup.';
+    } catch {
+      cleanupFailure = 'Could not verify and remove the OpenBao fixture.';
     } finally {
       await fs.writeFile(path.join(output, 'results.json'), JSON.stringify({
         passed: results.filter(item => item.passed).length, total: 4, success: !failure && results.length === 4 && cleanupCompleted,
-        cleanupCompleted, results, failure,
+        cleanupCompleted, results, failure, cleanupFailure,
       }, null, 2));
     }
     console.log('OpenBao report: ' + path.join(output, 'results.json'));
+    if (cleanupFailure) console.error(cleanupFailure);
     if (failure || !cleanupCompleted || results.length !== 4) process.exitCode = 1;
   }
 }

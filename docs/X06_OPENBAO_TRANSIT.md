@@ -2,6 +2,8 @@
 
 Adapter dùng OpenBao Transit 2.7.2 và giữ hợp đồng HTTP T16 của Crypta. OpenBao được chọn cho sandbox cách ly. Nhà cung cấp, tài khoản và phạm vi production sẽ được cấu hình theo môi trường đích. [Bản phát hành OpenBao](https://github.com/openbao/openbao/releases/tag/v2.7.2)
 
+Lượt CI của commit `ed999b6` qua cả bốn ca chức năng nhưng dừng ở bước xác nhận dọn container thử sau khi gây mất kết nối. Runner giữ ID qua bước dừng, đối chiếu tên và nhãn riêng rồi xóa container đã xác minh. Lượt chạy Docker cục bộ sau sửa đạt 4/4 và xác nhận dọn xong. [CI phát hiện lỗi dọn](https://github.com/Eyblcat12/Cryta/actions/runs/42464837335) · [Kết quả cục bộ](../tools/test-artifacts/integration/crypta-t30-test-36cce1eff0e6/openbao/results.json)
+
 | Khả năng | Hỗ trợ |
 | --- | --- |
 | Cấp khóa ký | RSA 2048/3072/4096 và ECDSA P-256/P-384/P-521 |
