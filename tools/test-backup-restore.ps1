@@ -52,8 +52,17 @@ try {
   $taskCorrupt=Join-Path $taskDirectory 'wrong-checksum.dump';Copy-Item -LiteralPath $taskDump -Destination $taskCorrupt
   [IO.File]::WriteAllText("$taskCorrupt.json",('{"sha256":"'+('0'*64)+'"}'),(New-Object Text.UTF8Encoding $false))
   Test-RestoreRejected 'Wrong checksum is rejected before database creation' $taskCorrupt ($taskTarget+'_corrupt') 'checksum does not match'
+  $taskTruncated=Join-Path $taskDirectory 'truncated.dump'
+  $taskHeader=New-Object byte[] 12
+  $taskStream=[IO.File]::OpenRead($taskDump)
+  try { if ($taskStream.Read($taskHeader,0,$taskHeader.Length) -ne $taskHeader.Length) { throw 'Fixture dump is too short.' } }
+  finally { $taskStream.Dispose() }
+  [IO.File]::WriteAllBytes($taskTruncated,$taskHeader)
+  $taskTruncatedHash=(Get-FileHash -LiteralPath $taskTruncated -Algorithm SHA256).Hash.ToLowerInvariant()
+  [IO.File]::WriteAllText("$taskTruncated.json",(@{sha256=$taskTruncatedHash;bytes=$taskHeader.Length} | ConvertTo-Json))
+  Test-RestoreRejected 'Truncated archive with a matching checksum is rejected before database creation' $taskTruncated ($taskTarget+'_truncated') 'not a readable PostgreSQL archive'
   Test-RestoreRejected 'Source database cannot be overwritten' $taskDump $taskContext.Database 'Refusing to restore into'
-  $taskAbsent=Invoke-RehearsalSql 'postgres' ("SELECT count(*) FROM pg_database WHERE datname IN ('$($taskTarget)_missing','$($taskTarget)_corrupt');")
+  $taskAbsent=Invoke-RehearsalSql 'postgres' ("SELECT count(*) FROM pg_database WHERE datname IN ('$($taskTarget)_missing','$($taskTarget)_corrupt','$($taskTarget)_truncated');")
   Test-Condition 'Rejected backup attempts created no database' ($taskAbsent.Trim() -eq '0')
   $taskRestoreWatch=[Diagnostics.Stopwatch]::StartNew()
   & (Join-Path $PSScriptRoot 'restore-crypta-test.ps1') -BackupFile $taskDump -TargetDatabase $taskTarget -IsolatedReport $ReportPath

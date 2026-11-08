@@ -45,8 +45,9 @@ $taskCiVerification = {
   if ($LASTEXITCODE -ne 0) { throw 'OpenBao provider contract integration failed.' }
   & node (Join-Path $taskCiRoot 'tools/test-release-upgrade.cjs') $ReportPath
   if ($LASTEXITCODE -ne 0) { throw 'Release upgrade and restore integration failed.' }
-  # The signal rehearsal stops the isolated backend, so run it after browser tests.
+  # The signal rehearsal leaves the backend stopped for a stable backup snapshot.
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
+  & (Join-Path $taskCiRoot 'tools/test-backup-restore.ps1') -ReportPath $ReportPath
 }
 
 $taskCiArtifactRoot = Join-Path $taskCiRoot 'tools/test-artifacts'

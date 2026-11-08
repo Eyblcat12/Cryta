@@ -31,6 +31,12 @@ $containerFile = "/tmp/crypta-restore-$id.dump"
 try {
   docker cp $resolvedBackup "${containerId}:$containerFile"
   if ($LASTEXITCODE -ne 0) { throw 'Could not copy backup into PostgreSQL container.' }
+  $copiedChecksum = docker @taskComposeArguments exec -T postgres sha256sum $containerFile
+  if ($LASTEXITCODE -ne 0 -or ($copiedChecksum -split '\s+')[0] -cne $actualHash) {
+    throw 'Copied backup checksum does not match its manifest.'
+  }
+  docker @taskComposeArguments exec -T postgres pg_restore --list $containerFile | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Backup is not a readable PostgreSQL archive.' }
   # CREATE DATABASE fails if the target exists. Keep connections closed until PUBLIC is removed.
   $taskTargetIdentifier = '"' + $TargetDatabase + '"'
   $taskCreateDatabase = "CREATE DATABASE $taskTargetIdentifier ALLOW_CONNECTIONS false;"
