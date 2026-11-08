@@ -127,7 +127,7 @@ async function refresh(){
   if(!refreshing){
     const generation=sessionGeneration,boundary=sessionBoundary;
     const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);
-    const pending=withSessionCookieLock(current,()=>request<AuthSession>('/auth/refresh',{method:'POST'},false)).then(session=>{
+    const pending=withSessionCookieLock(current,signal=>request<AuthSession>('/auth/refresh',{method:'POST',signal},false)).then(session=>{
       if(!current())throw new DOMException('Session changed','AbortError');
       const nextPermissions=sessionPermissions(session.user);
       // Do not retry an operation or accept sibling data authorized in the old scope.
@@ -173,16 +173,16 @@ function currentMfaAttempt(challenge: string) {
   return current;
 }
 
-async function mfaRequest<T>(path: string, body: { challenge: string } & Record<string, string | boolean>) {
+async function mfaRequest<T>(path: string, body: { challenge: string } & Record<string, string | boolean>, signal?: AbortSignal) {
   const current=currentMfaAttempt(body.challenge);
-  const result=await request<T>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store'},false);
+  const result=await request<T>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store',signal},false);
   if(!current())throw new DOMException('Session changed','AbortError');
   return result;
 }
 
 async function completeMfa(path: string, body: { challenge: string } & Record<string, string | boolean>) {
   const current=currentMfaAttempt(body.challenge);
-  const result=await withSessionCookieLock(current,()=>mfaRequest<AuthSession>(path,body));
+  const result=await withSessionCookieLock(current,signal=>mfaRequest<AuthSession>(path,body,signal));
   // The lock validates the previous boundary after fetch has installed the cookie.
   // Change the boundary only after that check so this response can enter the workspace.
   if(!current())throw new DOMException('Session changed','AbortError');
@@ -194,7 +194,7 @@ async function completeMfa(path: string, body: { challenge: string } & Record<st
 async function authenticate(path: '/auth/login' | '/auth/oidc/finish', body: object) {
   const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();
   const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);
-  const result=await withSessionCookieLock(current,()=>request<AuthSession|MfaChallenge>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store'},false));
+  const result=await withSessionCookieLock(current,signal=>request<AuthSession|MfaChallenge>(path,{method:'POST',body:JSON.stringify(body),cache:'no-store',signal},false));
   if(!current())throw new DOMException('Session changed','AbortError');
   if('mfa' in result){endedSession(true);return bindMfaChallenge(result)}
   return acceptSession(result);
@@ -236,18 +236,18 @@ export const api={
   },
   abandonWorkspaceRequests(){beginSession(true)},
   async restore(){if(sessionEnded())throw new ApiError('SESSION_ENDED','Hãy đăng nhập để bắt đầu phiên mới.',401);const session=await refresh();return session.user},
-  async logout(){const token=accessToken;const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();endedSession(true);const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);const assertCurrent=()=>{if(!current())throw new DOMException('Session changed','AbortError')};try{return await withSessionCookieLock(current,async()=>{
-    try{return await request<LogoutResponse>('/auth/logout',{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:undefined},false)}catch(error){
+  async logout(){const token=accessToken;const generation=beginSession(),boundary=sessionBoundary=announceCookieSessionBoundary();endedSession(true);const current=()=>generation===sessionGeneration&&cookieSessionBoundaryMatches(boundary);const assertCurrent=()=>{if(!current())throw new DOMException('Session changed','AbortError')};try{return await withSessionCookieLock(current,async signal=>{
+    try{return await request<LogoutResponse>('/auth/logout',{method:'POST',signal,headers:token?{Authorization:`Bearer ${token}`}:undefined},false)}catch(error){
       if(!(error instanceof ApiError)||error.status!==401)throw error;
       assertCurrent();
       // The lock already covers this rotation. Do not reacquire it or restore
       // the temporary logout credential into an already-ended client session.
-      const session=await request<AuthSession>('/auth/refresh',{method:'POST'},false);
+      const session=await request<AuthSession>('/auth/refresh',{method:'POST',signal},false);
       assertCurrent();
-      return request<LogoutResponse>('/auth/logout',{method:'POST',headers:{Authorization:`Bearer ${session.accessToken}`}},false);
+      return request<LogoutResponse>('/auth/logout',{method:'POST',signal,headers:{Authorization:`Bearer ${session.accessToken}`}},false);
     }
   })}finally{if(generation===sessionGeneration)beginSession()}},
-  async changePassword(currentPassword:string,newPassword:string){const generation=sessionGeneration;const result=await withSessionCookieLock(()=>generation===sessionGeneration,()=>request('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword})},false));if(generation!==sessionGeneration)throw new DOMException('Session changed','AbortError');beginSession();endedSession(true);sessionBoundary=announceCookieSessionBoundary();return result},
+  async changePassword(currentPassword:string,newPassword:string){const generation=sessionGeneration;const result=await withSessionCookieLock(()=>generation===sessionGeneration,signal=>request('/auth/change-password',{method:'POST',body:JSON.stringify({currentPassword,newPassword}),signal},false));if(generation!==sessionGeneration)throw new DOMException('Session changed','AbortError');beginSession();endedSession(true);sessionBoundary=announceCookieSessionBoundary();return result},
   async assets(signal?:AbortSignal){return(await request<AssetResponse[]>('/assets',{signal})).map(mapAsset)},
   async assetDetail(id:string,signal?:AbortSignal){return mapAsset(await request<AssetResponse>(`/assets/${id}`,{signal}))},
   async assetPage(options:{page:number;pageSize:number;status?:string;search?:string;eligible?:boolean;ownedOnly?:boolean;approvalScope?:boolean},signal?:AbortSignal){const params=new URLSearchParams({page:String(options.page),pageSize:String(options.pageSize)});if(options.status)params.set('status',options.status);if(options.search)params.set('search',options.search);if(options.eligible)params.set('eligible','true');if(options.ownedOnly)params.set('ownedOnly','true');if(options.approvalScope)params.set('approvalScope','true');const result=await request<PageResponse<AssetResponse>>(`/assets?${params}`,{signal});return {...result,items:result.items.map(mapAsset)}},

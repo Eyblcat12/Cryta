@@ -1687,16 +1687,22 @@ async function main() {
     await page.screenshot({ path: path.join(output, 'user-assets-f5.png'), fullPage: true });
     return { cookie: { name: after.name, httpOnly: after.httpOnly, sameSite: after.sameSite, path: after.path, secure: after.secure }, queryPreserved: true, cookieRotated: true };
   });
-  await test('M browser multitab/API/DB: two tabs restore one shared cookie without replay revocation', async () => {
+  for (const nativeWebLocks of [true, false]) await test(
+    nativeWebLocks ? 'M browser multitab/API/DB: two tabs restore one shared cookie without replay revocation'
+      : 'T06 browser multitab: two tabs restore one shared cookie without Web Locks', async () => {
     const user = await createUser();
     const first = await newPage(), second = await newPage(undefined, first.context);
+    if (!nativeWebLocks) await first.context.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined }));
     await first.page.goto(new URL('/assets', origin).href); await uiLogin(first.page, user.email, changedPassword);
     await first.page.getByRole('heading', { name: 'Tài sản của tôi', exact: true, level: 1 }).waitFor();
     await first.page.locator('.table-shell[aria-busy=false]').waitFor();
     await second.page.goto(new URL('/assets', origin).href);
     await second.page.getByRole('heading', { name: 'Tài sản của tôi', exact: true, level: 1 }).waitFor();
     await second.page.locator('.table-shell[aria-busy=false]').waitFor();
-    assert.equal(await first.page.evaluate(() => window.isSecureContext && typeof navigator.locks?.request === 'function'), true, 'This case requires native origin-scoped Web Locks.');
+    for (const tab of [first, second]) {
+      assert.equal(await tab.page.evaluate(() => typeof navigator.locks?.request === 'function'), nativeWebLocks);
+      if (!nativeWebLocks) assert.equal(await tab.page.evaluate(() => typeof indexedDB.open === 'function'), true);
+    }
     const before = (await first.context.cookies()).find(cookie => cookie.name === 'crypta_refresh'); assert.ok(before);
     const activeBefore = Number(sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${user.id}' AND revoked_at IS NULL`)); assert.ok(activeBefore > 0);
     const rotations = [], captureRotation = response => { if (new URL(response.url()).pathname === '/api/v1/auth/refresh') rotations.push(response.status()); };
@@ -1705,10 +1711,12 @@ async function main() {
     // cookie while the first transaction sleeps and revokes the rotated session.
     sql(`CREATE OR REPLACE FUNCTION t30_delay_multitab_rotation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.user_id='${user.id}'::uuid THEN PERFORM pg_sleep(2); END IF; RETURN NEW; END $$; CREATE TRIGGER t30_delay_multitab_rotation BEFORE INSERT ON auth_sessions FOR EACH ROW EXECUTE FUNCTION t30_delay_multitab_rotation()`);
     try {
-      await Promise.all([first.page.reload(), second.page.reload()]);
+      const refreshed = [first, second].map(tab => tab.page.waitForResponse(response =>
+        new URL(response.url()).pathname === '/api/v1/auth/refresh'));
+      await Promise.all([...refreshed, first.page.reload(), second.page.reload()]);
+      assert.deepEqual(rotations.sort(), [200, 200]);
       await Promise.all([first, second].map(tab => tab.page.getByRole('heading', { name: 'Tài sản của tôi', exact: true, level: 1 }).waitFor()));
       await Promise.all([first, second].map(tab => tab.page.locator('.table-shell[aria-busy=false]').waitFor()));
-      assert.deepEqual(rotations.sort(), [200, 200]);
       for (const tab of [first, second]) {
         assert.equal(tab.calls.filter(call => call === 'POST /auth/refresh').length, 1);
         assert.equal(tab.calls.filter(call => call === 'POST /auth/login').length, 0);
@@ -1718,14 +1726,31 @@ async function main() {
       const after = (await first.context.cookies()).find(cookie => cookie.name === 'crypta_refresh'); assert.ok(after && after.value !== before.value, 'Shared cookie must rotate.');
       const probe = await first.context.request.post(new URL('/api/v1/auth/refresh', origin).href);
       assert.equal(probe.status(), 200, 'The final shared cookie must remain usable, rather than silently revoked by replay.');
-      return { tabs: 2, nativeWebLocks: true, delaySeconds: 2, refreshStatuses: rotations, sharedCookieRotated: true, activeSessionsUnchanged: true, finalCookieRefresh: probe.status(), interceptedRequests: 0 };
+      if (!nativeWebLocks) {
+        const storedRecords = await first.page.evaluate(() => new Promise((resolve, reject) => {
+          const opening = indexedDB.open('crypta-session-coordination');
+          opening.onerror = () => reject(opening.error);
+          opening.onsuccess = () => {
+            const database = opening.result;
+            const read = database.transaction('cookie').objectStore('cookie').count();
+            database.close();
+            read.onsuccess = () => resolve(read.result);
+            read.onerror = () => reject(read.error);
+          };
+        }));
+        assert.equal(storedRecords, 0, 'Coordination storage must stay empty.');
+      }
+      return { tabs: 2, nativeWebLocks, delaySeconds: 2, refreshStatuses: rotations, sharedCookieRotated: true, activeSessionsUnchanged: true, finalCookieRefresh: probe.status(), interceptedRequests: 0 };
     } finally {
       first.page.off('response', captureRotation); second.page.off('response', captureRotation);
       sql('DROP TRIGGER IF EXISTS t30_delay_multitab_rotation ON auth_sessions; DROP FUNCTION IF EXISTS t30_delay_multitab_rotation()');
     }
   });
-  await test('M browser multitab: cross-tab logout/account switch clears the sibling and keeps it signed out', async () => {
+  for (const nativeWebLocks of [true, false]) await test(
+    nativeWebLocks ? 'M browser multitab: cross-tab logout/account switch clears the sibling and keeps it signed out'
+      : 'T06 browser multitab: account switch clears sibling data without Web Locks', async () => {
     const first = await newPage(), second = await newPage(undefined, first.context);
+    if (!nativeWebLocks) await first.context.addInitScript(() => Object.defineProperty(navigator, 'locks', { value: undefined }));
     await first.page.goto(new URL('/assets', origin).href); await uiLogin(first.page, 'dev.nguyen@congty.com');
     await first.page.getByRole('button', { name: 'KEY-DEV-001', exact: true }).first().waitFor();
     await second.page.goto(new URL('/assets', origin).href); await second.page.getByRole('button', { name: 'KEY-DEV-001', exact: true }).first().waitFor();
@@ -2025,7 +2050,7 @@ async function main() {
     }
   });
   await Promise.all(contexts.map(context => context.close()));
-  const summary = { createdUtc: new Date().toISOString(), project: stack.project, origin: origin.origin, database: stack.database, fixtureOnly: false, interceptedRequests: 0, smtpEnabled: false, provider: 'MOCK', browser: channel, browserVersion: browser.version(), buildAssets, runtimeImages, passed: results.filter(r => r.passed).length, total: results.length, results, limitations: ['Local HTTP COOKIE_SECURE=false; does not validate production TLS cookie behavior.', 'Logout revokes the refresh session; existing access JWT follows the current short TTL contract.', 'Cross-tab cookie serialization requires Web Locks; synchronous account-boundary checks require browser storage. Unsupported/non-secure contexts retain per-tab refresh behavior.', 'No short-TTL open-UI expiration, native screen reader, real provider or SMTP delivery acceptance.'] };
+  const summary = { createdUtc: new Date().toISOString(), project: stack.project, origin: origin.origin, database: stack.database, fixtureOnly: false, interceptedRequests: 0, smtpEnabled: false, provider: 'MOCK', browser: channel, browserVersion: browser.version(), buildAssets, runtimeImages, passed: results.filter(r => r.passed).length, total: results.length, results, limitations: ['Local HTTP COOKIE_SECURE=false; does not validate production TLS cookie behavior.', 'Logout revokes the refresh session; existing access JWT follows the current short TTL contract.', 'Cross-tab cookie serialization uses Web Locks or IndexedDB. With both unavailable, refresh deduplication is per tab. Account-boundary checks across tabs require local storage.', 'No short-TTL open-UI expiration, native screen reader, real provider or SMTP delivery acceptance.'] };
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(summary, null, 2), 'utf8');
   console.log(`${summary.passed}/${summary.total} real integration groups passed; report ${path.join(output, 'results.json')}`);
   if (summary.passed !== summary.total) process.exitCode = 1;

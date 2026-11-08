@@ -1,4 +1,6 @@
 const boundaryKey='crypta-session-boundary';
+const lockName = 'crypta-session-cookie';
+const lockStore = 'cookie';
 let memoryBoundary='';
 function cookieBoundary(){
   if(typeof window==='undefined')return memoryBoundary;
@@ -23,18 +25,75 @@ export function subscribeCookieSessionBoundary(listener:()=>void){
   return()=>window.removeEventListener('storage',receive);
 }
 
-// Web Locks are shared by tabs on the same origin. A rotated HttpOnly cookie is
-// installed by fetch before this lock is released; no token needs to be shared.
-// Browsers without Web Locks retain the API module's per-tab refresh dedupe.
-export async function withSessionCookieLock<T>(current:()=>boolean,operation:()=>Promise<T>):Promise<T>{
+function openCookieLockDatabase(): Promise<IDBDatabase | undefined> {
+  return new Promise((resolve, reject) => {
+    let request: IDBOpenDBRequest | undefined;
+    try { request = window.indexedDB?.open('crypta-session-coordination', 1); }
+    catch { resolve(undefined); return; }
+    if (!request) { resolve(undefined); return; }
+    const opening = request;
+    let blocked = false;
+    opening.onupgradeneeded = () => { opening.result.createObjectStore(lockStore); };
+    opening.onerror = () => resolve(undefined);
+    opening.onblocked = () => {
+      blocked = true;
+      reject(new DOMException('Session coordination is blocked', 'AbortError'));
+    };
+    opening.onsuccess = () => {
+      const database = opening.result;
+      if (blocked) { database.close(); return; }
+      database.onversionchange = () => database.close();
+      resolve(database);
+    };
+  });
+}
+
+function runInCookieTransaction<T>(database: IDBDatabase, operation: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(lockStore, 'readwrite');
+    const store = transaction.objectStore(lockStore);
+    const controller = new AbortController();
+    let result: Promise<T> | undefined;
+    let finished = false;
+    const markFinished = () => { finished = true; };
+    transaction.onabort = () => {
+      controller.abort();
+      reject(transaction.error ?? new DOMException('Session coordination stopped', 'AbortError'));
+    };
+    transaction.oncomplete = () => {
+      if (result) void result.then(resolve, reject);
+      else reject(new DOMException('Session coordination stopped', 'AbortError'));
+    };
+    // A readwrite transaction serializes tabs on this empty store. Keep one read
+    // pending until fetch installs the HttpOnly cookie. No record is written.
+    const keepPending = () => {
+      store.get(lockName).onsuccess = () => {
+        if (!result) {
+          result = operation(controller.signal);
+          void result.then(markFinished, markFinished);
+        }
+        if (!finished) keepPending();
+      };
+    };
+    keepPending();
+  });
+}
+
+// Web Locks are preferred. Both mechanisms wait for the browser to install the
+// rotated HttpOnly cookie before another tab can start a cookie operation.
+export async function withSessionCookieLock<T>(current:()=>boolean,operation:(signal?: AbortSignal)=>Promise<T>):Promise<T>{
   const boundary=cookieBoundary();
   const assertCurrent=()=>{if(!current()||!cookieSessionBoundaryMatches(boundary))throw new DOMException('Session changed while waiting','AbortError')};
-  const run=async()=>{
+  const run=async(signal?: AbortSignal)=>{
     assertCurrent();
-    const result=await operation();
+    const result=await operation(signal);
     assertCurrent();return result;
   };
-  const locks=typeof window==='undefined'?undefined:window.navigator?.locks;
-  if(!locks?.request)return run();
-  return locks.request('crypta-session-cookie',run);
+  if (typeof window === 'undefined') return run();
+  const locks = window.navigator?.locks;
+  if (locks?.request) return locks.request(lockName, () => run());
+  const database = await openCookieLockDatabase();
+  if (!database) return run();
+  try { return await runInCookieTransaction(database, run); }
+  finally { database.close(); }
 }
