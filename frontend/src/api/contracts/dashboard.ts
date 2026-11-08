@@ -7,5 +7,6 @@ export interface DashboardSummaryResponse extends Omit<DashboardSummary,'metrics
 }
 export interface DashboardResponse extends DashboardSummaryResponse {
   trend:DashboardData['trend']; composition:DashboardData['composition'];
+  trendTimeZone?: DashboardData['trendTimeZone'];
   lifecycle?:Omit<NonNullable<DashboardData['lifecycle']>,'priority'>&{priority:AssetResponse|null};
 }

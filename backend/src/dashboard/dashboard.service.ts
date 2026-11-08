@@ -4,6 +4,12 @@ import type { AuthUser,RoleCode } from '../common/auth-user';
 import { DATABASE_POOL } from '../database/database.constants';
 import { cryptoProviderMode } from '../jobs/crypto-provider-config';
 
+const trendSources = {
+  requests: { table: 'requests', timestamp: 'submitted_at', scope: 'AND creator_id = $2', daily: false },
+  decisions: { table: 'request_decisions', timestamp: 'decided_at', scope: 'AND approver_id = $2', daily: true },
+  assets: { table: 'crypto_assets', timestamp: 'created_at', scope: '', daily: false },
+} as const;
+
 @Injectable()
 export class DashboardService {
   constructor(@Inject(DATABASE_POOL) private readonly pool:Pool) {}
@@ -23,9 +29,36 @@ export class DashboardService {
 
   async get(user:AuthUser,requested?:unknown) {
     const role=this.role(user,requested);
-    if(role==='ADMIN')return this.admin();
-    if(role==='APPROVER')return this.approver(user);
-    return this.owner(user);
+    const timeZone = process.env.APP_TIME_ZONE ?? 'Asia/Ho_Chi_Minh';
+    if(role==='ADMIN')return { ...await this.admin(timeZone), trendTimeZone: timeZone };
+    if(role==='APPROVER')return { ...await this.approver(user, timeZone), trendTimeZone: timeZone };
+    return { ...await this.owner(user, timeZone), trendTimeZone: timeZone };
+  }
+
+  private trend(source: keyof typeof trendSources, timeZone: string, actorId?: string) {
+    const { table, timestamp, scope, daily } = trendSources[source];
+    const unit = daily ? 'day' : 'month';
+    const lookback = daily ? '6 days' : '5 months';
+    const format = daily ? 'YYYY-MM-DD' : 'YYYY-MM';
+    // Keep the timestamp column usable by range indexes. The extra UTC day at
+    // each end covers timezone offsets and repeated local midnights.
+    return this.pool.query<{ period: string; value: number }>(`
+      WITH calendar AS (
+        SELECT date_trunc('${unit}', NOW() AT TIME ZONE $1::text) AS last_bucket
+      ), buckets AS (
+        SELECT generate_series(last_bucket - INTERVAL '${lookback}', last_bucket, INTERVAL '1 ${unit}') AS period
+        FROM calendar
+      ), totals AS (
+        SELECT date_trunc('${unit}', ${timestamp} AT TIME ZONE $1::text) AS period, COUNT(*)::int AS value
+        FROM ${table} CROSS JOIN calendar
+        WHERE ${timestamp} >= ((last_bucket - INTERVAL '${lookback}') AT TIME ZONE 'UTC') - INTERVAL '24 hours'
+          AND ${timestamp} < ((last_bucket + INTERVAL '1 ${unit}') AT TIME ZONE 'UTC') + INTERVAL '24 hours'
+          ${scope}
+        GROUP BY 1
+      )
+      SELECT TO_CHAR(buckets.period, '${format}') AS period, COALESCE(totals.value, 0) AS value
+      FROM buckets LEFT JOIN totals USING (period)
+      ORDER BY buckets.period`, actorId === undefined ? [timeZone] : [timeZone, actorId]);
   }
 
   private async ownerMetrics(user:AuthUser) {
@@ -42,10 +75,10 @@ export class DashboardService {
     return {...assets.rows[0],...requests.rows[0]};
   }
 
-  private async owner(user:AuthUser) {
+  private async owner(user:AuthUser, timeZone: string) {
     const [metrics,trend,composition,priority]=await Promise.all([
       this.ownerMetrics(user),
-      this.pool.query(`SELECT TO_CHAR(month,'YYYY-MM') period,COUNT(r.id)::int value FROM generate_series(date_trunc('month',NOW())-INTERVAL '5 months',date_trunc('month',NOW()),INTERVAL '1 month') month LEFT JOIN requests r ON r.creator_id=$1 AND date_trunc('month',r.submitted_at)=month GROUP BY month ORDER BY month`,[user.id]),
+      this.trend('requests', timeZone, user.id),
       this.pool.query(`SELECT asset_type label,COUNT(*)::int value FROM crypto_assets WHERE owner_id=$1 GROUP BY asset_type`,[user.id]),
       this.pool.query(`SELECT id,owner_id AS "ownerId",department_id AS "departmentId",asset_code AS code,purpose,asset_type AS type,status,expires_at AS "expiresAt",policy_version_id AS "policyVersionId",version
         FROM crypto_assets WHERE owner_id=$1 AND status='EXPIRING_SOON' ORDER BY expires_at ASC,id ASC LIMIT 1`,[user.id]),
@@ -61,10 +94,10 @@ export class DashboardService {
     return {...queue.rows[0],...decisions.rows[0]};
   }
 
-  private async approver(user:AuthUser) {
+  private async approver(user:AuthUser, timeZone: string) {
     const [metrics,trend]=await Promise.all([
       this.approverMetrics(user),
-      this.pool.query(`SELECT TO_CHAR(day,'YYYY-MM-DD') period,COUNT(d.id)::int value FROM generate_series(current_date-6,current_date,INTERVAL '1 day') day LEFT JOIN request_decisions d ON d.approver_id=$1 AND d.decided_at>=day AND d.decided_at<day+INTERVAL '1 day' GROUP BY day ORDER BY day`,[user.id]),
+      this.trend('decisions', timeZone, user.id),
     ]);
     return {role:'APPROVER',metrics,trend:trend.rows,composition:[{label:'APPROVED',value:metrics.approved},{label:'REJECTED',value:metrics.rejected},{label:'PENDING',value:metrics.pending}]};
   }
@@ -87,10 +120,10 @@ export class DashboardService {
 
   private services() {return {cryptoProvider:cryptoProviderMode(),email:process.env.SMTP_ENABLED==='true'?'ENABLED':'DISABLED',expiryScan:'ACTIVE'}}
 
-  private async admin() {
+  private async admin(timeZone: string) {
     const [metrics,trend,composition]=await Promise.all([
       this.adminMetrics(),
-      this.pool.query(`SELECT TO_CHAR(month,'YYYY-MM') period,COUNT(a.id)::int value FROM generate_series(date_trunc('month',NOW())-INTERVAL '5 months',date_trunc('month',NOW()),INTERVAL '1 month')month LEFT JOIN crypto_assets a ON date_trunc('month',a.created_at)=month GROUP BY month ORDER BY month`),
+      this.trend('assets', timeZone),
       this.pool.query(`SELECT status label,COUNT(*)::int value FROM crypto_assets GROUP BY status ORDER BY value DESC`),
     ]);
     return {role:'ADMIN',metrics,trend:trend.rows,composition:composition.rows,services:this.services()};

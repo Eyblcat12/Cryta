@@ -58,6 +58,7 @@ const insightData: Record<UserRole, {
   title: string;
   description: string;
   trendLabel: string;
+  trendUnit: string;
   periods: string[];
   values: number[];
   donutTitle: string;
@@ -66,26 +67,31 @@ const insightData: Record<UserRole, {
 }> = {
   USER: {
     eyebrow: 'Xu hướng cá nhân', title: 'Yêu cầu đã gửi', description: 'Số yêu cầu bạn đã gửi trong 6 tháng gần nhất.',
-    trendLabel: 'Yêu cầu tháng này',
+    trendLabel: 'Yêu cầu tháng này', trendUnit: 'yêu cầu',
     periods: ['T4', 'T5', 'T6', 'T7', 'T8', 'T9'], values: [0, 0, 0, 0, 0, 0],
     donutTitle: 'Cơ cấu tài sản', donutCaption: 'tài sản',
     segments: [{ label: 'Khóa mã hóa', value: 0, tone: 'brand' }, { label: 'Chứng thư số', value: 0, tone: 'blue' }],
   },
   APPROVER: {
     eyebrow: 'Năng lực xử lý', title: 'Quyết định phê duyệt', description: 'Số quyết định của bạn trong 7 ngày gần nhất.',
-    trendLabel: 'Quyết định trong 7 ngày',
+    trendLabel: 'Quyết định trong 7 ngày', trendUnit: 'quyết định',
     periods: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'], values: [0, 0, 0, 0, 0, 0, 0],
     donutTitle: 'Kết quả 30 ngày', donutCaption: 'quyết định',
     segments: [{ label: 'Phê duyệt', value: 0, tone: 'green' }, { label: 'Từ chối', value: 0, tone: 'red' }],
   },
   ADMIN: {
     eyebrow: 'Toàn hệ thống', title: 'Tăng trưởng tài sản', description: 'Số tài sản được ghi nhận mới mỗi tháng, trong 6 tháng gần nhất.',
-    trendLabel: 'Tài sản hiện tại',
+    trendLabel: 'Tài sản hiện tại', trendUnit: 'tài sản',
     periods: ['T4', 'T5', 'T6', 'T7', 'T8', 'T9'], values: [0, 0, 0, 0, 0, 0],
     donutTitle: 'Trạng thái toàn hệ thống', donutCaption: 'tài sản',
     segments: [{ label: 'Hoạt động', value: 0, tone: 'green' }, { label: 'Sắp hết hạn', value: 0, tone: 'amber' }, { label: 'Khác', value: 0, tone: 'neutral' }],
   },
 };
+
+const dayTick = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', weekday: 'short' });
+const monthTick = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', month: 'short' });
+const dayDetail = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', dateStyle: 'short' });
+const monthDetail = new Intl.DateTimeFormat('vi-VN', { timeZone: 'UTC', month: 'long', year: 'numeric' });
 
 export function OverviewInsights({ role, dashboard }: { role: UserRole; dashboard?: Partial<DashboardData> | null }) {
   const fallback = insightData[role];
@@ -94,7 +100,10 @@ export function OverviewInsights({ role, dashboard }: { role: UserRole; dashboar
   const liveSegments: Array<DashboardData['composition'][number] & { tone?: string }> | null =
     Array.isArray(dashboard?.composition) ? dashboard.composition : null;
   const values=(liveTrend??fallback.values.map((value,index)=>({period:fallback.periods[index],value}))).map(item=>Number(item.value));
-  const periods=(liveTrend??fallback.periods.map(period=>({period}))).map(item=>{const raw=String(item.period);if(!liveTrend)return raw;const date=new Date(`${raw}${raw.length===7?'-01':''}T00:00:00`);return role==='APPROVER'?new Intl.DateTimeFormat('vi-VN',{weekday:'short'}).format(date):new Intl.DateTimeFormat('vi-VN',{month:'short'}).format(date)});
+  const dates = liveTrend?.map(({ period }) => new Date(`${period}${period.length === 7 ? '-01' : ''}T00:00:00Z`));
+  const periods = dates?.map(date => (role === 'APPROVER' ? dayTick : monthTick).format(date)) ?? fallback.periods;
+  const pointLabels = dates?.map((date, index) =>
+    `${(role === 'APPROVER' ? dayDetail : monthDetail).format(date)}: ${values[index]} ${fallback.trendUnit}`);
   const segments=(liveSegments??fallback.segments).filter(item => role !== 'APPROVER' || item.label !== 'PENDING')
     .map(item=>({label:labels[item.label]?.label??item.label,value:Number(item.value),tone:labels[item.label]?.tone??item.tone??'neutral'}));
   const segmentTotal=segments.reduce((sum,item)=>sum+item.value,0);
@@ -122,16 +131,16 @@ export function OverviewInsights({ role, dashboard }: { role: UserRole; dashboar
 
   return <section className="overview-insights" aria-label={`${data.title} và ${data.donutTitle}`}>
     <article className="insight-card trend-card">
-      <header className="insight-header"><div><p className="eyebrow">{data.eyebrow}</p><h2>{data.title}</h2><span>{data.description}</span></div><div className="trend-summary"><span>{data.trendLabel}</span><strong>{data.trendValue}</strong><small>{currentValue === undefined ? 'Chưa có dữ liệu' : 'Theo dữ liệu hệ thống'}</small></div></header>
+      <header className="insight-header"><div><p className="eyebrow">{data.eyebrow}</p><h2>{data.title}</h2><span>{data.description}{dashboard?.trendTimeZone && ` Múi giờ ${dashboard.trendTimeZone}.`}</span></div><div className="trend-summary"><span>{data.trendLabel}</span><strong>{data.trendValue}</strong><small>{currentValue === undefined ? 'Chưa có dữ liệu' : 'Theo dữ liệu hệ thống'}</small></div></header>
       <figure className="trend-figure">
-        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${data.title}: ${data.periods.map((period:string, index:number) => `${period} ${data.values[index]}`).join(', ')}`} preserveAspectRatio="none">
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${data.title}: ${pointLabels?.join(', ') ?? 'Chưa có dữ liệu'}`} preserveAspectRatio="none">
           <defs><linearGradient id={`trend-fill-${role}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--brand)" stopOpacity=".22" /><stop offset="1" stopColor="var(--brand)" stopOpacity="0" /></linearGradient></defs>
           <path className="chart-grid-line" d="M18 30H542M18 72H542M18 114H542" />
           <polygon points={`18,${height - 8} ${points} 542,${height - 8}`} fill={`url(#trend-fill-${role})`} />
           <polyline className="trend-line" points={points} />
-          {data.values.map((value:number, index:number) => {
+          {data.values.map((_, index) => {
             const [x, y] = points.split(' ')[index].split(',');
-            return <circle key={data.periods[index]} className="trend-point" cx={x} cy={y} r="3.5"><title>{data.periods[index]}: {value}</title></circle>;
+            return <circle key={data.periods[index]} className="trend-point" cx={x} cy={y} r="3.5">{pointLabels && <title>{pointLabels[index]}</title>}</circle>;
           })}
         </svg>
         <figcaption>{data.periods.map((period:string) => <span key={period}>{period}</span>)}</figcaption>

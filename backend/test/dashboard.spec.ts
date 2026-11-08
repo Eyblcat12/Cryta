@@ -17,7 +17,12 @@ describe('page dashboard and shell summary contracts',()=>{
     const result=await service.get({...user,roles:['ADMIN','USER']},'USER');
     expect(result.role).toBe('USER');expect(result.metrics.total).toBe(317);
     expect(result).toMatchObject({lifecycle:{live:307,within30:8,within180:100,after180:199,priority:{id:'asset-300'}}});
-    for(const [sql,values] of query.mock.calls){expect(values).toEqual(['owner']);expect(sql).not.toContain('LIMIT 250');expect(sql).not.toContain('FROM users')}
+    const timeZone = process.env.APP_TIME_ZONE ?? 'Asia/Ho_Chi_Minh';
+    expect(result.trendTimeZone).toBe(timeZone);
+    for(const [sql,values] of query.mock.calls){
+      expect(values).toEqual(sql.includes('generate_series') ? [timeZone, 'owner'] : ['owner']);
+      expect(sql).not.toContain('LIMIT 250');expect(sql).not.toContain('FROM users');
+    }
     const aggregateSql=query.mock.calls.find(([sql])=>sql.includes('COUNT(*)::int total'))![0];
     expect(aggregateSql).toContain('WHERE owner_id=$1');expect(aggregateSql).toContain("status IN('ACTIVE','EXPIRING_SOON') AND expires_at<=NOW()+INTERVAL '30 days'");
     expect(aggregateSql).toContain("expires_at>NOW()+INTERVAL '30 days' AND expires_at<=NOW()+INTERVAL '180 days'");
@@ -28,7 +33,7 @@ describe('page dashboard and shell summary contracts',()=>{
     const query=vi.fn(async(sql:string,_values?:unknown[])=>({rows:[sql.includes('FROM crypto_assets')?aggregate:{pending:7}]}));
     const service=new DashboardService({query} as unknown as Pool);
     const result=await service.summary({...user,roles:['ADMIN','USER']},'USER');
-    expect(result).toMatchObject({role:'USER',metrics:{total:317,pending:7}});expect(result).not.toHaveProperty('trend');expect(result).not.toHaveProperty('composition');expect(result).not.toHaveProperty('lifecycle');
+    expect(result).toMatchObject({role:'USER',metrics:{total:317,pending:7}});expect(result).not.toHaveProperty('trend');expect(result).not.toHaveProperty('trendTimeZone');expect(result).not.toHaveProperty('composition');expect(result).not.toHaveProperty('lifecycle');
     expect(query).toHaveBeenCalledTimes(2);for(const [sql,values] of query.mock.calls){expect(sql).not.toContain('generate_series');expect(values).toEqual(['owner'])}
   });
   it('approver counters use server department scope and decisions belonging to that approver',async()=>{

@@ -48,6 +48,8 @@ APP_URL=https://crypta.tenmien.com
 APP_TIME_ZONE=Asia/Ho_Chi_Minh
 ```
 
+`APP_TIME_ZONE` đặt múi giờ hiển thị trong email và mốc ngày, tháng của biểu đồ Tổng quan. Mặc định là `Asia/Ho_Chi_Minh`. Biểu đồ 7 ngày gồm ngày hiện tại và 6 ngày trước. Biểu đồ 6 tháng gồm tháng hiện tại và 5 tháng trước.
+
 Sau đó chạy lại `start-crypta.cmd`. Backend xác minh kết nối SMTP khi khởi động. Email được lưu vào bảng `notifications` và gửi nền. Security Admin dùng **Vận hành email → Gửi thử** để gửi thư xác minh, rồi kiểm tra hộp thư đích. API tương ứng là `POST /api/v1/notifications/test-email`. Trường hợp kết quả gửi không chắc chắn chuyển sang `RECONCILIATION_REQUIRED` để đối chiếu. [Hướng dẫn đối soát email](EMAIL_OPERATIONS.md)
 
 Khi đặt sau HTTPS/reverse proxy ở môi trường thật, đổi `APP_ORIGIN` sang domain HTTPS và `COOKIE_SECURE=true`.

@@ -428,9 +428,11 @@ async function main() {
       assert.equal(metrics.failed_jobs + metrics.email_reconciliation, listed.total);
       const ownerData = await dashboard('USER', dev.accessToken);
       const approverData = await dashboard('APPROVER', approver.accessToken);
-      for (const [session, label, total] of [
-        [dev, 'Yêu cầu tháng này', ownerData.trend.at(-1).value],
-        [approver, 'Quyết định trong 7 ngày', approverData.trend.reduce((sum, item) => sum + item.value, 0)],
+      const adminData = await dashboard('ADMIN', admin.accessToken);
+      for (const [session, label, total, unit] of [
+        [dev, 'Yêu cầu tháng này', ownerData.trend.at(-1).value, 'yêu cầu'],
+        [approver, 'Quyết định trong 7 ngày', approverData.trend.reduce((sum, item) => sum + item.value, 0), 'quyết định'],
+        [admin, 'Tài sản hiện tại', adminData.metrics.total_assets, 'tài sản'],
       ]) {
         const { context, page, errors } = await newPage();
         try {
@@ -440,6 +442,15 @@ async function main() {
           const trend = ready.locator('.trend-summary').filter({ hasText: label });
           await trend.waitFor();
           assert.equal(await trend.locator('strong').textContent(), String(total));
+          const chart = ready.locator('.trend-card');
+          await chart.getByText(/Múi giờ Asia\/Ho_Chi_Minh/).waitFor();
+          const points = await chart.locator('svg circle title').allTextContents();
+          assert.equal(points.length, session === approver ? 7 : 6);
+          const periodPattern = session === approver ? /\d+\/\d+\/\d+:/ : /\d{4}:/;
+          assert.ok(points.every(point => point.endsWith(unit) && periodPattern.test(point)));
+          const labelText = await chart.getByRole('img').getAttribute('aria-label');
+          assert.ok(points.every(point => labelText.includes(point)));
+          await chart.screenshot({ path: path.join(output, `t29-${unit === 'yêu cầu' ? 'owner' : unit === 'quyết định' ? 'approver' : 'admin'}.png`), animations: 'disabled' });
           if (session === approver) {
             const donut = ready.locator('.composition-card').filter({ hasText: 'Kết quả 30 ngày' });
             assert.equal(await donut.locator('.donut-chart strong').textContent(), String(approverData.metrics.approved + approverData.metrics.rejected));
@@ -451,7 +462,75 @@ async function main() {
     } finally {
       sql(`DELETE FROM notifications WHERE deduplication_key LIKE '${prefix}-%';`);
     }
-    return { emailChannelOnly: true, ownerMonth: true, approverSevenDays: true, decisionsThirtyDays: true };
+    return { emailChannelOnly: true, ownerMonth: true, approverSevenDays: true, decisionsThirtyDays: true, adminAssetTotal: true, chartLabels: 3 };
+  });
+  await test('T29: calendar trends assign midnight boundaries in the application timezone for all roles', async () => {
+    const actors = [['USER', dev], ['APPROVER', approver], ['ADMIN', admin]];
+    const trends = () => Promise.all(actors.map(async ([role, actor]) =>
+      expectStatus(await call('GET', `/dashboard?role=${role}`, undefined, actor.accessToken), 200)));
+    const bounds = JSON.parse(sql(`WITH dates AS (SELECT
+      date_trunc('month', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '1 month' AS month_start,
+      date_trunc('day', NOW() AT TIME ZONE 'Asia/Ho_Chi_Minh') - INTERVAL '2 days' AS day_start)
+      SELECT json_build_object('month',month_start AT TIME ZONE 'Asia/Ho_Chi_Minh',
+        'previousMonth',to_char(month_start - INTERVAL '1 month','YYYY-MM'),
+        'currentMonth',to_char(month_start,'YYYY-MM'),
+        'day',day_start AT TIME ZONE 'Asia/Ho_Chi_Minh',
+        'previousDay',to_char(day_start - INTERVAL '1 day','YYYY-MM-DD'),
+        'currentDay',to_char(day_start,'YYYY-MM-DD')) FROM dates;`));
+    const month = `'${bounds.month}'::timestamptz`, day = `'${bounds.day}'::timestamptz`;
+    const prefix = `t29-calendar-${randomUUID()}`;
+    const decisionRequestIds = [randomUUID(), randomUUID()];
+    const decisionRequests = decisionRequestIds.map(id => `'${id}'`).join(',');
+    const before = await trends();
+    try {
+      sql(`BEGIN;
+        INSERT INTO requests(request_type,creator_id,department_id,policy_version_id,status,reason,submitted_at)
+        SELECT 'CREATE','${dev.user.id}','${it}','${policy.id}','CANCELLED','${prefix}',
+          CASE WHEN n=0 THEN ${month} - INTERVAL '1 millisecond' ELSE ${month} END
+        FROM generate_series(0,321) n;
+        INSERT INTO requests(request_type,creator_id,department_id,policy_version_id,status,reason,submitted_at)
+        SELECT 'CREATE','${finance.user.id}','${finance.user.departmentId}','${policy.id}','CANCELLED','${prefix}',${month}
+        FROM generate_series(1,287);
+        INSERT INTO requests(id,request_type,creator_id,department_id,policy_version_id,reason)
+        SELECT id::uuid,'CREATE','${account.user.id}','${it}','${policy.id}','${prefix}'
+        FROM unnest(ARRAY[${decisionRequests}]) AS requests(id);
+        INSERT INTO request_decisions(request_id,approver_id,decision,decided_at)
+        VALUES ('${decisionRequestIds[0]}','${approver.user.id}','APPROVED',${day}-INTERVAL '1 millisecond'),
+          ('${decisionRequestIds[1]}','${approver.user.id}','APPROVED',${day});
+        INSERT INTO crypto_assets(asset_code,asset_type,owner_id,department_id,policy_version_id,purpose,valid_from,expires_at,created_at)
+        SELECT '${prefix}-'||n,'KEY','${account.user.id}','${it}','${policy.id}','${prefix}',NOW(),NOW()+INTERVAL '1 day',
+          CASE WHEN n=0 THEN ${month} - INTERVAL '1 millisecond' ELSE ${month} END
+        FROM generate_series(0,401) n;
+        COMMIT;`);
+      const after = await trends();
+      const expected = [
+        [6, { [bounds.previousMonth]: 1, [bounds.currentMonth]: 321 }],
+        [7, { [bounds.previousDay]: 1, [bounds.currentDay]: 1 }],
+        [6, { [bounds.previousMonth]: 1, [bounds.currentMonth]: 401 }],
+      ];
+      after.forEach((data, index) => {
+        const [count, deltas] = expected[index];
+        assert.equal(data.trend.length, count);
+        const original = new Map(before[index].trend.map(row => [row.period, row.value]));
+        assert.deepEqual(data.trend.map(row => row.period), [...original.keys()]);
+        const changed = Object.fromEntries(data.trend.filter(row => row.value !== original.get(row.period))
+          .map(row => [row.period, row.value - original.get(row.period)]));
+        assert.deepEqual(changed, deltas);
+        assert.equal(data.trendTimeZone, 'Asia/Ho_Chi_Minh');
+      });
+      assert.equal(after[1].metrics.approved, before[1].metrics.approved + 2);
+      assert.equal(after[2].metrics.total_assets, before[2].metrics.total_assets + 402);
+      return { zone: 'Asia/Ho_Chi_Minh', localMidnightExact: true, ownerRequests: 322, foreignRequests: 287, assets: 402,
+        decisions: 2, buckets: after.map(({ role, trend }) => ({ role, periods: trend.length })) };
+    } finally {
+      sql(`BEGIN;
+        ALTER TABLE request_decisions DISABLE TRIGGER trg_request_decision_immutable;
+        DELETE FROM request_decisions WHERE request_id IN (${decisionRequests});
+        ALTER TABLE request_decisions ENABLE TRIGGER trg_request_decision_immutable;
+        DELETE FROM requests WHERE reason='${prefix}';
+        DELETE FROM crypto_assets WHERE purpose='${prefix}';
+        COMMIT;`);
+    }
   });
   await test('T28: only Admin can read redacted SMTP delivery detail', async () => {
     const rejected = randomUUID(), unknown = randomUUID(), inApp = randomUUID();
