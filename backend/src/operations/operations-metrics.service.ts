@@ -25,12 +25,17 @@ const QUEUE_SNAPSHOT = {
   text: `
     WITH asset_queue AS (
       SELECT json_build_object(
-        'ready', COUNT(*) FILTER (WHERE status = 'APPROVED'),
+        'ready', COUNT(ready_since),
         'processing', COUNT(*) FILTER (WHERE status = 'PROCESSING'),
-        'oldestReadySeconds', EXTRACT(EPOCH FROM statement_timestamp() -
-          MIN(updated_at) FILTER (WHERE status = 'APPROVED'))
+        'oldestReadySeconds', EXTRACT(EPOCH FROM statement_timestamp() - MIN(ready_since))
       ) AS assets
-      FROM requests WHERE status IN ('APPROVED', 'PROCESSING')
+      FROM (
+        SELECT r.status, CASE WHEN r.status = 'APPROVED' AND (
+          op.request_id IS NULL OR (op.status = 'CLAIMED' AND op.retry_after <= statement_timestamp())
+        ) THEN GREATEST(r.updated_at, op.retry_after) END AS ready_since
+        FROM requests r LEFT JOIN provider_operations op ON op.request_id = r.id AND r.status = 'APPROVED'
+        WHERE r.status IN ('APPROVED', 'PROCESSING')
+      ) queue_entries
     ), provider_queue AS (
       SELECT json_build_object(
         'reconciliationRequired', COUNT(*),

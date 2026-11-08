@@ -81,12 +81,13 @@ async function main(reportArg, tokenArg) {
     throw new Error('Isolated database did not recover.');
   }
   const requestId = randomUUID();
+  const scheduledId = randomUUID();
   const notificationId = randomUUID();
   const remove = () => sql(`
     BEGIN;
     DELETE FROM notifications WHERE id = '${notificationId}';
-    DELETE FROM provider_operations WHERE request_id = '${requestId}';
-    DELETE FROM requests WHERE id = '${requestId}';
+    DELETE FROM provider_operations WHERE request_id IN ('${requestId}', '${scheduledId}');
+    DELETE FROM requests WHERE id IN ('${requestId}', '${scheduledId}');
     COMMIT;
   `);
   let fixturesInserted = false;
@@ -113,13 +114,22 @@ async function main(reportArg, tokenArg) {
       FROM requests WHERE id = '0eeeeeee-1111-1111-1111-111111111111';
       INSERT INTO provider_operations(request_id, operation_type, status, last_error_code)
       VALUES ('${requestId}', 'CREATE', 'RECONCILIATION_REQUIRED', 'CRYPTO_PROVIDER_HTTP_503');
+      INSERT INTO requests(id, request_type, creator_id, department_id, policy_version_id, status, reason, updated_at)
+      SELECT '${scheduledId}', 'CREATE', creator_id, department_id, policy_version_id,
+        'APPROVED', 'monitor retry fixture', now() - interval '10 minutes'
+      FROM requests WHERE id = '${requestId}';
+      INSERT INTO provider_operations(request_id, operation_type, status, claim_version, retry_after)
+      VALUES ('${scheduledId}', 'CREATE', 'CLAIMED', 1, now() + interval '15 minutes');
       INSERT INTO notifications(id, recipient_id, request_id, type, channel, delivery_status, deduplication_key)
       SELECT '${notificationId}', creator_id, id, 'REQUEST_APPROVED', 'EMAIL',
         'RECONCILIATION_REQUIRED', 'monitor-test:${notificationId}' FROM requests WHERE id = '${requestId}';
       COMMIT;
     `);
     fixturesInserted = true;
-    observe(await sample());
+    const withScheduledRetry = await sample();
+    assert.equal(withScheduledRetry.ASSET_QUEUE_DELAYED, false, 'A future retry must not signal an asset queue delay.');
+    reportOut.scheduledRetryExcluded = true;
+    observe(withScheduledRetry);
     observe(await sample(), [
       ['operations.alert_opened', 'PROVIDER_RECONCILIATION_REQUIRED'],
       ['operations.alert_opened', 'EMAIL_RECONCILIATION_REQUIRED'],

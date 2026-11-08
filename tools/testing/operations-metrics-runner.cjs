@@ -69,8 +69,9 @@ async function verifyQueues() {
   const originalSmtp = process.env.SMTP_ENABLED;
   try {
     await pool.query(`
-      CREATE TEMP TABLE requests (status text, updated_at timestamptz);
-      CREATE TEMP TABLE provider_operations (status text, updated_at timestamptz, last_error_code text);
+      CREATE TEMP TABLE requests (id integer PRIMARY KEY, status text, updated_at timestamptz);
+      CREATE TEMP TABLE provider_operations (request_id integer PRIMARY KEY, status text, updated_at timestamptz,
+        last_error_code text, retry_after timestamptz);
       CREATE TEMP TABLE notifications (channel text, delivery_status text, scheduled_for timestamptz, failed_at timestamptz)
     `);
     const metrics = new OperationsMetricsService(pool);
@@ -81,12 +82,33 @@ async function verifyQueues() {
     assert.deepEqual(empty.signals, []);
     await pool.query(`
       INSERT INTO pg_temp.requests VALUES
-        ('APPROVED', now() - interval '180 seconds'), ('APPROVED', now() - interval '5 seconds'),
-        ('PROCESSING', now()), ('PENDING', now() - interval '1 day');
+        (1, 'APPROVED', now() - interval '1 hour'), (2, 'APPROVED', now() - interval '1 hour'),
+        (3, 'APPROVED', now() - interval '1 hour');
       INSERT INTO pg_temp.provider_operations VALUES
-        ('RECONCILIATION_REQUIRED', now(), 'CRYPTO_PROVIDER_HTTP_503'),
-        ('RECONCILIATION_REQUIRED', now() - interval '1 minute', NULL),
-        ('COMPLETED', now() + interval '1 day', 'ignored');
+        (1, 'CLAIMED', now(), NULL, now() + interval '5 minutes'),
+        (2, 'CLAIMED', now(), NULL, NULL),
+        (3, 'FAILED', now(), 'ignored', NULL);
+    `);
+    const deferred = await metrics.snapshot();
+    assert.equal(deferred.assets.ready, 0, 'A scheduled or unclaimable request is not ready.');
+    assert.equal(deferred.assets.oldestReadySeconds, null);
+    assert.deepEqual((await metrics.monitorSnapshot()).signals, []);
+    await pool.query("UPDATE pg_temp.provider_operations SET retry_after=now()-interval '5 seconds' WHERE request_id=1");
+    const due = await metrics.snapshot();
+    assert.equal(due.assets.ready, 1);
+    assert.ok(due.assets.oldestReadySeconds >= 5 && due.assets.oldestReadySeconds < 15);
+    assert.deepEqual((await metrics.monitorSnapshot()).signals, []);
+    await pool.query("UPDATE pg_temp.provider_operations SET retry_after=now()-interval '125 seconds' WHERE request_id=1");
+    assert.deepEqual((await metrics.monitorSnapshot()).signals, ['ASSET_QUEUE_DELAYED']);
+    await pool.query(`
+      UPDATE pg_temp.provider_operations SET retry_after=now()-interval '5 seconds' WHERE request_id=1;
+      INSERT INTO pg_temp.requests VALUES
+        (4, 'APPROVED', now() - interval '180 seconds'),
+        (5, 'PROCESSING', now()), (6, 'PENDING', now() - interval '1 day');
+      INSERT INTO pg_temp.provider_operations VALUES
+        (7, 'RECONCILIATION_REQUIRED', now(), 'CRYPTO_PROVIDER_HTTP_503', NULL),
+        (8, 'RECONCILIATION_REQUIRED', now() - interval '1 minute', NULL, NULL),
+        (9, 'COMPLETED', now() + interval '1 day', 'ignored', NULL);
       INSERT INTO pg_temp.notifications VALUES
         ('EMAIL', 'PENDING', now() - interval '360 seconds', NULL),
         ('EMAIL', 'PENDING', now() + interval '1 hour', NULL),
@@ -112,7 +134,8 @@ async function verifyQueues() {
     assert.ok(enabled.email.lastFailedAt);
     assert.deepEqual(disabled.signals, ['ASSET_QUEUE_DELAYED', 'PROVIDER_RECONCILIATION_REQUIRED', 'EMAIL_RECONCILIATION_REQUIRED']);
     assert.deepEqual(enabled.signals, ['ASSET_QUEUE_DELAYED', 'PROVIDER_RECONCILIATION_REQUIRED', 'EMAIL_QUEUE_DELAYED', 'EMAIL_RECONCILIATION_REQUIRED']);
-    return { emptyAgesAreNull: true, databaseTempTables: true, disabledSignals: disabled.signals, enabledSignals: enabled.signals,
+    return { emptyAgesAreNull: true, databaseTempTables: true, retryWindow: { deferred: deferred.assets, due: due.assets },
+      disabledSignals: disabled.signals, enabledSignals: enabled.signals,
       assets: enabled.assets, provider: enabled.provider, email: enabled.email };
   } finally {
     process.env.SMTP_ENABLED = originalSmtp;

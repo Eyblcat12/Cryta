@@ -42,7 +42,7 @@ Mỗi tiến trình giữ kết quả và thời gian chạy gần nhất của 
 
 | Tín hiệu | Điều kiện | Đầu mối xử lý đề xuất |
 | --- | --- | --- |
-| `ASSET_QUEUE_DELAYED` | Có yêu cầu APPROVED chờ từ 120 giây | Vận hành worker |
+| `ASSET_QUEUE_DELAYED` | Có yêu cầu đủ điều kiện được worker nhận và đã chờ từ 120 giây. Retry bắt đầu tính khi đến giờ đã hẹn. | Vận hành worker |
 | `PROVIDER_RECONCILIATION_REQUIRED` | Có ít nhất một thao tác provider cần đối soát | Vận hành mật mã |
 | `EMAIL_QUEUE_DELAYED` | SMTP bật và email đã đến hạn chờ từ 300 giây | Vận hành email |
 | `EMAIL_RECONCILIATION_REQUIRED` | Có ít nhất một email cần đối soát | Vận hành email |
@@ -100,3 +100,7 @@ Collector đạt 6/6 ca CLI và HTTP loopback, gồm phát lại sự kiện đa
 Đưa diễn tập monitor vào job tích hợp CI ngay sau smoke. Lượt Windows xác minh ba phản hồi 401 và một phản hồi 200 theo quyền, sáu chuyển trạng thái DB/provider/email, hai lần nạp lại trạng thái và log audit fallback đã lọc. PostgreSQL dừng thật trong stack cách ly. Provider và email dùng fixture đối soát. [Kết quả diễn tập](tools/test-artifacts/integration/crypta-t30-test-8dcea8453cae/operations-monitor.json) · [Quy trình CI](tools/ci/README.md)
 
 GitHub Actions đạt 5/5 job. Báo cáo monitor trong artifact đã tải xác nhận sáu chuyển trạng thái, hai lần nạp lại, giữ nguyên tiến trình API và lọc credential. [Lượt CI](https://github.com/Eyblcat12/Cryta/actions/runs/42489230598) · [Đối chiếu SHA-256](docs/CI_REMOTE_2026-11-07.md)
+
+Metrics hàng tài sản loại retry chưa tới giờ và yêu cầu có operation mà worker không thể nhận. Retry mới đến hạn tính tuổi từ `retry_after` nếu mốc đó muộn hơn `updated_at`. PostgreSQL bản trước đếm 3 yêu cầu sẵn sàng trong ca không có yêu cầu đủ điều kiện. Bản sửa đếm 0, trả tuổi `null` và giữ tín hiệu tắt. Khi retry đến hạn 5 giây, metrics đếm 1 và tuổi khoảng 5 giây. Ca quá hạn 125 giây phát tín hiệu. [Tái hiện](tools/test-artifacts/t44-retry-window-before.log) · [Kết quả sau sửa](tools/test-artifacts/integration/crypta-t30-test-c2da34e3d857/operations-metrics.json)
+
+Collector qua Nginx xác nhận retry hẹn sau 15 phút không sinh cảnh báo hàng tài sản và vẫn ghi đủ sáu chuyển trạng thái DB/provider/email. Hồi quy tải trên bản sửa đạt mốc p95 thử cho 11/11 nhóm API ở cả ba mức 4, 16 và 32 request đồng thời, 528 request mỗi mức. Phép đo đọc metrics ở đầu và cuối từng mức. [Collector](tools/test-artifacts/integration/crypta-t30-test-a17d0f83603e/operations-monitor.json) · [Hồi quy tải](tools/test-artifacts/integration/crypta-t30-test-c2da34e3d857/capacity-retry-queue-metrics.json)
