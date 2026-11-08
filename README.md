@@ -138,7 +138,7 @@ Backup thủ công khi PostgreSQL đang chạy:
 powershell -ExecutionPolicy Bypass -File .\tools\backup-crypta.ps1
 ```
 
-Tệp `.dump` và manifest SHA-256 nằm trong `backups/` (đã được Git bỏ qua). Diễn tập phục hồi chỉ vào **database mới**, không ghi đè database ứng dụng:
+Tệp `.dump` và manifest SHA-256 nằm trong `backups/` (đã được Git bỏ qua). Lệnh sao lưu đối chiếu SHA-256 giữa dump trong container và bản sao cục bộ, rồi công bố manifest sau cùng. Chỉ đưa cặp dump và manifest đầy đủ vào kho sao lưu. Nếu tiến trình bị dừng đột ngột, tệp `.partial` hoặc dump thiếu manifest là bản ghi dở. Diễn tập phục hồi chỉ vào **database mới**, không ghi đè database ứng dụng:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\restore-crypta-test.ps1 -BackupFile .\backups\TEN_TEP.dump -TargetDatabase crypta_restore_test

@@ -30,6 +30,21 @@ function Test-RestoreRejected([string]$Name,[string]$File,[string]$Target,[strin
   catch { $taskRejected=$_.Exception.Message -match $Expected }
   Test-Condition $Name $taskRejected
 }
+function Test-DamagedBackupCopy {
+  $taskDestination=Join-Path $taskDirectory 'damaged-copy'
+  $taskDockerBinary=(Get-Command docker -CommandType Application | Select-Object -First 1).Source
+  function docker {
+    & $taskDockerBinary @args
+    if ($args[0] -eq 'cp' -and $LASTEXITCODE -eq 0) {
+      $taskFile=[IO.File]::Open($args[2],[IO.FileMode]::Open,[IO.FileAccess]::Write)
+      try { $taskFile.SetLength($taskFile.Length - 1) } finally { $taskFile.Dispose() }
+    }
+  }
+  $taskRejected=$false
+  try { & (Join-Path $PSScriptRoot 'backup-crypta.ps1') -OutputDirectory $taskDestination -IsolatedReport $ReportPath }
+  catch { $taskRejected=$_.Exception.Message -eq 'Backup copy checksum does not match the source archive.' }
+  Test-Condition 'A damaged transfer is rejected without publishing a dump or manifest' ($taskRejected -and @(Get-ChildItem -LiteralPath $taskDestination -Force).Count -eq 0)
+}
 $taskWatch=[Diagnostics.Stopwatch]::StartNew()
 $taskOutput=[ordered]@{project=$taskContext.Project;sourceDatabase=$taskContext.Database;targetDatabase=$taskTarget;fixtureOnly=$false;provider='MOCK';smtpEnabled=$false;success=$false;results=$taskResults;createdUtc=[DateTimeOffset]::UtcNow.ToString('o')}
 try {
@@ -43,6 +58,7 @@ try {
   $taskOutput.otherContainerIdentityComparisonHasSubjects=($taskBeforeOthers.Count -gt 0)
   $taskSource=@(Get-RehearsalSnapshot $taskContext.Database)
   $taskSourceSequences=Invoke-RehearsalSql $taskContext.Database "SELECT sequencename,last_value FROM pg_sequences WHERE schemaname='public' ORDER BY sequencename;"
+  Test-DamagedBackupCopy
   & (Join-Path $PSScriptRoot 'backup-crypta.ps1') -OutputDirectory $taskDirectory -IsolatedReport $ReportPath
   $taskDump=(Get-ChildItem -LiteralPath $taskDirectory -Filter '*.dump' | Select-Object -First 1).FullName
   $taskManifest=Get-Content -LiteralPath "$taskDump.json" -Raw | ConvertFrom-Json
