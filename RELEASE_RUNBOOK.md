@@ -14,6 +14,12 @@ node tools/build-release-images.cjs <full-commit-sha> <release-version>
 
 Sau khi kiểm tích hợp đạt, GitHub Actions dùng script này trên commit của lượt chạy với phiên bản tạm `0.0.0-ci.<run-id>.<attempt>`. Artifact `release-build-manifest` lưu SHA commit, nhãn, ID của hai image và hash của context. Image của lượt CI nằm trên runner tạm. Khi bàn giao, lưu image với phiên bản đã duyệt theo quy trình dưới đây. [Workflow](.github/workflows/ci.yml)
 
+Đối chiếu thêm artifact `release-image-security` của cùng lượt CI. Có thể chạy lại cổng Critical/High trên hai image local sau khi build. Backend dùng CLI Node đã biên dịch trong image runtime. Các lệnh npm để phát triển vẫn chạy từ mã nguồn hoặc trong giai đoạn build. [Phạm vi kiểm](tools/ci/README.md)
+
+```powershell
+node tools/ci/scan-release-images.cjs tools/test-artifacts/releases/<version>-<short-sha>/manifest.json
+```
+
 Giữ manifest, `.env.example` và changelog cùng bản phát hành. Thêm `--archive` để đóng gói hai image thành `images.tar` và ghi kích thước, SHA-256 vào manifest. Chuyển archive và manifest đã duyệt cùng nhau. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
 
 Hai Dockerfile ghim digest của manifest OCI đa kiến trúc cho Node.js 22.23.4 và Nginx 1.30.6 trên Alpine. Khi cập nhật bản vá, xác minh tag chính thức và thay cả tag lẫn digest trong cùng thay đổi. Build lại rồi chạy smoke, kiểm phiên HTTPS và kiểm proxy phục hồi khi backend đổi IP. [Node.js 22.23.4](https://nodejs.org/en/blog/release/v22.23.4) · [Bản vá Nginx](https://nginx.org/en/security_advisories.html)

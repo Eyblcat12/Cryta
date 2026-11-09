@@ -85,7 +85,7 @@ jobs:
           retention-days: 14
   integration:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     needs: [verify, lint, secret-scan]
     steps:
       - uses: actions/checkout@v4
@@ -115,6 +115,18 @@ jobs:
           name: release-build-manifest
           path: tools/test-artifacts/releases/*/manifest.json
           if-no-files-found: error
+          retention-days: 14
+      - name: Scan release images for Critical and High vulnerabilities
+        run: |
+          version="0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          node tools/ci/scan-release-images.cjs "tools/test-artifacts/releases/${version}-${GITHUB_SHA:0:12}/manifest.json"
+      - name: Preserve release image security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-image-security
+          path: tools/test-artifacts/releases/*/image-security.json
+          if-no-files-found: ignore
           retention-days: 14
       - name: Preserve isolated integration reports
         if: always()
