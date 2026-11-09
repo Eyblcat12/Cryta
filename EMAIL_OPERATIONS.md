@@ -8,6 +8,10 @@ Khi bật SMTP, API chỉ hoàn tất startup sau khi cấu hình hợp lệ và
 
 Bộ kiểm SMTP loopback dùng relay có chứng thư sinh tạm. Khi CA chưa được tin cậy, worker dừng trước AUTH. Khi thêm CA vào bộ tin cậy của tiến trình thử, relay nhận AUTH và DATA sau STARTTLS, chấp nhận đúng một thư và ứng dụng ghi `EMAIL_TEST_ACCEPTED`. [Bài kiểm](backend/test/email-test-smtp.integration.ts)
 
+Ngày 09/11, hai image từ commit `51c9a4a` chạy Compose production trên Docker trong WSL với PostgreSQL TLS và relay STARTTLS cách ly. PostgreSQL có bản ghi `SENT` ngay lần thử đầu cho cả bốn loại thư được kiểm, gồm thư duyệt, tài sản sắp hết hạn, lời mời và đặt lại mật khẩu. Relay hoàn tất 15 phiên STARTTLS có AUTH, nhận 14 thư và ghi 0 lệnh AUTH hoặc DATA qua kết nối chưa mã hóa. Smoke HTTPS đạt 10/10. Đã dọn stack thử và đối chiếu 15 container ngoài stack giữ nguyên ID. [Báo cáo diễn tập](tools/test-artifacts/crypta-ca-test-039355c91717/report.json)
+
+Job backend trên GitHub xác nhận 7/7 ca SMTP trên `51c9a4a`, gồm ca STARTTLS có xác thực. Artifact `13692863421` khớp SHA-256 `d87d396c3cd954d12974138f910444b2292ff8dd9882658057adb6a311ef92f7`. [GitHub Actions](https://github.com/Eyblcat12/Cryta/actions/runs/42658794991)
+
 ## Gửi thư kiểm tra
 
 Chỉ Security Admin đang hoạt động được dùng `POST /api/v1/notifications/test-email`. Giới hạn dùng chung DB là một lượt/Admin/phút và năm lượt/toàn hệ thống/phút; quá hạn trả 429. Ghi audit giữ lượt trước khi gửi và nhả khóa DB trước kết nối SMTP. Mỗi lượt có operation ID và Message-ID `<email-test-UUID@domain-cua-SMTP_FROM>`. Theo correlation của phản hồi, Admin có thể tra API audit với `correlationId=req_UUID`, rồi đối chiếu operation ID và hộp thư.
