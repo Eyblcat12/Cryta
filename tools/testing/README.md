@@ -38,7 +38,19 @@ HTTP fixture giữ mutation pending để fieldset disabled thật. Từ nút Đ
 
 ## Luồng nghiệp vụ và điều hướng với PostgreSQL
 
-`node tools/test-real-integration.cjs <report.json> <node_modules-co-playwright> msedge` (hoặc `chrome`) hiện có 35 nhóm. T49 thêm chuỗi cấp mới, gia hạn và thu hồi từ giao diện qua Approver tới worker MOCK. Hai nhóm từ chối kiểm bàn phím, tên người duyệt, lý do và các mốc sau F5 ở 1440 px sáng và 390 px tối. [Kịch bản nghiệm thu](../../docs/NGHIEM_THU_UAT.md)
+`node tools/test-real-integration.cjs <report.json> <node_modules-co-playwright> msedge` (hoặc `chrome`) chạy bộ tích hợp trình duyệt và API. T49 thêm chuỗi cấp mới, gia hạn và thu hồi từ giao diện qua Approver tới worker MOCK. Hai nhóm từ chối kiểm bàn phím, tên người duyệt, lý do và các mốc sau F5 ở 1440 px sáng và 390 px tối. [Kịch bản nghiệm thu](../../docs/NGHIEM_THU_UAT.md)
+
+Thêm `-RuntimeLogin` khi dựng stack để chạy bộ trình duyệt với tài khoản PostgreSQL giới hạn quyền. Runner nạp migration bằng CLI riêng, áp dụng `runtime-grants.sql`, rồi khởi động API ở chế độ `validate`. Báo cáo chỉ ghi `runtimeLoginVerified=true` khi `pg_stat_activity` xác nhận API kết nối bằng đúng tài khoản runtime. PostgreSQL, provider MOCK và SMTP tắt đều thuộc stack cách ly.
+
+```powershell
+./tools/test-isolated-stack.ps1 -Port 18240 -RuntimeLogin -VerifyStack {
+  param([string]$ReportPath)
+  node ./tools/test-real-integration.cjs $ReportPath (Resolve-Path ./tools/ci/node_modules).Path chromium
+  if ($LASTEXITCODE -ne 0) { throw 'Runtime Chromium integration failed.' }
+}
+```
+
+Chuẩn bị Playwright và Chromium theo [hướng dẫn CI](../ci/README.md). Bỏ `-RuntimeLogin` khi dùng bộ kiểm cần kết nối quản trị DB từ container backend để tự cấp database tạm.
 
 Ba nhóm trong [delayed-navigation.cjs](delayed-navigation.cjs) kiểm route change, logout/đổi tài khoản và ADMIN→USER khi GET assets đang chờ PostgreSQL. Các report cũ giữ nguyên source và image theo từng lượt.
 

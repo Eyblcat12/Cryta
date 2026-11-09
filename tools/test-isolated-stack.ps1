@@ -4,6 +4,7 @@ param(
   [switch]$PrepareOnly,
   [switch]$KeepStack,
   [switch]$RequireMfa,
+  [switch]$RuntimeLogin,
   [ValidateRange(1024,65535)][int]$OidcPort,
   [ValidateRange(1024,65535)][int]$SessionTlsPort,
   [scriptblock]$VerifyStack
@@ -23,6 +24,7 @@ if ($OidcPort -and (-not $RequireMfa -or $OidcPort -eq $Port -or $Port -eq 8080 
 if ($SessionTlsPort -and (-not $VerifyStack -or $OidcPort -or $SessionTlsPort -in @($Port,8080))) {
   throw 'The isolated HTTPS session check needs a verification callback and a dedicated proxy port.'
 }
+if ($RuntimeLogin -and $PrepareOnly) { throw 'The isolated runtime login requires starting PostgreSQL.' }
 
 function New-TestSecret {
   $bytes = New-Object byte[] 32
@@ -33,8 +35,10 @@ function New-TestSecret {
 
 [void](New-Item -ItemType Directory -Path $taskArtifactPath)
 $taskEnvironmentPath = Join-Path $taskArtifactPath 'test.env'
+$taskPostgresPassword = New-TestSecret
+$taskBootstrapUrl = "postgresql://crypta_t30_test:${taskPostgresPassword}@postgres:5432/crypta_t30_test"
 $taskEnvironment = @(
-  "POSTGRES_PASSWORD=$(New-TestSecret)"
+  "POSTGRES_PASSWORD=$taskPostgresPassword"
   "JWT_ACCESS_SECRET=$(New-TestSecret)"
   "T30_TEST_PORT=$Port"
   "T30_TEST_ACCESS_TTL=$(if ($AccessTtlSeconds) { "$($AccessTtlSeconds)s" } else { '15m' })"
@@ -68,6 +72,7 @@ $taskReport = [ordered]@{
   database = 'crypta_t30_test'
   provider = 'MOCK'
   smtpEnabled = $false
+  runtimeLogin = [bool]$RuntimeLogin
   mfaRequired = [bool]$RequireMfa
   accessTtlSeconds = $(if ($AccessTtlSeconds) { $AccessTtlSeconds } else { 900 })
   fixtureOnly = $false
@@ -104,6 +109,7 @@ try {
     if ($volume.Value.external -eq $true -or $volume.Value.name -notlike "$($taskProject)_*") { throw 'Test volume is not owned by the fresh test project.' }
   }
   if ($taskConfig.services.backend.environment.CRYPTO_PROVIDER_MODE -ne 'MOCK' -or [string]$taskConfig.services.backend.environment.SMTP_ENABLED -ne 'false') { throw 'Test configuration must disable real provider/email effects.' }
+  if ($taskConfig.services.backend.environment.DATABASE_URL -cne $taskBootstrapUrl) { throw 'Unexpected isolated bootstrap database connection.' }
   if ($SessionTlsPort -and ($taskConfig.services.backend.environment.CORS_ORIGIN -cne $taskReport.sessionTlsOrigin -or
       $taskConfig.services.backend.environment.APP_URL -cne $taskReport.sessionTlsOrigin -or
       [string]$taskConfig.services.backend.environment.COOKIE_SECURE -cne 'true')) {
@@ -117,6 +123,31 @@ try {
   $taskReport.started = $true
   $taskReport.status = 'STARTING'
   Save-TestReport
+  if ($RuntimeLogin) {
+    & docker @taskComposeArgs up --detach --wait --wait-timeout 120 postgres
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated PostgreSQL did not become ready for migration.' }
+    & docker @taskComposeArgs run --rm --no-deps --build -T backend node dist/database/migrate.js
+    if ($LASTEXITCODE -ne 0) { throw 'Isolated operator migration failed.' }
+
+    $taskRuntimeRole = 'crypta_t30_runtime'
+    $taskRuntimePassword = New-TestSecret
+    $taskPsql = @('exec','-T','postgres','psql','-X','-U','crypta_t30_test','-d','crypta_t30_test','-At','-v','ON_ERROR_STOP=1')
+    "CREATE ROLE $taskRuntimeRole LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS PASSWORD '$taskRuntimePassword';" |
+      & docker @taskComposeArgs @taskPsql 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not provision the isolated runtime role.' }
+    Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'testing/runtime-grants.sql') |
+      & docker @taskComposeArgs @taskPsql -v database=crypta_t30_test -v "runtime_role=$taskRuntimeRole" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Could not apply the isolated runtime grants.' }
+
+    $taskRuntimeUrl = "postgresql://${taskRuntimeRole}:${taskRuntimePassword}@postgres:5432/crypta_t30_test"
+    [IO.File]::AppendAllLines($taskEnvironmentPath, [string[]]@('', "T30_TEST_DATABASE_URL=$taskRuntimeUrl", 'T30_TEST_MIGRATION_MODE=validate'))
+    $taskConfigText = & docker @taskComposeArgs config --format json
+    if ($LASTEXITCODE -ne 0) { throw 'Could not validate isolated runtime configuration.' }
+    $taskRuntimeConfig = (($taskConfigText -join [Environment]::NewLine) | ConvertFrom-Json).services.backend.environment
+    if ($taskRuntimeConfig.DATABASE_URL -cne $taskRuntimeUrl -or $taskRuntimeConfig.DATABASE_MIGRATION_MODE -cne 'validate') {
+      throw 'Unexpected isolated runtime database connection or migration mode.'
+    }
+  }
   & docker @taskComposeArgs up --detach --build
   if ($LASTEXITCODE -ne 0) { throw 'Isolated stack build/start failed.' }
   $taskDeadline = [DateTimeOffset]::UtcNow.AddMinutes(4)
@@ -129,6 +160,11 @@ try {
     Start-Sleep -Seconds 2
   }
   if (-not $taskReady) { throw 'Isolated test API did not become ready.' }
+  if ($RuntimeLogin) {
+    $taskActiveRole = & docker @taskComposeArgs @taskPsql -c "SELECT DISTINCT usename FROM pg_stat_activity WHERE datname=current_database() AND application_name='crypta-api';"
+    if ($LASTEXITCODE -ne 0 -or @($taskActiveRole).Count -ne 1 -or $taskActiveRole -cne $taskRuntimeRole) { throw 'API connections did not use the isolated runtime role.' }
+    $taskReport.runtimeLoginVerified = $true
+  }
   & (Join-Path $PSScriptRoot 'smoke-spa-routes.ps1') -BaseUrl $taskReport.origin
   $taskReport.spaSmokePassed = $true
   if (-not $RequireMfa) {

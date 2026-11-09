@@ -10,7 +10,7 @@ services:
       - ../../database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ../../seed_data.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U crypta_t30_test -d crypta_t30_test"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U crypta_t30_test -d crypta_t30_test"]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -20,7 +20,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://crypta_t30_test:${POSTGRES_PASSWORD}@postgres:5432/crypta_t30_test
+      DATABASE_URL: ${T30_TEST_DATABASE_URL:-postgresql://crypta_t30_test:${POSTGRES_PASSWORD}@postgres:5432/crypta_t30_test}
       DATABASE_MIGRATION_MODE: ${T30_TEST_MIGRATION_MODE:-apply}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Test JWT secret required}
       JWT_ACCESS_TTL: ${T30_TEST_ACCESS_TTL:-15m}
