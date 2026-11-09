@@ -527,7 +527,8 @@ if(require.main===module)(async()=>{
       assert(Math.abs(after-before)<=2,`dashboard footer moved ${after-before}px`);assert.equal(await outline.count(),0);assert.equal(mutations.length,0);
     },{dashboardDelay:1500}));
     for(const width of [1440,390])await test(browser,`N4 ${width}px users loading retains pagination and column geometry`,()=>withFixture(browser,'ADMIN',async({page})=>{
-      await page.setViewportSize({width,height:1000});await page.goto(origin+'/users');await page.getByText('Đang tải tài khoản…',{exact:true}).waitFor();
+      await page.setViewportSize({width,height:1000});await page.goto(origin+'/users');
+      await page.locator('#users').getByRole('status').filter({hasText:'Đang tải tài khoản…'}).waitFor();
       assert.equal(await page.locator('.users-table .table-loading-row').count(),25);assert.equal(await page.getByRole('row').count(),1);
       const before=await page.locator('.admin-asset-pagination').evaluate(element=>element.getBoundingClientRect().top+scrollY);
       const widths=await page.locator('.users-table th').evaluateAll(items=>items.map(item=>item.getBoundingClientRect().width));
@@ -537,7 +538,8 @@ if(require.main===module)(async()=>{
     },{userDelay:1500}));
     await test(browser,'N4 same-query user refresh keeps rows, locks writes and drops them when permission is lost',()=>withFixture(browser,'ADMIN',async({page,state,mutations})=>{
       await page.goto(origin+'/users');const row=page.getByRole('row').filter({hasText:'person1@example.test'});await row.waitFor();
-      state.userDelay=900;state.userFail=true;await row.getByRole('button',{name:'Vô hiệu hóa'}).click();await page.getByText('Đang cập nhật tài khoản…',{exact:true}).waitFor();
+      state.userDelay=900;state.userFail=true;await row.getByRole('button',{name:'Vô hiệu hóa'}).click();
+      await page.locator('#users').getByRole('status').filter({hasText:'Đang cập nhật tài khoản…'}).waitFor();
       assert.equal(await row.count(),1);assert.equal(await row.getByRole('button',{name:'Vô hiệu hóa'}).isDisabled(),true);
       await page.getByRole('alert').filter({hasText:'Tài khoản tạm thời không khả dụng. Đang hiển thị dữ liệu lần tải trước.'}).waitFor();assert.equal(await row.count(),1);assert.equal(await row.getByRole('button',{name:'Vô hiệu hóa'}).isDisabled(),true);
       state.userFail=false;state.userDenied=true;await page.getByRole('button',{name:'Thử lại',exact:true}).click();await page.getByRole('alert').filter({hasText:'Quyền xem tài khoản đã thay đổi.'}).waitFor();assert.equal(await row.count(),0);assert.equal(mutations.length,1);
@@ -545,7 +547,8 @@ if(require.main===module)(async()=>{
     await test(browser,'N4 a different users query clears the previous rows while the new read is pending',()=>withFixture(browser,'ADMIN',async({page,state})=>{
       await page.goto(origin+'/users');await page.getByRole('row').filter({hasText:'person1@example.test'}).waitFor();state.userDelay=1000;
       await page.getByPlaceholder('Tên, email hoặc phòng ban',{exact:true}).fill('person35@example.test');await page.locator('.admin-asset-controls').getByRole('button',{name:'Tìm',exact:true}).click();
-      await page.getByText('Đang tải tài khoản…',{exact:true}).waitFor();assert.equal(await page.getByRole('row').filter({hasText:'person1@example.test'}).count(),0);await page.getByRole('row').filter({hasText:'person35@example.test'}).waitFor();
+      await page.locator('#users').getByRole('status').filter({hasText:'Đang tải tài khoản…'}).waitFor();
+      assert.equal(await page.getByRole('row').filter({hasText:'person1@example.test'}).count(),0);await page.getByRole('row').filter({hasText:'person35@example.test'}).waitFor();
     }));
     await test(browser,'NAV-21 loss after leaving a pending form remains visible on the destination page',()=>withFixture(browser,'USER',async({page,state,mutations})=>{
       let release;state.mutationGate=new Promise(resolve=>release=resolve);state.lostResponse='/requests';
@@ -944,9 +947,18 @@ if(require.main===module)(async()=>{
       await page.goto(origin+'/notifications?page=2');await page.getByRole('button',{name:'Xem chi tiết',exact:true}).first().click();await page.locator('#notifications').getByRole('alert').filter({hasText:'Quyền xem tài sản'}).waitFor();assert.equal(new URL(page.url()).pathname,'/notifications');assert.equal(new URL(page.url()).searchParams.get('page'),'2');assert.equal(mutations.length,0);
       await page.getByRole('button',{name:'Chuyển sang giao diện tối'}).click();assert.equal(await page.locator('#notifications').getByRole('alert').count(),1);state.detailDenied='';await page.getByRole('button',{name:'Xem chi tiết',exact:true}).first().click();await visible(page,'Tài sản 300');await page.locator('.resource-region[aria-label="Chi tiết"][aria-busy="false"]').waitFor();assert.equal(mutations.filter(mutation=>mutation.endpoint==='/notifications/notification-11/read').length,1);assert.equal(calls.filter(call=>call==='GET /assets/asset-300').length>=2,true);
     },{notificationItems:true,detailDenied:'asset-300'}));
-    await test(browser,'Missing and unlinked notification targets give persistent errors without a read mutation',()=>withFixture(browser,'USER',async({page,state,mutations})=>{
+    await test(browser,'Missing and unavailable notification targets give persistent errors without a read mutation',()=>withFixture(browser,'USER',async({page,state,mutations,calls})=>{
       await page.goto(origin+'/notifications?page=2');await page.getByRole('button',{name:'Xem chi tiết',exact:true}).first().click();await page.locator('#notifications').getByRole('alert').filter({hasText:'Không tìm thấy tài sản'}).waitFor();assert.equal(mutations.length,0);
-      state.notificationMissing=false;state.notificationNoTarget=true;await page.reload();await page.getByRole('button',{name:'Xem chi tiết',exact:true}).first().click();await page.locator('#notifications').getByRole('alert').filter({hasText:'không còn liên kết'}).waitFor();assert.equal(mutations.length,0);
+      state.notificationMissing=false;
+      state.notificationNoTarget=true;
+      await page.reload();
+      const beforeOpen=calls.length;
+      await page.getByRole('button',{name:'Xem chi tiết',exact:true}).first().click();
+      const alert=page.locator('#notifications').getByRole('alert');
+      await alert.filter({hasText:'Không thể mở nội dung thông báo. Có thể quyền xem đã thay đổi.'}).waitFor();
+      assert.equal(new URL(page.url()).searchParams.get('page'),'2');
+      assert.equal(calls.slice(beforeOpen).some(call=>/^GET \/(?:assets|requests)\//.test(call)),false);
+      assert.equal(mutations.length,0);
     },{notificationItems:true,notificationMissing:true}));
     await test(browser,'Access target switching asks before discarding role and scope edits',()=>withFixture(browser,'ADMIN',async({page,mutations})=>{
       await page.goto(origin+'/users/access');await page.getByLabel('Người dùng',{exact:true}).selectOption('person-1');await page.getByLabel('Vai trò',{exact:true}).selectOption('APPROVER');await page.getByRole('checkbox').first().check();

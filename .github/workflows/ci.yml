@@ -124,6 +124,7 @@ jobs:
           path: |
             tools/test-artifacts/integration/**/report.json
             tools/test-artifacts/integration/**/results.json
+            tools/test-artifacts/integration/**/spa-workspace/results-chromium.json
             tools/test-artifacts/integration/**/ci-verification.json
             tools/test-artifacts/integration/**/operations-monitor.json
             tools/test-artifacts/integration/**/*.png

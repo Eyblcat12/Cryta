@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $taskCiRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $taskCiTooling = Join-Path $PSScriptRoot 'node_modules'
 if ($env:CRYPTA_REAL_TEST_FILTER) { throw 'Clear CRYPTA_REAL_TEST_FILTER before running full CI verification.' }
+if ($env:CRYPTA_UI_TEST_FILTER) { throw 'Clear CRYPTA_UI_TEST_FILTER before running full CI verification.' }
 if (-not (Test-Path -LiteralPath (Join-Path $taskCiTooling 'playwright/package.json'))) {
   throw 'Install the pinned tools/ci dependencies before integration verification.'
 }
@@ -37,6 +38,36 @@ $taskCiVerification = {
   }
   & node (Join-Path $taskCiRoot 'tools/test-real-integration.cjs') $ReportPath $taskCiTooling chromium
   if ($LASTEXITCODE -ne 0) { throw 'Real Chromium integration failed.' }
+
+  $workspaceOutput = Join-Path (Split-Path -Parent $ReportPath) 'spa-workspace'
+  $workspaceSettings = @{
+    CRYPTA_UI_TEST_URL = $taskCiReport.origin
+    CRYPTA_UI_TEST_OUTPUT = $workspaceOutput
+    CRYPTA_UI_TEST_MOTION = 'off'
+    CRYPTA_TEST_BROWSER = 'chromium'
+  }
+  $workspacePrevious = @{}
+  try {
+    foreach ($name in $workspaceSettings.Keys) {
+      $workspacePrevious[$name] = [Environment]::GetEnvironmentVariable($name)
+      [Environment]::SetEnvironmentVariable($name, $workspaceSettings[$name])
+    }
+    & node (Join-Path $taskCiRoot 'tools/test-spa-workspace.cjs') $taskCiTooling
+    if ($LASTEXITCODE -ne 0) { throw 'Chromium workspace fixture verification failed.' }
+    $workspaceResults = Get-Content -Raw -LiteralPath (Join-Path $workspaceOutput 'results-chromium.json') | ConvertFrom-Json
+    if ($workspaceResults.fixtureOnly -ne $true -or $workspaceResults.origin -cne $taskCiReport.origin -or
+        $workspaceResults.browserChannel -cne 'chromium' -or $workspaceResults.motionMode -cne 'off' -or
+        $workspaceResults.results.Count -lt 1 -or $workspaceResults.testFilter -or
+        @($workspaceResults.results | Where-Object status -cne 'passed').Count -ne 0 -or
+        ($workspaceResults.buildAssets -join '|') -cne ($taskCiReport.buildAssets -join '|')) {
+      throw 'Chromium workspace results did not match the isolated build.'
+    }
+  } finally {
+    foreach ($name in $workspacePrevious.Keys) {
+      [Environment]::SetEnvironmentVariable($name, $workspacePrevious[$name])
+    }
+  }
+
   & node (Join-Path $taskCiRoot 'tools/test-real-reports.cjs') $ReportPath $taskCiTooling
   if ($LASTEXITCODE -ne 0) { throw 'Real report export integration failed.' }
   & node (Join-Path $taskCiRoot 'tools/test-real-audit-anchor.cjs') $ReportPath

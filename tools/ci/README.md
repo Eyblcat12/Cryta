@@ -8,6 +8,10 @@ Workflow `Build and test` chạy build/unit theo package, ESLint và quét bí m
 
 `run-integration.ps1` dựng project Docker mới, chạy smoke rồi lần lượt gọi các bộ parser, ledger, quyền runtime, phục hồi worker, hết hạn, giao email và trình duyệt/API. Stack dùng seed, provider MOCK và SMTP tắt. Các bài giao thư dựng SMTP loopback riêng. Sau thành công hoặc lỗi, script dọn stack và kiểm danh tính container ngoài project.
 
+Sau ca Chromium với PostgreSQL, CI chạy trọn bộ hồi quy điều hướng, trạng thái tải và trợ năng T30/T34 trên cùng bundle do Nginx phục vụ, với motion mặc định tắt. Bộ này dùng API mô phỏng trong từng phiên trình duyệt. Script từ chối bộ lọc để tránh bỏ qua ca kiểm và đối chiếu tên bundle với smoke. Báo cáo `spa-workspace/results-chromium.json` nằm trong `integration-results`. [Bộ kiểm trình duyệt](../test-spa-workspace.cjs)
+
+Lượt diễn tập cục bộ ngày 09/11 đạt 193/193, gồm tám ca T34. Tên bundle khớp smoke và stack đã được dọn. [Kết quả Chromium](../test-artifacts/integration/crypta-t30-test-077b32d068ec/spa-workspace/results-chromium.json) · [Báo cáo stack](../test-artifacts/integration/crypta-t30-test-077b32d068ec/report.json)
+
 Ngay sau smoke, CI diễn tập monitor trên stack đầu tiên để kiểm quyền đọc tín hiệu, cảnh báo khi PostgreSQL dừng và trạng thái khi PostgreSQL phục hồi. Runner tự cấp credential ngẫu nhiên cho stack này và xóa file credential sau lượt chạy. Workflow lưu `operations-monitor.json` cùng artifact `integration-results`. [Phạm vi diễn tập T44](../../T44_HEALTH_READINESS_2026-11-06.md)
 
 CI dùng stack riêng với access TTL 20 giây và proxy HTTPS loopback để kiểm vòng đời phiên bằng Chromium và đồng hồ thật của máy chủ. Runner dùng OpenSSL để tạo chứng thư thử và ghim khóa công khai trong trình duyệt. Các ca kiểm cookie Secure/HttpOnly/SameSite, origin CORS, refresh sau khi access token hết hạn và đăng xuất. Một subdomain cùng site gửi được cookie nhưng nhận HTTP 403 khi Origin nằm ngoài danh sách cho phép. Bài kiểm đối chiếu rằng phiên cũ vẫn hoạt động và không phát sinh phiên mới trong PostgreSQL. Báo cáo nằm trong `integration-results`. [Phạm vi kiểm T06](../../T05_USER_ADMINISTRATION_2026-11-06.md)
