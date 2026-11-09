@@ -136,6 +136,16 @@ Lệnh cần đủ chỗ trống trong thư mục tạm của operator để ch�
 
 Ngày 09/11, operator có `CREATEDB` và `NOSUPERUSER` phục hồi qua TLS vào database cách ly. Bốn ca bị từ chối gồm checksum sai, dump bị cắt dù checksum đã tính lại, tên database nguồn và tên đích đã có. Lệnh phục hồi hợp lệ mất 6,25 giây. Dữ liệu 28 bảng và sequence audit khớp. Sau khi cấp quyền runtime, API đăng nhập và đọc được yêu cầu đã hoàn tất, lịch sử tài sản và Audit Log. Provider thử vẫn ghi đúng một lần cấp sau khi khởi động lại. [Báo cáo](tools/test-artifacts/crypta-ca-test-e498bf0e5acb/report.json)
 
+### Giám sát bản sao đã bàn giao
+
+Kiểm từ nơi lưu độc lập hoặc thư mục đã nhận bản sao. Dùng một thư mục riêng cho mỗi database và giữ nguyên tên dump cùng manifest. Giá trị `1440` dưới đây là ngưỡng ví dụ tính bằng phút. Đặt ngưỡng thực theo RPO được duyệt.
+
+```powershell
+node tools/check-backup.cjs --directory C:\crypta-operator\offsite-copy --database crypta --max-age-minutes 1440
+```
+
+Lệnh kiểm manifest được công bố gần nhất, tuổi snapshot, kích thước và SHA-256. Lệnh trả `0` khi đạt, `1` khi cần cảnh báo và `2` khi cấu hình sai. Một dòng JSON `operations.backup_check` có `owner=database` cho collector định tuyến theo `code`. Đưa cả lỗi của lệnh sao lưu và tín hiệu kiểm bản sao vào kênh người trực. Dùng diễn tập phục hồi để xác nhận dữ liệu, khả năng khởi động API và RTO. [Lệnh kiểm](tools/check-backup.cjs)
+
 ## Trước khi nâng cấp
 
 1. Ghi lại Git SHA, image ID/digest, PostgreSQL major version, DB đích, ledger, role runtime/migrator và chế độ provider/SMTP. Đối chiếu phạm vi provider, `APP_URL`, cookie HTTPS và đường kết nối DB của bản mới với cấu hình vận hành. Giữ sẵn image cũ và cấu hình tương thích trong kho bí mật.

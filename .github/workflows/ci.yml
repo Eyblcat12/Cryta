@@ -74,8 +74,8 @@ jobs:
           mkdir -p ci-results
           npm audit --prefix tools/ci --json --audit-level=high --registry=https://registry.npmjs.org > ci-results/tooling-audit.json
       - run: npm --prefix tools/ci run lint
-      - name: Verify operations monitor and alert recovery
-        run: node --test tools/testing/monitor-operations.test.cjs
+      - name: Verify operations and backup monitoring
+        run: node --test tools/testing/monitor-operations.test.cjs tools/testing/check-backup.test.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
