@@ -38,7 +38,7 @@ Các kết quả dưới đây là kiểm thử kỹ thuật hỗ trợ nghiệm
 
 ### Đối chiếu bằng chứng theo commit
 
-Ngày 08/11/2026, `fd4577145db8db35a38437b7f81501ad78549142` đạt 65/65 nhóm Chromium qua Nginx và PostgreSQL trên stack cách ly. Bảng dùng các nhóm đã kiểm trong artifact `integration-results` ID `13621983579`. Ca Chromium nằm trong `real-chromium-1794149721819/results.json`. Provider dùng MOCK trong luồng chính và các ca email chạy loopback riêng. [Lượt GitHub Actions](https://github.com/Eyblcat12/Cryta/actions/runs/42491755494) · [Digest artifact](CI_REMOTE_2026-11-07.md)
+Ngày 09/11/2026, `ef4c55750592ab88ad0b846897e5437ffa53e662` đạt 65/65 nhóm Chromium qua Nginx và PostgreSQL trên stack cách ly. Bảng dùng artifact `integration-results` ID `13642735838`. Ca Chromium nằm trong `real-chromium-1794185650024/results.json`. Đã kiểm các ca đối chiếu từ bản ngày 08/11 và ca UC10 mới kiểm cấp rồi thu hẹp phạm vi qua UI. Báo cáo cùng lượt xác nhận runtime 51/51, worker 37/37, hết hạn 21/21 và giao thư 20/20. Provider dùng MOCK trong luồng chính và các ca email chạy loopback riêng. [Lượt GitHub Actions](https://github.com/Eyblcat12/Cryta/actions/runs/42542216461) · [Digest artifact](CI_REMOTE_2026-11-07.md#đối-chiếu-phiên-https-và-phục-hồi-nginx-ngày-0911)
 
 | UC | Bằng chứng đã đối chiếu trong artifact | Điều kiện cần xác nhận khi nghiệm thu |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ Ngày 08/11/2026, `fd4577145db8db35a38437b7f81501ad78549142` đạt 65/65 nhóm 
 | UC7 | Ca T18 kiểm Admin thấy liên kết tài sản trong toàn hệ thống. `Large list fixtures` trong `runtime-privileges` kiểm thứ tự và tổng trên dữ liệu vượt giới hạn cũ. | Đối chiếu danh mục và phân trang với tập dữ liệu đích. |
 | UC8 | Hai ca T20 kiểm vòng đời policy và phục hồi xung đột trên UI. Ca `Policy append concurrency` kiểm bất biến phiên bản đã phát hành bằng role runtime. | Chốt bộ policy đích và kiểm phiên bản được áp dụng sau rollout. |
 | UC9 | Ca T21 đối chiếu mã truy vết Nginx với audit PostgreSQL. Ca T22 kiểm tìm kiếm, chi tiết đã lọc và xuất theo cùng phạm vi. Bộ `runtime-privileges` kiểm quyền ghi audit. | Xác nhận lưu log, tra cứu và quyền trên môi trường đích. |
-| UC10 | Ca đổi quyền khi phiên đang mở và hai ca bảo vệ Admin cuối kiểm thu hồi phiên và cạnh tranh. `runtime-privileges` kiểm quyền quản trị, chuyển đơn vị và luồng mời/đặt lại qua SMTP loopback. | Chạy với cơ cấu quyền đích và hộp thư thử. |
+| UC10 | Admin cấp rồi thu hẹp phạm vi qua UI. Hai lần cập nhật thu hồi phiên đang mở và ghi audit. Hàng chờ từ hai yêu cầu còn một, API trả 404 cho yêu cầu ngoài phạm vi sau thu hẹp. Hai ca bảo vệ Admin cuối kiểm cạnh tranh. `runtime-privileges` kiểm chuyển đơn vị và luồng mời/đặt lại qua SMTP loopback. | Chạy với cơ cấu quyền đích và hộp thư thử. |
 | UC11 | `UC11–UC12: expiry job catches up` kiểm thông báo theo phạm vi. Bộ `expiry-scan` đạt 21/21, gồm policy gắn với tài sản, ngưỡng 24 giờ và khử trùng theo người nhận/kênh. `email-delivery-after` kiểm bỏ gửi khi scope đã bị thu hồi. | Xác nhận thư đến hộp thư thử và link sau khi thay đổi quyền. |
 | UC12 | Cùng ca UC11–UC12 kiểm vượt mốc trong downtime, audit, thông báo và chạy lại. Bộ `expiry-scan` kiểm thêm các trạng thái đã thu hồi và đã thay thế. | Kiểm chu kỳ trên môi trường đích cùng các replica vận hành. |
 

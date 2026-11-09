@@ -1,8 +1,10 @@
 # Trạng thái triển khai Crypta
 
-## Hiện trạng ngày 08/11/2026
+## Hiện trạng ngày 09/11/2026
 
-Nhánh ứng viên đã có bản kiểm CI đầy đủ tại `fd4577145db8db35a38437b7f81501ad78549142`. Cả 5 job đạt. Artifact xác nhận backend 520/520, frontend 148/148, SMTP loopback 6/6, Chromium 65/65, quyền runtime 51/51, worker 37/37 và hết hạn 21/21. Audit dependency ghi 0 advisory cho ba package ở lượt này. CI đã dọn stack. SHA-256 của hai context build và mẫu cấu hình khớp khi tạo lại từ cùng commit. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md)
+GitHub Actions đạt đủ năm job trên `d55dfda` và `ef4c557`. Đã đối chiếu checksum artifact tích hợp và manifest hai image của từng commit. Ca phiên HTTPS đạt 2/2. Nginx phục hồi readiness sau 3,26 giây trong CI khi backend đổi IP, với frontend giữ nguyên. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md#đối-chiếu-phiên-https-và-phục-hồi-nginx-ngày-0911)
+
+Lượt ngày 08/11 trên `fd4577145db8db35a38437b7f81501ad78549142` đạt đủ năm job. Artifact xác nhận backend 520/520, frontend 148/148, SMTP loopback 6/6, Chromium 65/65, quyền runtime 51/51, worker 37/37 và hết hạn 21/21. Audit dependency ghi 0 advisory cho ba package ở lượt này. CI đã dọn stack. SHA-256 của hai context build và mẫu cấu hình khớp khi tạo lại từ cùng commit. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md#đối-chiếu-artifact-trên-commit-ứng-viên)
 
 Thay đổi Tổng quan tại `c14a89b` có bằng chứng local riêng. Backend 520/520 và hai nhóm Chromium T29 đạt. Truy vấn biểu đồ Admin nhanh hơn trên cùng volume. Hai lượt đo p95 ở mức 32 request đồng thời cho 139–216 ms. [CI Tổng quan](https://github.com/Eyblcat12/Cryta/actions/runs/42492791049) · [Báo cáo tải](T50_CAPACITY_2026-11-06.md)
 
