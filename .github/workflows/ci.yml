@@ -107,8 +107,11 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/crypta-playwright
         shell: pwsh
         run: ./tools/ci/run-integration.ps1
-      - name: Build and verify release image metadata
-        run: node tools/build-release-images.cjs "$GITHUB_SHA" "0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+      - name: Build and verify release image archive
+        run: |
+          version="0.0.0-ci.${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          node tools/build-release-images.cjs "$GITHUB_SHA" "$version" --archive
+          node tools/load-release-images.cjs "tools/test-artifacts/releases/${version}-${GITHUB_SHA:0:12}"
       - name: Preserve release build manifest
         uses: actions/upload-artifact@v4
         with:

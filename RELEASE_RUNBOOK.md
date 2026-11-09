@@ -12,7 +12,7 @@ Từ thư mục dự án, build hai image từ đúng cây Git của commit đã
 node tools/build-release-images.cjs <full-commit-sha> <release-version>
 ```
 
-Sau khi kiểm tích hợp đạt, GitHub Actions dùng script này trên commit của lượt chạy với phiên bản tạm `0.0.0-ci.<run-id>.<attempt>`. Artifact `release-build-manifest` lưu SHA commit, nhãn, ID của hai image và hash của context. Image của lượt CI nằm trên runner tạm. Khi bàn giao, lưu image với phiên bản đã duyệt theo quy trình dưới đây. [Workflow](.github/workflows/ci.yml)
+Sau khi kiểm tích hợp đạt, GitHub Actions tạo và kiểm archive trên commit của lượt chạy với phiên bản tạm `0.0.0-ci.<run-id>.<attempt>`. Artifact `release-build-manifest` lưu SHA commit, nhãn, ID của hai image, hash của context và checksum archive. Archive của lượt CI nằm trên runner tạm. Khi bàn giao, lưu image với phiên bản đã duyệt theo quy trình dưới đây. [Workflow](.github/workflows/ci.yml)
 
 Đối chiếu thêm artifact `release-image-security` của cùng lượt CI. Có thể chạy lại cổng Critical/High trên hai image local sau khi build. Backend dùng CLI Node đã biên dịch trong image runtime. Các lệnh npm để phát triển vẫn chạy từ mã nguồn hoặc trong giai đoạn build. [Phạm vi kiểm](tools/ci/README.md)
 
@@ -28,37 +28,16 @@ Hai Dockerfile ghim digest của manifest OCI đa kiến trúc cho Node.js 22.23
 node tools/build-release-images.cjs <full-commit-sha> <release-version> --archive
 ```
 
-Trên máy nhận, đặt `$packageDirectory` thành đường dẫn chứa `manifest.json` và `images.tar`. Kiểm hash và tag trước khi nạp. Đối chiếu image ID và nhãn revision sau khi nạp.
+Trên máy nhận, dùng Node.js và `tar`. Đặt `$packageDirectory` thành thư mục có `manifest.json` và `images.tar` từ kênh bàn giao đã duyệt. Lệnh đầu kiểm checksum, tag, kiến trúc, nhãn và danh mục OCI nếu có. Lệnh thứ hai kiểm lại rồi nạp hai image vào Docker. Script từ chối tag đã tồn tại và đối chiếu danh tính image sau khi nạp. [Script nạp image](tools/load-release-images.cjs)
 
 ```powershell
-$manifest = Get-Content -Raw -LiteralPath (Join-Path $packageDirectory 'manifest.json') | ConvertFrom-Json
-$archive = Join-Path $packageDirectory 'images.tar'
-if ($manifest.archive.file -ne 'images.tar' -or
-    (Get-Item -LiteralPath $archive).Length -ne $manifest.archive.sizeBytes -or
-    (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ine $manifest.archive.sha256) {
-  throw 'Image archive checksum mismatch.'
-}
-$localTags = @(docker image ls --format '{{.Repository}}:{{.Tag}}')
-if ($LASTEXITCODE -ne 0) { throw 'Cannot list local image tags.' }
-foreach ($image in $manifest.images) {
-  if ($image.tag -in $localTags) { throw "Image tag already exists locally: $($image.tag)" }
-}
-docker image load --input $archive
-if ($LASTEXITCODE -ne 0) { throw 'Image load failed.' }
-foreach ($image in $manifest.images) {
-  $raw = docker image inspect $image.tag
-  if ($LASTEXITCODE -ne 0) { throw "Cannot inspect $($image.tag)" }
-  $loaded = ($raw -join "`n") | ConvertFrom-Json
-  if ($loaded.Id -ne $image.imageId -or
-      $loaded.Config.Labels.'org.opencontainers.image.revision' -ne $manifest.revision -or
-      $loaded.Config.Labels.'org.opencontainers.image.version' -ne $manifest.version -or
-      $loaded.Config.Labels.'org.crypta.context.sha256' -ne $image.contextSha256) {
-    throw "Unexpected image identity: $($image.tag)"
-  }
-}
+node tools/load-release-images.cjs $packageDirectory
+node tools/load-release-images.cjs $packageDirectory --load
 ```
 
 Diễn tập 08/11/2026 dùng phiên bản cục bộ `0.0.0-rehearsal.20261108.1` của commit `fd45771`. Bản sao archive bị đổi một byte bị chặn bởi kiểm hash. Bản hợp lệ nạp lại hai tag đã gỡ, khôi phục đúng image ID và nhãn trong 9,4 giây. Stack PostgreSQL/Nginx dùng đúng hai image đã nạp, chạy smoke trong 20,37 giây với `--no-build --pull never`, rồi được dọn. Lượt này dùng Docker trên cùng máy, dữ liệu giả, provider MOCK và SMTP tắt. [Manifest](tools/test-artifacts/releases/0.0.0-rehearsal.20261108.1-fd4577145db8/manifest.json) · [Báo cáo nạp lại](tools/test-artifacts/releases/0.0.0-rehearsal.20261108.1-fd4577145db8/archive-rehearsal.json)
+
+Ngày 09/11, script mới đạt 7/7 ca với gói `11163cd` trên Docker Desktop `linux/amd64`. Script chặn archive sai checksum, tag lạ trong từng danh mục Docker và OCI dù checksum khớp, cùng tag local đã tồn tại. Nạp đúng hai image trong 13,39 giây. Stack cách ly dùng đúng hai image, qua smoke trong 19,88 giây với `--no-build --pull never` và được dọn. [Báo cáo nạp và smoke](tools/test-artifacts/releases/0.0.0-rehearsal.20261109.scan-after-11163cd86497/archive-loader-rehearsal.json)
 
 Frontend đóng gói mặc định dùng `VITE_ROUTE_MOTION=off`. Thay đổi riêng hiệu ứng chuyển trang chỉ cần đổi image frontend tương thích với API hiện tại. Giữ digest frontend trước khi thử image khác, rồi chạy smoke URL sâu và điều hướng sau khi chuyển image. [Điều hướng và kết quả đo](IMPLEMENTATION_TRACKER.md)
 
