@@ -93,6 +93,11 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
     let succeeded = false;
     try {
       await this.reconcileStuck();
+      await this.pool.query(`UPDATE notifications SET delivery_status='FAILED',failed_at=clock_timestamp(),
+        error_message='Email delivery attempt limit reached'
+        WHERE id IN (SELECT id FROM notifications
+          WHERE channel='EMAIL' AND delivery_status='PENDING' AND attempt_count>=${MAX_EMAIL_ATTEMPTS}
+          FOR UPDATE SKIP LOCKED)`);
       for (let i = 0; i < 10 && !this.poll.stopping; i++) {
         const job = await this.claim();
         if (!job) break;
@@ -133,6 +138,7 @@ export class EmailWorkerService implements OnModuleInit, OnModuleDestroy, Before
         u.email AS recipient_email,u.display_name AS recipient_name
         FROM notifications n JOIN users u ON u.id=n.recipient_id LEFT JOIN crypto_assets a ON a.id=n.asset_id
         WHERE n.channel='EMAIL' AND n.delivery_status='PENDING' AND n.scheduled_for<=NOW()
+          AND n.attempt_count<${MAX_EMAIL_ATTEMPTS}
         ORDER BY n.scheduled_for,n.id FOR UPDATE OF n SKIP LOCKED LIMIT 1`);
       if (job) await client.query(`UPDATE notifications SET delivery_status='SENDING',attempt_count=$2,claimed_at=NOW() WHERE id=$1`, [job.id, job.attempt_count]);
       await client.query('COMMIT');

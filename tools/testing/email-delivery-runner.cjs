@@ -21,7 +21,7 @@ async function main(options) {
   const department = id(), owner = id(), otherOwner = id(), policy = id(), policyVersion = id();
   const notifications = new NotificationsService(pool), provider = new CryptoProviderService();
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    loopbackSmtp: true, externalSmtp: false, plannedTotal: 19, results, compiledServiceHashes: Object.fromEntries([
+    loopbackSmtp: true, externalSmtp: false, plannedTotal: 20, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
       'jobs/asset-processing.service.js', 'database/migration.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
@@ -244,6 +244,19 @@ async function main(options) {
           scheduled_later: true, error_message: 'SMTP rejected delivery (550)' });
         return { temporaryAttempts: 5, permanentAttempts: 1, stableMessageId: true, retriedBeforeDue: false };
       } finally { dataResponse = '250 queued locally'; }
+    });
+    await test('An already-exhausted pending row cannot send a sixth SMTP message or block another email', async () => {
+      await reset();
+      const exhausted = await pendingEmail(), fresh = await pendingEmail();
+      await sql(`UPDATE notifications SET attempt_count=5,scheduled_for=NOW()-INTERVAL '1 minute' WHERE id=$1`, [exhausted]);
+      const before = messages.length;
+      await Promise.all([mailWorker().processBatch(), mailWorker().processBatch()]);
+      const row = await deliveryState(exhausted);
+      assert.deepEqual([row.status, row.attempts, row.failed, row.sent], ['FAILED', 5, true, false]);
+      assert.equal((await deliveryState(fresh)).status, 'SENT');
+      assert.equal(messages.length - before, 1);
+      assert.ok(messages[before].includes(`<notification-${fresh}@example.invalid>`));
+      return { exhaustedAttempts: row.attempts, exhaustedSends: 0, freshSends: 1 };
     });
     await test('SMTP disconnect after DATA and stale Sending are held for reconciliation across workers', async () => {
       await reset();

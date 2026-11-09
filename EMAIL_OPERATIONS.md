@@ -36,7 +36,7 @@ Mốc worker là lượt quét kết thúc gần nhất đã ghi vào PostgreSQL
 
 | Trạng thái | Ý nghĩa | Hành động |
 | --- | --- | --- |
-| `PENDING` | Chờ gửi hoặc SMTP từ chối tạm thời rõ ràng (4xx) | Worker tự thử lại, tối đa 5 lần. |
+| `PENDING` | Chờ gửi hoặc SMTP từ chối tạm thời rõ ràng (4xx) | Worker tự thử lại, tối đa 5 lần. Bản ghi `PENDING` đã hết lượt chuyển sang `FAILED` trong lượt quét mà không gọi SMTP. |
 | `SENDING` | Một worker đã nhận việc | Worker kiểm số lượt và thời hạn ngay trước SMTP. Sau 10 phút, lượt quá hạn không còn khóa sẽ chuyển sang cần đối soát. |
 | `SENT` | SMTP đã chấp nhận đúng địa chỉ đích và database đã ghi nhận | Vẫn cần kiểm tra hộp thư nếu nghiệm thu gửi thật. |
 | `FAILED` | Thư gặp lỗi chuẩn bị, bị SMTP từ chối hoặc đã xác minh SMTP chưa chấp nhận | Chỉ lên lịch gửi lại khi có mã phiếu đã ghi trong Audit Log và còn lượt. |
