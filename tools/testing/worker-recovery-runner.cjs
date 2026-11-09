@@ -86,11 +86,12 @@ async function main(options) {
   const results = [], diagnostics = [];
   const report = {
     database: options.database, mode: options.mode, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
-    plannedTotal: options.mode === 'before' ? 3 : 37, results, diagnostics,
+    plannedTotal: options.mode === 'before' ? 3 : 38, results, diagnostics,
     clockMethod: 'Schema-local now() with explicit search_path and per-session UTC clock; service SQL and original timestamp trigger remain installed.',
-    actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService'],
+    actualServiceInstances: ['AssetProcessingService', 'CryptoProviderService', 'NotificationsService', 'MigrationService',
+      ...(options.mode === 'after' ? ['OperationsMetricsService'] : [])],
     compiledServiceHashes: Object.fromEntries(['jobs/asset-processing.service.js', 'jobs/crypto-provider.service.js',
-      ...(options.mode === 'after' ? ['jobs/crypto-provider-config.js'] : []),
+      ...(options.mode === 'after' ? ['jobs/crypto-provider-config.js', 'operations/operations-metrics.service.js'] : []),
       'notifications/notifications.service.js', 'database/migration.service.js', 'requests/request-policy.js'].map(relative => [relative,
       crypto.createHash('sha256').update(fs.readFileSync(`/app/dist/${relative}`)).digest('hex')])),
     limitations: ['Three SIGKILL cases stop a disposable worker inside the isolated backend container. The 15-minute lease expiry uses a synthetic PostgreSQL clock.',
@@ -173,6 +174,7 @@ async function main(options) {
     const calls = [];
     const privateMarker = 'discarded-provider-fixture-field';
     let invalid = false;
+    let disconnect = false;
     const server = http.createServer(async (request, response) => {
       try {
         const chunks = [];
@@ -183,6 +185,11 @@ async function main(options) {
           response.writeHead(400).end(); return;
         }
         calls.push({ path: request.url, operationId: body.operationId, target: body.providerReference ?? body.replacesProviderReference });
+        if (disconnect) {
+          disconnect = false;
+          response.destroy();
+          return;
+        }
         const result = request.url === '/assets/revoke' ? { revoked: true, providerReference: body.providerReference }
           : { assetType: body.assetType, status: 'ACTIVE', providerReference: `fixture-${body.operationId}`,
               ...(body.assetType === 'CERTIFICATE' ? { certificatePem: options.certificatePem } : {
@@ -201,7 +208,8 @@ async function main(options) {
       Object.assign(process.env, overrides);
       now = +certificate.validFromDate + minute;
       Date.now = () => now;
-      return await run({ certificate, validFrom, expiresAt, calls, privateMarker, rejectResult: () => { invalid = true; } });
+      return await run({ certificate, validFrom, expiresAt, calls, privateMarker,
+        rejectResult: () => { invalid = true; }, disconnectNext: () => { disconnect = true; } });
     } finally {
       Date.now = previousClock;
       for (const [key, value] of Object.entries(previousEnv)) {
@@ -735,6 +743,42 @@ async function main(options) {
       const admin = { id: otherOwner, tokenVersion: 1 };
       const completionNotices = async requestId => (await sql(`SELECT channel FROM notifications
         WHERE request_id=$1 AND type='REQUEST_COMPLETED' ORDER BY channel`, [requestId])).rows.map(row => row.channel);
+      await test('A provider disconnect after dispatch raises an operations signal and prevents replay', async () => {
+        await reset();
+        const { OperationsMetricsService } = require('/app/dist/operations/operations-metrics.service.js');
+        const metrics = new OperationsMetricsService(pool);
+        const signals = async () => (await metrics.monitorSnapshot()).signals.filter(code => code.startsWith('PROVIDER_'));
+        return withHttpFixture(async ({ calls, disconnectNext }) => {
+          const policy = await freshPolicy({ algorithm: 'RSA', minimum_key_size: 2048, maximum_validity_days: 90 }, new Date(now - minute));
+          const instance = worker();
+          assert.deepEqual(await signals(), []);
+          const requestId = await approved(0, { policyVersion: policy.versionId });
+          disconnectNext();
+          await instance.run();
+          const interrupted = await snapshot(requestId);
+          assert.equal(interrupted.request.status, 'RECONCILIATION_REQUIRED');
+          assert.equal(interrupted.operation.status, 'RECONCILIATION_REQUIRED');
+          assert.equal(interrupted.operation.last_error_code, 'CRYPTO_PROVIDER_TRANSPORT_FAILED');
+          assert.equal(interrupted.operation.attempt_count, 1);
+          assert.equal(interrupted.assets, 0);
+          assert.deepEqual(await signals(), ['PROVIDER_RECONCILIATION_REQUIRED']);
+          const { provider: status } = await metrics.snapshot();
+          assert.equal(status.mode, 'HTTP');
+          assert.equal(status.reconciliationRequired, 1);
+          assert.ok(status.lastRecordedFailureAt);
+          for (const action of ['RETRY', 'ABANDON', 'CONFIRM']) {
+            await assert.rejects(instance.recover(admin, requestId, interrupted.request.version, action, 'No provider receipt'),
+              error => error.response?.code === 'RECOVERY_UNVERIFIED');
+          }
+          const healthyRequest = await approved(0, { policyVersion: policy.versionId });
+          await Promise.all([instance.run(), worker().run()]);
+          assert.equal((await snapshot(healthyRequest)).request.status, 'COMPLETED');
+          assert.equal((await snapshot(requestId)).request.status, 'RECONCILIATION_REQUIRED');
+          assert.deepEqual(calls.map(call => call.operationId), [requestId, healthyRequest]);
+          assert.deepEqual(await signals(), ['PROVIDER_RECONCILIATION_REQUIRED']);
+          return { failedOperationCalls: 1, healthyOperationCalls: 1, unverifiedActionsRejected: 3, signalPersistsAfterTransportRecovery: true };
+        });
+      });
       await test('SIGKILL after claim permits one proven-unsent retry by an administrator', async () => {
         await reset();
         const requestId = await approved();

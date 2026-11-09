@@ -112,7 +112,7 @@ async function main(reportArgument, mode = 'after') {
     'database_schema.sql', 'backend/test/fixtures/provider-tls-test.pem', 'backend/src/jobs/asset-processing.service.ts',
     'backend/src/jobs/crypto-provider.service.ts', 'backend/src/jobs/crypto-provider-config.ts',
     'backend/src/notifications/notifications.service.ts', 'backend/src/database/migration.service.ts',
-    'backend/src/requests/request-policy.ts']) {
+    'backend/src/requests/request-policy.ts', 'backend/src/operations/operations-metrics.service.ts']) {
     report.sourceHashes[relative] = createHash('sha256').update(await fs.readFile(path.join(root, relative))).digest('hex');
   }
   let allocated = false;

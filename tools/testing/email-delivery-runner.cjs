@@ -23,7 +23,7 @@ async function main(options) {
   const results = [], report = { database: options.database, fixtureOnly: false, provider: 'MOCK', smtpEnabled: false,
     loopbackSmtp: true, externalSmtp: false, plannedTotal: 20, results, compiledServiceHashes: Object.fromEntries([
       'notifications/email-template.js', 'notifications/email-worker.service.js', 'notifications/notifications.service.js', 'notifications/asset-alert-recipient.js',
-      'jobs/asset-processing.service.js', 'database/migration.service.js',
+      'jobs/asset-processing.service.js', 'database/migration.service.js', 'operations/operations-metrics.service.js',
     ].map(file => [file, crypto.createHash('sha256').update(fs.readFileSync('/app/dist/' + file)).digest('hex')])) };
   const oldFrom = process.env.SMTP_FROM; process.env.SMTP_FROM = 'Crypta <sender@example.invalid>';
   const reset = async () => sql('TRUNCATE notifications,audit_logs,provider_operations,requests,crypto_assets CASCADE');
@@ -260,20 +260,33 @@ async function main(options) {
     });
     await test('SMTP disconnect after DATA and stale Sending are held for reconciliation across workers', async () => {
       await reset();
-      const ambiguous = await pendingEmail(), stale = await pendingEmail();
+      const ambiguous = await pendingEmail();
+      const metrics = new OperationsMetricsService(pool);
+      const signals = async () => (await metrics.monitorSnapshot()).signals.filter(code => code === 'EMAIL_RECONCILIATION_REQUIRED');
+      assert.deepEqual(await signals(), []);
       const before = messages.length;
-      await sql(`UPDATE notifications SET delivery_status='SENDING',attempt_count=1,claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1`, [stale]);
       try { dataResponse = null; await mailWorker().processBatch(); }
       finally { dataResponse = '250 queued locally'; }
-      for (const notification of [ambiguous, stale]) {
-        const row = await deliveryState(notification);
-        assert.equal(row.status, 'RECONCILIATION_REQUIRED');
-        assert.equal(row.attempts, 1);
-        assert.equal(row.sent || row.failed, false);
-      }
+      const uncertain = await deliveryState(ambiguous);
+      assert.deepEqual([uncertain.status, uncertain.attempts, uncertain.sent, uncertain.failed], ['RECONCILIATION_REQUIRED', 1, false, false]);
+      assert.deepEqual(await signals(), ['EMAIL_RECONCILIATION_REQUIRED']);
       await Promise.all([mailWorker().processBatch(), mailWorker().processBatch()]);
       assert.equal(messages.length - before, 1);
-      return { disconnectedAfterData: 1, staleSending: 1, replayed: 0 };
+      assert.ok(messages[before].includes(`<notification-${ambiguous}@example.invalid>`));
+      const { rows: [{ acceptedAt }] } = await sql('SELECT clock_timestamp() AS "acceptedAt"');
+      const reconciled = await notifications.reconcileDelivery({ id: otherOwner, tokenVersion: 1 }, ambiguous, {
+        outcome: 'ACCEPTED', attemptCount: 1, acceptedAt: acceptedAt.toISOString(), evidenceReference: 'SMTP-LOOPBACK-DATA',
+      });
+      assert.equal(reconciled.status, 'SENT');
+      assert.deepEqual(await signals(), []);
+      const stale = await pendingEmail();
+      await sql(`UPDATE notifications SET delivery_status='SENDING',attempt_count=1,claimed_at=NOW()-INTERVAL '11 minutes' WHERE id=$1`, [stale]);
+      await Promise.all([mailWorker().processBatch(), mailWorker().processBatch()]);
+      const interrupted = await deliveryState(stale);
+      assert.deepEqual([interrupted.status, interrupted.attempts, interrupted.sent, interrupted.failed], ['RECONCILIATION_REQUIRED', 1, false, false]);
+      assert.deepEqual(await signals(), ['EMAIL_RECONCILIATION_REQUIRED']);
+      assert.equal(messages.length - before, 1);
+      return { disconnectedAfterData: 1, staleSending: 1, replayed: 0, signalRaised: true, signalClearedAfterVerifiedAcceptance: true };
     });
     await test('an interrupted attempt cannot use SMTP after a new attempt is claimed', async () => {
       await reset();

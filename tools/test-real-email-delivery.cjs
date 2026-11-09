@@ -110,7 +110,7 @@ async function main(reportArgument, mode = 'after') {
   for (const relative of ['tools/test-real-email-delivery.cjs', 'tools/testing/email-delivery-runner.cjs',
     'database_schema.sql', 'backend/src/jobs/asset-processing.service.ts', 'backend/src/notifications/email-template.ts',
     'backend/src/notifications/email-worker.service.ts', 'backend/src/notifications/notifications.service.ts', 'backend/src/notifications/asset-alert-recipient.ts',
-    'backend/src/database/migration.service.ts']) {
+    'backend/src/database/migration.service.ts', 'backend/src/operations/operations-metrics.service.ts']) {
     report.sourceHashes[relative] = createHash('sha256').update(await fs.readFile(path.join(root, relative))).digest('hex');
   }
   let allocated = false;
