@@ -203,6 +203,71 @@ if(require.main===module)(async()=>{
   const browser=await playwright[browserEngine].launch({headless:true,...(browserEngine==='chromium'?{channel:requestedBrowser}:{})});
   try{
 
+    for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
+      await test(browser, `T34 forced colors ${width}px distinguishes the active approval filter from keyboard focus`, () => withFixture(browser, 'APPROVER', async ({page, mutations}) => {
+        await page.setViewportSize({width, height: 900});
+        await page.emulateMedia({forcedColors: 'active', colorScheme: theme});
+        await page.addInitScript(value => localStorage.setItem('crypta-theme', value), theme);
+        await page.goto(origin + '/approvals');
+        const filters = page.getByRole('group', {name: 'Lọc hàng chờ'});
+        const all = filters.getByRole('button', {name: /Tất cả/});
+        const urgent = filters.getByRole('button', {name: /Khẩn cấp/});
+        await all.waitFor();
+        assert(await page.evaluate(() => matchMedia('(forced-colors: active)').matches));
+        const decoration = button => button.evaluate(node => getComputedStyle(node).textDecorationLine);
+        assert.equal(await all.getAttribute('aria-pressed'), 'true');
+        assert.equal(await urgent.getAttribute('aria-pressed'), 'false');
+        await all.focus();
+        await page.keyboard.press('Tab');
+        const focus = await urgent.evaluate(node => {
+          const style = getComputedStyle(node);
+          return { visible: node.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0,
+            outsideButton: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth) };
+        });
+        assert(focus.visible, 'Keyboard focus must remain visible on the inactive filter.');
+        await filters.screenshot({path: path.join(output, `forced-colors-filters-${width}.png`)});
+        assert.equal(await decoration(all), 'underline', 'Selection must have a non-color cue.');
+        assert.equal(await decoration(urgent), 'none');
+        assert(focus.outsideButton <= 0, 'The outline must fit inside the scrolling filter strip.');
+        await page.keyboard.press('Space');
+        await page.waitForURL(url => url.searchParams.get('emergency') === '1');
+        assert.equal(await urgent.getAttribute('aria-pressed'), 'true');
+        assert.equal(await decoration(urgent), 'underline');
+        assert.equal(await all.getAttribute('aria-pressed'), 'false');
+        assert.equal(await decoration(all), 'none');
+        assert.equal(mutations.length, 0);
+      }));
+      await test(browser, `T34 forced colors ${width}px keeps unread indicators visible in notifications and navigation`, () => withFixture(browser, 'USER', async ({page, mutations}) => {
+        await page.setViewportSize({width, height: 900});
+        await page.emulateMedia({forcedColors: 'active', colorScheme: theme});
+        await page.addInitScript(value => localStorage.setItem('crypta-theme', value), theme);
+        await page.goto(origin + '/notifications');
+        assert(await page.evaluate(() => matchMedia('(forced-colors: active)').matches));
+        const notices = page.locator('#notifications article');
+        const marker = notices.first().locator('.activity-unread');
+        await marker.waitFor();
+        assert.equal(await notices.nth(1).locator('.activity-unread').count(), 0);
+        const usesForeground = target => target.evaluate(node => {
+          const sample = document.createElement('span');
+          sample.style.color = 'CanvasText';
+          node.append(sample);
+          try { return getComputedStyle(node).backgroundColor === getComputedStyle(sample).color; }
+          finally { sample.remove(); }
+        });
+        await notices.first().screenshot({path: path.join(output, `forced-colors-unread-${width}.png`)});
+        const listMarkVisible = await usesForeground(marker);
+        const menu = page.getByRole('button', {name: 'Mở điều hướng', exact: true});
+        if (await menu.isVisible()) await menu.click();
+        const nav = page.locator('.sidebar a[href="/notifications"][aria-current="page"]');
+        const navMarker = nav.locator('.unread-dot');
+        await navMarker.waitFor();
+        assert.equal(await navMarker.getAttribute('aria-label'), '14 thông báo chưa đọc');
+        await nav.screenshot({path: path.join(output, `forced-colors-unread-nav-${width}.png`)});
+        assert.deepEqual({list: listMarkVisible, navigation: await usesForeground(navMarker)}, {list: true, navigation: true});
+        assert.equal(mutations.length, 0);
+      }, {notificationItems: true, readNotificationIds: ['notification-2']}));
+    }
+
     const listCases=[
       {role:'USER',route:'/requests',section:'#requests',rows:'button.request-item',endpoint:'/requests',refresh:'Làm mới lịch sử yêu cầu',prefix:'request',label:'yêu cầu'},
       {role:'APPROVER',route:'/approvals/history',section:'#requests',rows:'button.request-item',endpoint:'/requests',refresh:'Làm mới lịch sử yêu cầu',prefix:'request',label:'yêu cầu'},

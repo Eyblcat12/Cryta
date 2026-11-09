@@ -2,6 +2,12 @@
 
 ## Cập nhật ngày 09/11/2026
 
+### T33/T34 · Chỉ báo trong chế độ tương phản cao
+
+Khi `forced-colors` bật, bộ lọc đang chọn trong Hàng chờ có gạch chân. Viền focus nằm bên trong nút để hiện đủ khi dải bộ lọc cuộn ở màn hình hẹp. Hai chấm chưa đọc trong danh sách và menu dùng màu chữ của bảng màu hệ thống. Thử ở 1440 px sáng và 390 px tối với API mô phỏng. Bản trước đạt 0/4 trên Chromium. Bản sửa đạt 4/4 trên mỗi Chromium và Firefox, gồm đổi bộ lọc bằng phím Space và phân biệt thông báo đã đọc. [CSS Color Adjustment](https://www.w3.org/TR/css-color-adjust-1/#forced-colors-mode) · [Bản trước](tools/test-artifacts/integration/crypta-t30-test-50f63190315d/forced-colors-baseline/results-filtered.json) · [Chromium](tools/test-artifacts/integration/crypta-t30-test-b3a502b1cecf/forced-colors-chromium/results-filtered.json) · [Firefox](tools/test-artifacts/integration/crypta-t30-test-b3a502b1cecf/forced-colors-firefox/results-filtered.json)
+
+Bộ hồi quy Chromium đầy đủ đạt 197/197 trên cùng bundle Nginx. Frontend unit đạt 148/148. Smoke SPA/API đạt và stack đã dọn. [Hồi quy](tools/test-artifacts/integration/crypta-t30-test-b3a502b1cecf/spa-workspace/results-chromium.json) · [Báo cáo stack](tools/test-artifacts/integration/crypta-t30-test-b3a502b1cecf/report.json)
+
 ### T30/NAV-21 · Mất phản hồi sau khi ghi quyết định
 
 Chromium và Edge đều đạt ca từ chối yêu cầu qua Nginx, API và PostgreSQL cách ly. Trình duyệt rời chi tiết khi vẫn chờ xác nhận. Bộ kiểm chỉ ngắt phản hồi tại trình duyệt sau HTTP 201 và sau khi đã đối chiếu dữ liệu commit trong PostgreSQL. Tại hàng chờ, giao diện báo kết quả chưa rõ. Nút kiểm tra tải chi tiết và làm mới các dữ liệu liên quan bằng GET. Mở lại chi tiết thấy lý do từ chối. Báo cáo ghi một POST quyết định, một quyết định, một audit log thành công, một thông báo trong ứng dụng và không có lần gọi provider. CI Chromium chạy ca này trong bộ tích hợp. [Chromium](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/real-chromium-1794207089477/results.json) · [Edge](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/real-msedge-1794207098201/results.json) · [Dọn stack](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/report.json)

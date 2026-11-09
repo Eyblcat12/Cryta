@@ -967,3 +967,12 @@ form.help-content > .mutation-fields > .form-row{display:grid;gap:12px}
 .account-login-link { display: inline-block; margin-top: 14px; }
 .account-action-card .form-field input { min-height: 44px; padding: 8px 12px; border-color: var(--text-muted); }
 .account-action-card #account-action-title:focus { outline: none; }
+
+@media (forced-colors: active) {
+  .filter-tabs button[aria-pressed="true"] {
+    text-decoration-line: underline;
+    text-underline-offset: .2em;
+  }
+  .filter-tabs button:focus-visible { outline-offset: -3px; }
+  .unread-dot, .activity-unread { background-color: CanvasText; }
+}
