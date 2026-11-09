@@ -2,6 +2,10 @@
 
 ## Cập nhật ngày 09/11/2026
 
+### T30/NAV-21 · Mất phản hồi sau khi ghi quyết định
+
+Chromium và Edge đều đạt ca từ chối yêu cầu qua Nginx, API và PostgreSQL cách ly. Trình duyệt rời chi tiết khi vẫn chờ xác nhận. Bộ kiểm chỉ ngắt phản hồi tại trình duyệt sau HTTP 201 và sau khi đã đối chiếu dữ liệu commit trong PostgreSQL. Tại hàng chờ, giao diện báo kết quả chưa rõ. Nút kiểm tra tải chi tiết và làm mới các dữ liệu liên quan bằng GET. Mở lại chi tiết thấy lý do từ chối. Báo cáo ghi một POST quyết định, một quyết định, một audit log thành công, một thông báo trong ứng dụng và không có lần gọi provider. CI Chromium chạy ca này trong bộ tích hợp. [Chromium](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/real-chromium-1794207089477/results.json) · [Edge](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/real-msedge-1794207098201/results.json) · [Dọn stack](tools/test-artifacts/integration/crypta-t30-test-27e09d84eea8/report.json)
+
 ### T34 · Thông báo khi tải bảng dữ liệu
 
 Danh mục Tài sản, Tài khoản và Hàng chờ duyệt có một vùng thông báo nằm ngoài phần kết quả đang `aria-busy`. Vùng này giữ nguyên khi chuyển từ tải chậm sang số kết quả hoặc danh sách trống. Chỉ báo trực quan giữ nguyên vị trí trên desktop và mobile. Bản trước thất bại 8/8 ca trên Chromium vì vùng thông báo nằm trong phần kết quả bận. Bản sửa đạt 8/8 trên mỗi Chromium và Firefox ở 1440 và 390 px với API mô phỏng. Nghiệm thu đọc thành tiếng với NVDA vẫn còn mở. [WAI-ARIA](https://www.w3.org/TR/wai-aria-1.2/#aria-busy) · [Bản trước](tools/test-artifacts/t30-nvda-2026.3/table-status-before-verified/results-filtered.json) · [Chromium](tools/test-artifacts/t30-nvda-2026.3/table-status-chromium/results-filtered.json) · [Firefox](tools/test-artifacts/t30-nvda-2026.3/table-status-firefox/results-filtered.json)

@@ -7,6 +7,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
 const [reportArgument, playwrightDirectory, channel = 'msedge'] = process.argv.slice(2);
 const results = [];
+let interceptedRequests = 0;
 let browser;
 async function main() {
   assert.ok(reportArgument, 'Pass the isolated-stack report.json path.');
@@ -1632,6 +1633,87 @@ async function main() {
     return { role: 'USER', routeForbidden: true, providerReads: 0 };
   });
   await require('./testing/delayed-navigation.cjs')({test,sql,compose,newPage,uiLogin,origin,createUser,changedPassword,call,expectStatus,admin});
+  await test('NAV-21 real Nginx: a lost decision response after leaving the page is reconciled without replay', async () => {
+    const request = await createRequest(account, 'NAV-21 lost decision response');
+    assert.match(request.id, /^[a-f0-9-]{36}$/);
+    const detailPath = `/requests/${request.id}`;
+    const decisionUrl = new URL(`/api/v1${detailPath}/decision`, origin).href;
+    const reason = 'Cần bổ sung phạm vi sử dụng trước khi phê duyệt.';
+    const { context, page, calls, errors } = await newPage();
+    const upstream = Promise.withResolvers();
+    const dropResponse = Promise.withResolvers();
+    const effects = () => JSON.parse(sql(`SELECT json_build_object(
+      'status', (SELECT status FROM requests WHERE id='${request.id}'),
+      'decisions', (SELECT count(*) FROM request_decisions WHERE request_id='${request.id}'),
+      'audit', (SELECT count(*) FROM audit_logs WHERE request_id='${request.id}' AND action='REQUEST_REJECTED' AND outcome='SUCCESS'),
+      'notice', (SELECT count(*) FROM notifications WHERE request_id='${request.id}' AND type='REQUEST_REJECTED' AND channel='IN_APP'),
+      'provider', (SELECT count(*) FROM provider_operations WHERE request_id='${request.id}'));`));
+    let dropped = 0;
+    try {
+      await page.route(decisionUrl, async route => {
+        interceptedRequests++;
+        let status;
+        try {
+          // Deliver the original POST to Nginx and withhold its real response from the page.
+          const response = await route.fetch({ maxRedirects: 0, maxRetries: 0, timeout: 10000 });
+          status = response.status();
+          await response.dispose();
+        } catch {
+          status = null;
+        } finally {
+          upstream.resolve(status);
+          await dropResponse.promise;
+          await route.abort('connectionreset');
+          dropped++;
+        }
+      });
+      await page.goto(new URL(detailPath, origin).href);
+      await uiLogin(page, approver.user.email);
+      await page.getByRole('button', { name: 'Từ chối', exact: true }).click();
+      const dialog = page.getByRole('dialog');
+      await dialog.getByRole('textbox', { name: /Ghi chú quyết định/ }).fill(reason);
+      const failed = page.waitForEvent('requestfailed', event => event.url() === decisionUrl);
+      const [status] = await Promise.all([
+        Promise.race([upstream.promise, failed.then(() => null)]),
+        dialog.getByRole('button', { name: 'Xác nhận từ chối', exact: true }).click(),
+      ]);
+      assert.equal(status, 201);
+      const committed = { status: 'REJECTED', decisions: 1, audit: 1, notice: 1, provider: 0 };
+      assert.deepEqual(effects(), committed);
+      const pending = page.getByRole('status').filter({ hasText: 'đang chờ máy chủ xác nhận' });
+      await dialog.getByRole('status').filter({ hasText: 'đang chờ máy chủ xác nhận' }).waitFor();
+      await dialog.getByRole('button', { name: 'Đóng', exact: true }).click();
+      await page.getByRole('button', { name: 'Về danh sách', exact: true }).last().click();
+      await page.waitForURL(url => url.pathname === '/approvals');
+      await pending.waitFor();
+      dropResponse.resolve();
+      assert.equal((await failed).failure()?.errorText, 'net::ERR_CONNECTION_RESET');
+
+      const notice = page.getByRole('region', { name: 'Kết quả thao tác chưa rõ' });
+      await notice.waitFor();
+      await page.waitForLoadState('networkidle');
+      const beforeReview = calls.length;
+      await notice.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).click();
+      await notice.getByText(/Dữ liệu hiện tại: Từ chối/).waitFor();
+      const reviewCalls = calls.slice(beforeReview);
+      assert.equal(reviewCalls.filter(call => call === `GET ${detailPath}`).length, 1);
+      assert(reviewCalls.every(call => call.startsWith('GET ')), 'Review may refresh related reads only.');
+      await notice.getByRole('link', { name: 'Mở dữ liệu liên quan', exact: true }).click();
+      await page.waitForURL(new URL(detailPath, origin).href);
+      await page.getByText(reason, { exact: true }).waitFor();
+      assert.equal(await page.getByRole('button', { name: 'Từ chối', exact: true }).count(), 0);
+      assert.equal(await page.getByRole('status').filter({ hasText: 'Quyết định đã được ghi nhận.' }).count(), 0);
+      assert.equal(calls.filter(call => call === `POST ${detailPath}/decision`).length, 1);
+      assert.equal(dropped, 1);
+      assert.deepEqual(effects(), committed);
+      assert.deepEqual(errors, []);
+      return { upstreamStatus: status, leftBeforeResponseLoss: true, dropped, reviewReads: reviewCalls.length, decisionPosts: 1, ...committed };
+    } finally {
+      dropResponse.resolve();
+      await page.unrouteAll({ behavior: 'wait' });
+      await context.close();
+    }
+  });
   await require('./testing/asset-lineage-ui.cjs')({test,call,expectStatus,createRequest,account,approver,admin,policy,newPage,uiLogin,origin,output});
   await require('./testing/policy-lifecycle-ui.cjs')({test,call,expectStatus,admin,dev,newPage,uiLogin,origin,output,stamp,sql});
   await test('NAV-03 real Nginx: valid asset deep link and F5 restore its metadata and history', async () => {
@@ -2125,7 +2207,7 @@ async function main() {
     }
   });
   await Promise.all(contexts.map(context => context.close()));
-  const summary = { createdUtc: new Date().toISOString(), project: stack.project, origin: origin.origin, database: stack.database, fixtureOnly: false, interceptedRequests: 0, smtpEnabled: false, provider: 'MOCK', browser: channel, browserVersion: browser.version(), buildAssets, runtimeImages, passed: results.filter(r => r.passed).length, total: results.length, results, limitations: ['Local HTTP COOKIE_SECURE=false; does not validate production TLS cookie behavior.', 'Logout revokes the refresh session; existing access JWT follows the current short TTL contract.', 'Cross-tab cookie serialization uses Web Locks or IndexedDB. With both unavailable, refresh deduplication is per tab. Account-boundary checks across tabs require local storage.', 'No short-TTL open-UI expiration, native screen reader, real provider or SMTP delivery acceptance.'] };
+  const summary = { createdUtc: new Date().toISOString(), project: stack.project, origin: origin.origin, database: stack.database, fixtureOnly: false, interceptedRequests, smtpEnabled: false, provider: 'MOCK', browser: channel, browserVersion: browser.version(), buildAssets, runtimeImages, passed: results.filter(r => r.passed).length, total: results.length, results, limitations: ['Local HTTP COOKIE_SECURE=false; does not validate production TLS cookie behavior.', 'Logout revokes the refresh session; existing access JWT follows the current short TTL contract.', 'Cross-tab cookie serialization uses Web Locks or IndexedDB. With both unavailable, refresh deduplication is per tab. Account-boundary checks across tabs require local storage.', 'NAV-21 injects response loss at the browser after the real Nginx/API request completes.', 'No short-TTL open-UI expiration, native screen reader, real provider or SMTP delivery acceptance.'] };
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(summary, null, 2), 'utf8');
   console.log(`${summary.passed}/${summary.total} real integration groups passed; report ${path.join(output, 'results.json')}`);
   if (summary.passed !== summary.total) process.exitCode = 1;
