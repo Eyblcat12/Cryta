@@ -12,7 +12,7 @@ Thêm `--monitor` để đo 48 lượt collector song song với 32 luồng đ�
 
 ## Email và thông báo kết quả
 
-`npm --prefix backend run test:smtp` kiểm sáu ca Nodemailer với SMTP IPv4 loopback và DB mô phỏng. Các ca gồm accept, 550, mất ACK sau DATA, lỗi audit sau accept, từ chối STARTTLS và cấu hình cổng hoặc auth sai. Bộ unit thông thường không chạy file `.integration.ts` này. CI backend có bước riêng bắt buộc. Nghiệm thu hộp thư bên ngoài theo T25.
+`npm --prefix backend run test:smtp` kiểm bảy ca Nodemailer với SMTP IPv4 loopback và DB mô phỏng. Cần Node 22.19 trở lên và `openssl` trong PATH để sinh chứng thư thử. Các ca gồm STARTTLS với CA chưa tin cậy và CA đúng, thư được chấp nhận, 550, mất ACK sau DATA, lỗi audit sau khi SMTP chấp nhận và lỗi cấu hình. CI backend chạy bộ này riêng. Nghiệm thu hộp thư bên ngoài theo T25.
 
 `./tools/test-real-shutdown.ps1 -ReportPath <report.json>` gửi SIGTERM cho API của một stack test. Ca thử giữ một giao dịch PostgreSQL ở bước ghi tài sản để đối chiếu thứ tự dừng. Chạy sau các bài API/trình duyệt vì ca này để backend test ở trạng thái đã dừng. Dùng `run-integration.ps1` để chạy và dọn stack tự động. [Cách chạy CI local](../ci/README.md)
 

@@ -6,6 +6,8 @@ Crypta chỉ gửi thư thật khi `SMTP_ENABLED=true` và đã cấu hình `SMT
 
 Khi bật SMTP, API chỉ hoàn tất startup sau khi cấu hình hợp lệ và kiểm kết nối thành công. Khi kiểm TLS hoặc xác thực thất bại, log chỉ ghi sự kiện `email.smtp_verify_failed`. Chế độ demo có thể dùng `SMTP_ENABLED=false` để chạy không gửi thư.
 
+Bộ kiểm SMTP loopback dùng relay có chứng thư sinh tạm. Khi CA chưa được tin cậy, worker dừng trước AUTH. Khi thêm CA vào bộ tin cậy của tiến trình thử, relay nhận AUTH và DATA sau STARTTLS, chấp nhận đúng một thư và ứng dụng ghi `EMAIL_TEST_ACCEPTED`. [Bài kiểm](backend/test/email-test-smtp.integration.ts)
+
 ## Gửi thư kiểm tra
 
 Chỉ Security Admin đang hoạt động được dùng `POST /api/v1/notifications/test-email`. Giới hạn dùng chung DB là một lượt/Admin/phút và năm lượt/toàn hệ thống/phút; quá hạn trả 429. Ghi audit giữ lượt trước khi gửi và nhả khóa DB trước kết nối SMTP. Mỗi lượt có operation ID và Message-ID `<email-test-UUID@domain-cua-SMTP_FROM>`. Theo correlation của phản hồi, Admin có thể tra API audit với `correlationId=req_UUID`, rồi đối chiếu operation ID và hộp thư.
