@@ -231,7 +231,7 @@ if(require.main===module)(async()=>{
         assert(focus.outsideButton <= 0, 'The outline must fit inside the scrolling filter strip.');
         await page.keyboard.press('Space');
         await page.waitForURL(url => url.searchParams.get('emergency') === '1');
-        assert.equal(await urgent.getAttribute('aria-pressed'), 'true');
+        await filters.getByRole('button', {name: /Khẩn cấp/, pressed: true}).waitFor();
         assert.equal(await decoration(urgent), 'underline');
         assert.equal(await all.getAttribute('aria-pressed'), 'false');
         assert.equal(await decoration(all), 'none');
@@ -1112,9 +1112,28 @@ if(require.main===module)(async()=>{
       await page.locator('#requests').getByRole('status').filter({hasText:'Không có kết quả yêu cầu.'}).waitFor();
       assert.equal(calls.filter(call=>call.startsWith('GET /assets')).length,assetReads);
     }));
-    await test(browser,'Approver history search preserves its non-pending scope',()=>withFixture(browser,'APPROVER',async({page,calls})=>{
-      await page.goto(origin+'/approvals/history?status=COMPLETED&pageSize=25&page=2');await page.locator('.request-item').nth(24).waitFor();const input=page.locator('.global-search input');assert.equal(await input.getAttribute('aria-label'),'Tìm lịch sử xử lý');await input.fill('Yêu cầu kiểm thử 74');await input.press('Enter');await page.locator('.request-item').filter({hasText:'request-74'}).waitFor();
-      assert.equal(new URL(page.url()).pathname,'/approvals/history');assert.equal(new URL(page.url()).searchParams.get('status'),'COMPLETED');assert(calls.some(call=>call.includes('search=Y%C3%AAu')&&call.includes('excludePending=true')));
+    await test(browser, 'Approver history search preserves its non-pending scope', () => withFixture(browser, 'APPROVER', async ({page}) => {
+      await page.goto(origin + '/approvals/history?status=COMPLETED&pageSize=25&page=2');
+      await page.locator('.request-item').nth(24).waitFor();
+      const input = page.locator('.global-search input');
+      const term = 'Yêu cầu kiểm thử 74';
+      assert.equal(await input.getAttribute('aria-label'), 'Tìm lịch sử xử lý');
+      await input.fill(term);
+      const [response] = await Promise.all([
+        page.waitForResponse(candidate => {
+          const url = new URL(candidate.url());
+          return candidate.request().method() === 'GET' && url.pathname === '/api/v1/requests' && url.searchParams.get('search') === term;
+        }),
+        input.press('Enter'),
+      ]);
+      assert(response.ok(), 'The scoped search must succeed.');
+      const apiParams = new URL(response.url()).searchParams;
+      assert.equal(apiParams.get('excludePending'), 'true');
+      assert.equal(apiParams.get('status'), 'COMPLETED');
+      await page.locator('.request-item').filter({hasText:'request-74'}).waitFor();
+      const route = new URL(page.url());
+      assert.equal(route.pathname, '/approvals/history');
+      assert.equal(route.searchParams.get('status'), 'COMPLETED');
     }));
     await test(browser,'User status mutation replaces an out-of-range page while preserving its filter and pageSize',()=>withFixture(browser,'ADMIN',async({page,mutations})=>{
       await page.goto(origin+'/users?status=ACTIVE&pageSize=10&page=3');await page.getByRole('table').getByText('person21@example.test',{exact:true}).waitFor();await page.getByRole('button',{name:'Sau',exact:true}).click();await page.getByRole('table').getByText('person31@example.test',{exact:true}).waitFor();
