@@ -6,6 +6,10 @@ import { emailConfiguration } from '../notifications/email-template';
 type ProductionSecret = 'DATABASE_URL' | 'JWT_ACCESS_SECRET' | 'CRYPTO_PROVIDER_TOKEN' | 'SMTP_PASSWORD' |
   'ACCOUNT_ACTION_KEY' | 'BOOTSTRAP_ADMIN_PASSWORD' | 'MFA_ENCRYPTION_KEY' | 'OIDC_CLIENT_SECRET' | 'OIDC_STORAGE_KEY';
 
+export function corsOrigins() {
+  return (process.env.CORS_ORIGIN ?? 'http://127.0.0.1:5173,http://127.0.0.1:5174').split(',');
+}
+
 export function productionSecret(env: NodeJS.ProcessEnv, name: ProductionSecret) {
   if (env[name] !== undefined) throw new Error(`PRODUCTION_${name}_USE_FILE`);
   const path = env[`${name}_FILE`];

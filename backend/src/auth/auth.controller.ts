@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swa
 import type { Request, Response } from 'express';
 import type { AuthUser } from '../common/auth-user';
 import { CurrentUser } from '../common/current-user.decorator';
+import { corsOrigins } from '../common/deployment-config';
 import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from './auth-cookie';
 import { ChangePasswordDto, LoginDto } from './auth.dto';
 import { AuthService } from './auth.service';
@@ -73,7 +74,15 @@ export class AuthController {
   }
   @Post('refresh') @HttpCode(200) @ApiOperation({ summary: 'Xoay vòng refresh token và cấp access token mới' })
   @ApiCookieAuth('refreshCookie')
-  async refresh(@Req() req: Request,@Res({passthrough:true}) res: Response) { const result=await this.auth.refresh(readRefreshCookie(req),{ipAddress:req.ip,userAgent:req.headers['user-agent']}); setRefreshCookie(res,result.refreshToken); const {refreshToken:_,...safe}=result; return safe; }
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const token = readRefreshCookie(req);
+    const { origin } = req.headers;
+    // CORS limits response access. Check the origin before a cookie can rotate a session.
+    if (token && origin !== undefined && !corsOrigins().includes(origin)) {
+      throw new ForbiddenException({ code: 'REFRESH_ORIGIN_DENIED', message: 'Nguồn yêu cầu làm mới phiên không được phép.' });
+    }
+    return this.sessionResponse(res, await this.auth.refresh(token, this.sessionContext(req)));
+  }
   @Post('logout') @HttpCode(200) @UseGuards(JwtAuthGuard) @ApiBearerAuth() @ApiOperation({ summary: 'Thu hồi phiên hiện tại' })
   @AllowPasswordChange()
   async logout(@CurrentUser() user: AuthUser,@Req() req: OidcRequest,@Res({passthrough:true}) res: Response) { const result=await this.auth.logout(readRefreshCookie(req),user.id,req.oidcSessionId); clearRefreshCookie(res); return result; }

@@ -103,15 +103,24 @@ async function main() {
       assert.equal(beforeCookie.path, '/api/v1/auth');
       assert.equal(await tlsProxy.preflight(browserOrigin.origin), browserOrigin.origin);
       assert.equal(await tlsProxy.preflight(tlsProxy.foreign.origin), undefined);
-      const foreignPage = await context.newPage();
+      assert.equal(await tlsProxy.preflight(tlsProxy.sibling.origin), undefined);
+      const sessionCount = () => sql(`SELECT COUNT(*) FROM auth_sessions WHERE user_id='${created.id}'`);
+      const beforeSessionCount = sessionCount();
+      const externalPage = await context.newPage();
       try {
-        await foreignPage.goto(tlsProxy.foreign.href);
-        const readable = await foreignPage.evaluate(url => fetch(url, { method: 'POST', credentials: 'include' })
-          .then(() => true, () => false), new URL('/api/v1/auth/refresh', browserOrigin).href);
-        assert.equal(readable, false);
-        assert.deepEqual(tlsProxy.foreignRefreshes, [{ status: 401, sentRefreshCookie: false }]);
-        assert.equal(activeRefreshRows(), 1, 'A cross-site refresh must leave the same-site session live.');
-      } finally { await foreignPage.close(); }
+        for (const origin of [tlsProxy.foreign, tlsProxy.sibling]) {
+          await externalPage.goto(origin.href);
+          const readable = await externalPage.evaluate(url => fetch(url, { method: 'POST', credentials: 'include' })
+            .then(() => true, () => false), new URL('/api/v1/auth/refresh', browserOrigin).href);
+          assert.equal(readable, false);
+        }
+        assert.deepEqual(tlsProxy.crossOriginRefreshes, [
+          { origin: tlsProxy.foreign.origin, status: 401, sentRefreshCookie: false },
+          { origin: tlsProxy.sibling.origin, status: 403, sentRefreshCookie: true },
+        ]);
+        assert.equal(sessionCount(), beforeSessionCount, 'Neither cross-origin refresh may create a session.');
+        assert.equal(activeRefreshRows(), 1, 'Both cross-origin refreshes must leave the original session live.');
+      } finally { await externalPage.close(); }
     }
     await waitForServerExpiry(session.accessToken);
     assert.equal(await page.getByRole('heading', { name: 'Tài sản của tôi', level: 1, exact: true }).count(), 1, 'The already-open workspace remains mounted until the next authenticated read.');
@@ -163,7 +172,7 @@ async function main() {
   } finally { await context.close(); }
   const summary = { createdUtc: new Date().toISOString(), project: stack.project, origin: browserOrigin.origin, database: stack.database, browser: channel, browserVersion: browser.version(), accessTtlSeconds: stack.accessTtlSeconds, buildAssets, runtimeImages: containers.map(container => ({ service: container.Config.Labels['com.docker.compose.service'], imageId: container.Image })), fixtureOnly: false, interceptedRequests: 0, browserClockChanged: false, recordedCredentialTraces: false, provider: 'MOCK', smtpEnabled: false, passed: results.filter(result => result.passed).length, total: results.length, plannedTotal: 2, results, limitations: ['Uses a 10–30 second TTL in the generated test backend; production retains its configured access-token TTL.', 'Session expiry is observed at the next authenticated read; no proactive idle-tab timer is claimed.', secure ? 'Uses a pinned test certificate on loopback; deployment ingress needs its own verification.' : 'Local HTTP does not validate production TLS/origin settings.'] };
   if (secure && summary.passed === summary.plannedTotal) {
-    summary.https = { secureHttpOnlyStrictCookie: true, configuredCorsOriginOnly: true, crossSiteRefreshRejected: true, logoutClearedCookieAndSession: true };
+    summary.https = { secureHttpOnlyStrictCookie: true, configuredCorsOriginOnly: true, crossSiteRefreshRejected: true, sameSiteForeignOriginRefreshRejected: true, logoutClearedCookieAndSession: true };
   }
   await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(summary, null, 2), 'utf8');
   for (const result of results) console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}${result.passed ? '' : `\n${result.error}`}`);

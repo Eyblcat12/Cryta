@@ -11,7 +11,7 @@ import { OperationsMetricsService } from './operations/operations-metrics.servic
 import { cryptoProviderConfig } from './jobs/crypto-provider-config';
 import { HttpFailureAuditService } from './audit/http-failure-audit.service';
 import { ReadinessService, shutdownUnavailable } from './health/readiness.service';
-import { prepareDeploymentEnvironment } from './common/deployment-config';
+import { corsOrigins, prepareDeploymentEnvironment } from './common/deployment-config';
 import { validateMfaEnvironment } from './auth/mfa.service';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -22,7 +22,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false, logger: new ConsoleLogger({ json: true }) });
   app.setGlobalPrefix('api/v1');
   app.use(requestContext(app.get(OperationsMetricsService)));
-  app.enableCors({ origin: (process.env.CORS_ORIGIN ?? 'http://127.0.0.1:5173,http://127.0.0.1:5174').split(','), credentials: true });
+  app.enableCors({ origin: corsOrigins(), credentials: true });
   const readiness = app.get(ReadinessService);
   app.use((request: Request, _response: Response, next: NextFunction) => {
     if (readiness.stopping && request.path !== '/api/v1/health/live') return next(shutdownUnavailable());

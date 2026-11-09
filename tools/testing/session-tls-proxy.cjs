@@ -10,12 +10,14 @@ const path = require('node:path');
 async function startSessionTlsProxy(origin, upstream, directory) {
   assert.match(origin.href, /^https:\/\/crypta-session\.test:\d+\/$/);
   const foreign = new URL(`https://crypta-foreign.test:${origin.port}`);
+  const sibling = new URL(`https://sibling.${origin.hostname}:${origin.port}`);
+  const testOrigins = [foreign, sibling];
   const keyFile = path.join(directory, 'tls-test-key.pem');
   const certFile = path.join(directory, 'tls-test-cert.pem');
   let key, cert;
   try {
     execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-      '-subj', `/CN=${origin.hostname}`, '-addext', `subjectAltName=DNS:${origin.hostname},DNS:${foreign.hostname}`,
+      '-subj', `/CN=${origin.hostname}`, '-addext', `subjectAltName=${[origin, ...testOrigins].map(url => `DNS:${url.hostname}`).join(',')}`,
       '-keyout', keyFile, '-out', certFile], { stdio: 'pipe', timeout: 15_000 });
     [key, cert] = await Promise.all([fs.readFile(keyFile), fs.readFile(certFile)]);
   } finally {
@@ -24,9 +26,9 @@ async function startSessionTlsProxy(origin, upstream, directory) {
 
   const keyDer = new X509Certificate(cert).publicKey.export({ type: 'spki', format: 'der' });
   const pin = createHash('sha256').update(keyDer).digest('base64');
-  const foreignRefreshes = [];
+  const crossOriginRefreshes = [];
   const server = https.createServer({ key, cert }, (request, response) => {
-    if (request.headers.host === foreign.host) {
+    if (testOrigins.some(url => url.host === request.headers.host)) {
       response.writeHead(200, { 'content-type': 'text/html' }).end('<!doctype html><title>Foreign origin fixture</title>');
       return;
     }
@@ -36,8 +38,8 @@ async function startSessionTlsProxy(origin, upstream, directory) {
     }
     const forwarded = http.request({ hostname: upstream.hostname, port: upstream.port,
       method: request.method, path: request.url, headers: request.headers, timeout: 15_000 }, result => {
-      if (request.method === 'POST' && request.url === '/api/v1/auth/refresh' && request.headers.origin === foreign.origin) {
-        foreignRefreshes.push({ status: result.statusCode, sentRefreshCookie: /(?:^|;\s*)crypta_refresh=/.test(request.headers.cookie ?? '') });
+      if (request.method === 'POST' && request.url === '/api/v1/auth/refresh' && testOrigins.some(url => url.origin === request.headers.origin)) {
+        crossOriginRefreshes.push({ origin: request.headers.origin, status: result.statusCode, sentRefreshCookie: /(?:^|;\s*)crypta_refresh=/.test(request.headers.cookie ?? '') });
       }
       response.writeHead(result.statusCode, result.headers);
       result.pipe(response);
@@ -63,8 +65,8 @@ async function startSessionTlsProxy(origin, upstream, directory) {
     });
   }
 
-  return { foreign, foreignRefreshes, preflight, browserArgs: ['--no-proxy-server',
-    `--host-resolver-rules=MAP ${origin.hostname} 127.0.0.1, MAP ${foreign.hostname} 127.0.0.1`,
+  return { foreign, sibling, crossOriginRefreshes, preflight, browserArgs: ['--no-proxy-server',
+    `--host-resolver-rules=${[origin, ...testOrigins].map(url => `MAP ${url.hostname} 127.0.0.1`).join(', ')}`,
     `--ignore-certificate-errors-spki-list=${pin}`],
   close: () => { server.close(); server.closeAllConnections(); } };
 }
