@@ -1,5 +1,13 @@
 # Theo dõi hoàn thiện theo kế hoạch
 
+## Cập nhật ngày 09/11/2026
+
+### T34 · Thông báo khi tải bảng dữ liệu
+
+Danh mục Tài sản, Tài khoản và Hàng chờ duyệt có một vùng thông báo nằm ngoài phần kết quả đang `aria-busy`. Vùng này giữ nguyên khi chuyển từ tải chậm sang số kết quả hoặc danh sách trống. Chỉ báo trực quan giữ nguyên vị trí trên desktop và mobile. Bản trước thất bại 8/8 ca trên Chromium vì vùng thông báo nằm trong phần kết quả bận. Bản sửa đạt 8/8 trên mỗi Chromium và Firefox ở 1440 và 390 px với API mô phỏng. Nghiệm thu đọc thành tiếng với NVDA vẫn còn mở. [WAI-ARIA](https://www.w3.org/TR/wai-aria-1.2/#aria-busy) · [Bản trước](tools/test-artifacts/t30-nvda-2026.3/table-status-before-verified/results-filtered.json) · [Chromium](tools/test-artifacts/t30-nvda-2026.3/table-status-chromium/results-filtered.json) · [Firefox](tools/test-artifacts/t30-nvda-2026.3/table-status-firefox/results-filtered.json)
+
+Hồi quy N4 đạt 16/16 trên mỗi trình duyệt, gồm vị trí bảng khi tải, làm mới, khóa thao tác trên dữ liệu cũ và thu hồi quyền đọc. Frontend build và 148/148 unit test đạt. [N4 Chromium](tools/test-artifacts/t30-nvda-2026.3/table-regression-chromium/results-filtered.json) · [N4 Firefox](tools/test-artifacts/t30-nvda-2026.3/table-regression-firefox/results-filtered.json)
+
 ## Cập nhật ngày 08/11/2026
 
 ### T30 · Kiểm trực tiếp với NVDA

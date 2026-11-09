@@ -387,6 +387,44 @@ if(require.main===module)(async()=>{
       }finally{state.tableReadGate=null;release()}
     },{...(item.data?{[item.data]:true}:{})}));
 
+    const tableStatusCases = [
+      {role:'USER', route:'/assets', section:'#admin-assets', endpoint:'/assets', loading:'tài sản', label:'tài sản', search:'Tìm tài sản'},
+      {role:'ADMIN', route:'/assets', section:'#admin-assets', endpoint:'/assets', loading:'tài sản', label:'tài sản', search:'Tìm tài sản'},
+      {role:'ADMIN', route:'/users', section:'#users', endpoint:'/users', loading:'tài khoản', label:'tài khoản', search:'Tìm tài khoản'},
+      {role:'APPROVER', route:'/approvals', section:'#approval-queue', endpoint:'/requests', loading:'hàng chờ', label:'yêu cầu chờ duyệt', search:'Tìm yêu cầu'},
+    ];
+    for (const item of tableStatusCases) for (const width of [1440,390]) {
+      await test(browser,`T34 table status ${item.role} ${item.route} ${width}px is outside the busy results`,()=>withFixture(browser,item.role,async({page,state})=>{
+        let release;
+        state.tableReadEndpoint=item.endpoint;
+        state.tableReadGate=new Promise(resolve=>{release=resolve});
+        const section=page.locator(item.section);
+        const expectStatus=async(message)=>{
+          const status=section.getByRole('status').filter({hasText:message});
+          await status.waitFor();
+          assert.equal(await status.evaluate(element=>!!element.closest('[aria-busy="true"]')),false);
+          assert.match(await status.ariaSnapshot(),/status:/);
+          return status;
+        };
+        try {
+          await page.setViewportSize({width,height:900});
+          await page.goto(origin+item.route);
+          const status=await expectStatus(`Đang tải ${item.loading}…`);
+          assert.equal(await section.locator('[aria-busy="true"]').count(),1);
+          await status.evaluate(element=>element.dataset.testTableStatus='persistent');
+          state.tableReadGate=null;
+          release();
+          const count=await expectStatus(new RegExp(`^Có \\d+ ${item.label}\\.$`));
+          assert.equal(await count.getAttribute('data-test-table-status'),'persistent');
+          const search=section.getByRole('textbox',{name:item.search,exact:true});
+          await search.fill('no-results-t34');
+          await search.press('Enter');
+          const empty=await expectStatus(`Không có ${item.label} phù hợp.`);
+          assert.equal(await empty.getAttribute('data-test-table-status'),'persistent');
+        } finally { state.tableReadGate=null; release(); }
+      }));
+    }
+
     await test(browser,'T22 Audit Log exposes stable loading, results and retry status',()=>withFixture(browser,'ADMIN',async({page,state})=>{
       const assertStatus=async(region,message)=>{
         const status=region.getByRole('status').filter({hasText:message});
