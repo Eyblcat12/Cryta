@@ -94,6 +94,28 @@ Thư mục operator ở ví dụ nằm ngoài repo, do người vận hành tạ
 
 Thành công trả mã 0 với `BOOTSTRAP_ADMIN_CREATED`. Lệnh chạy lại trả mã 1 với `BOOTSTRAP_DATABASE_ALREADY_INITIALIZED`. Nếu client mất kết nối khi commit, operator kiểm audit và tài khoản đã tạo trước khi thử lại. Giao mật khẩu tạm qua kênh riêng, yêu cầu Admin đổi mật khẩu tại lần đăng nhập đầu, rồi thu hồi quyền truy cập tệp mật khẩu tạm theo quy trình của môi trường.
 
+## Sao lưu PostgreSQL ngoài Compose
+
+Chạy từ máy operator kết nối được đến đúng PostgreSQL. Cấp tài khoản sao lưu có quyền đọc đủ dữ liệu cần phục hồi, tệp mật khẩu định dạng `pgpass` và PEM CA phù hợp. Giới hạn quyền đọc tệp mật khẩu và thư mục đích cho tài khoản operator. Nạp sẵn image PostgreSQL client được phê duyệt theo digest và chọn phiên bản phù hợp với máy chủ. Dùng manifest của phiên bản Crypta đang chạy.
+
+```powershell
+$taskBackupArguments = @(
+  '--host', 'postgres.example.org', '--database', 'crypta', '--user', 'crypta_backup',
+  '--password-file', 'C:\crypta-operator\backup.pgpass',
+  '--ca-file', 'C:\crypta-operator\postgres-ca.pem',
+  '--client-image', '<postgres-image@sha256:digest>',
+  '--release-manifest', 'C:\crypta-operator\release-manifest.json',
+  '--output', 'C:\crypta-operator\backups'
+)
+node tools/backup-production.cjs @taskBackupArguments
+```
+
+Thêm `--port` nếu khác 5432. Nếu PostgreSQL chỉ truy cập được từ mạng Docker đã cấp, thêm `--network` và tên mạng đó. Client dùng TLS `verify-full` và kiểm hostname. Lệnh ghi archive custom, kiểm mục lục bằng `pg_restore --list` rồi mới công bố cặp dump và manifest SHA-256. Manifest ghi phiên bản, Git SHA, digest client và thời điểm sao lưu. Tệp mật khẩu nằm ngoài cặp bàn giao. [Lệnh sao lưu](tools/backup-production.cjs) · [TLS PostgreSQL](https://www.postgresql.org/docs/17/libpq-ssl.html#LIBPQ-SSL-CERTIFICATES) · [pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)
+
+Chuyển cả cặp tệp vào kho sao lưu đã duyệt. Đối chiếu SHA-256 trước khi nạp vào database thử mới và áp lại quyền runtime sau khi phục hồi. Người vận hành chốt lịch, retention, mã hóa, cảnh báo lỗi và nơi lưu ngoài máy theo RPO/RTO của môi trường. [Kiểm sau phục hồi](#trước-khi-nâng-cấp)
+
+Diễn tập 09/11 dùng PostgreSQL 17 TLS cách ly và tài khoản sao lưu chỉ đọc. Lệnh từ chối sai CA, sai hostname và sai mật khẩu, đồng thời dọn tệp tạm. Dump 144.151 byte khớp checksum và manifest ứng viên. Sao lưu mất 2,53 giây. Tạo database đích và nạp dump mất 2,48 giây trước bước đối chiếu. Dữ liệu 28 bảng và sequence audit khớp. Database phục hồi thu hồi quyền `CONNECT` của `PUBLIC`. Đây là số đo cục bộ với dữ liệu thử. [Báo cáo](tools/test-artifacts/crypta-ca-test-2c030d164f7e/report.json)
+
 ## Trước khi nâng cấp
 
 1. Ghi lại Git SHA, image ID/digest, PostgreSQL major version, DB đích, ledger, role runtime/migrator và chế độ provider/SMTP. Đối chiếu phạm vi provider, `APP_URL`, cookie HTTPS và đường kết nối DB của bản mới với cấu hình vận hành. Giữ sẵn image cũ và cấu hình tương thích trong kho bí mật.

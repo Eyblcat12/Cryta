@@ -146,6 +146,8 @@ powershell -ExecutionPolicy Bypass -File .\tools\restore-crypta-test.ps1 -Backup
 
 Chọn tệp từ một backup có manifest hợp lệ và dùng tên database đích chưa tồn tại. Script đối chiếu SHA-256 trước và sau khi chép dump vào container, rồi kiểm `pg_restore --list` trước khi tạo database. Sau khi phục hồi, database đích được giữ để đối chiếu. Trước production còn cần lịch backup, lưu trữ ngoài máy và diễn tập trên môi trường đích. Khóa tại KMS/CA có quy trình sao lưu riêng của provider. [Quy trình nâng cấp và phục hồi](RELEASE_RUNBOOK.md)
 
+Với PostgreSQL production bên ngoài Compose, dùng lệnh sao lưu qua TLS và giữ manifest phiên bản cùng dump. [Sao lưu PostgreSQL ngoài Compose](RELEASE_RUNBOOK.md#sao-lưu-postgresql-ngoài-compose)
+
 - Provision tài khoản Admin ban đầu, lập lịch backup PostgreSQL và giám sát email `FAILED`.
 - Kết nối adapter KMS/HSM/CA production bằng `CRYPTO_PROVIDER_MODE=HTTP`.
 - Database có migration tương thích volume cũ; file bootstrap chỉ dành cho database mới.
