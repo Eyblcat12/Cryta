@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { writeSync } from 'node:fs';
 import { ConsoleLogger, ShutdownSignal, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule } from '@nestjs/swagger';
@@ -13,13 +14,16 @@ import { HttpFailureAuditService } from './audit/http-failure-audit.service';
 import { ReadinessService, shutdownUnavailable } from './health/readiness.service';
 import { corsOrigins, prepareDeploymentEnvironment } from './common/deployment-config';
 import { validateMfaEnvironment } from './auth/mfa.service';
+import { startupFailure } from './common/startup-failure';
 import type { NextFunction, Request, Response } from 'express';
 
 async function bootstrap() {
   prepareDeploymentEnvironment();
   validateMfaEnvironment();
   cryptoProviderConfig();
-  const app = await NestFactory.create(AppModule, { cors: false, logger: new ConsoleLogger({ json: true }) });
+  const app = await NestFactory.create(AppModule, {
+    cors: false, logger: new ConsoleLogger({ json: true }), abortOnError: false, bufferLogs: true, autoFlushLogs: false,
+  });
   app.setGlobalPrefix('api/v1');
   app.use(requestContext(app.get(OperationsMetricsService)));
   app.enableCors({ origin: corsOrigins(), credentials: true });
@@ -36,6 +40,12 @@ async function bootstrap() {
 
   app.enableShutdownHooks([ShutdownSignal.SIGINT, ShutdownSignal.SIGTERM], { useProcessExit: true });
   await app.listen(Number(process.env.PORT ?? 3000), '0.0.0.0');
+  app.flushLogs();
 }
 
-void bootstrap();
+void bootstrap().catch(error => {
+  // A partially initialized process can already own sockets or timers.
+  const message = startupFailure(error);
+  writeSync(2, JSON.stringify({ level: 'error', pid: process.pid, timestamp: Date.now(), context: 'Bootstrap', message }) + '\n');
+  process.exit(1);
+});
