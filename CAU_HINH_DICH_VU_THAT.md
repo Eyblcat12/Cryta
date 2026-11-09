@@ -10,6 +10,8 @@ Ngày 05/10/2026, chủ dự án xác nhận chưa chọn provider mật mã, SM
 
 Mẫu local nằm trong [.env.example](.env.example). Bản production dùng [mẫu biến](deploy/production.env.example) và [Compose riêng](docker-compose.production.yml), với đường dẫn đến tệp bí mật được cấp từ kho bí mật của môi trường. [Quy trình triển khai](RELEASE_RUNBOOK.md#cấu-hình-docker-production)
 
+Dịch vụ dùng CA nội bộ có thể dùng tệp Compose bổ sung để cấp bundle CA công khai cho backend. Dùng cùng cấu hình khi tạo lại backend và kiểm lại hostname của từng dịch vụ. CA của ingress HTTPS được cấp riêng cho trình duyệt và máy chạy smoke khi cần. [Cấu hình CA nội bộ](deploy/compose.private-ca.yml) · [Quy trình triển khai](RELEASE_RUNBOOK.md#cấu-hình-docker-production)
+
 ## Provider
 
 Chọn `CRYPTO_PROVIDER_MODE=MOCK` cho dữ liệu mô phỏng hoặc `HTTP` cho adapter. Với HTTP, dùng HTTPS, Bearer token chỉ cấp cho các thao tác cần thiết và `CRYPTO_PROVIDER_SCOPE` là mã ổn định, riêng cho tài khoản và môi trường provider. Giữ cùng URL và scope khi xoay token của cùng tài khoản. Chuyển endpoint hoặc tài khoản cần đối chiếu tài sản trước vì API chặn gia hạn và thu hồi khi phạm vi khác nhau.

@@ -45,17 +45,20 @@ Frontend đóng gói mặc định dùng `VITE_ROUTE_MOTION=off`. Thay đổi ri
 
 1. Điền [mẫu cấu hình](deploy/production.env.example) vào tệp riêng của máy đích. Dùng hai image theo digest đã duyệt. Chọn một `APP_ORIGIN` HTTPS chính xác, dạng scheme và tên máy kèm cổng nếu có, bỏ dấu gạch chéo cuối. Proxy TLS trên máy đích chuyển cả SPA và `/api/` đến `127.0.0.1:18080` hoặc cổng `CRYPTA_PROXY_PORT` đã chọn. Backend nằm trong mạng nội bộ Compose. Kiểm login và cookie qua HTTPS trước khi mở lưu lượng.
 2. Cấp PostgreSQL riêng và tài khoản runtime theo [quy trình migration](DATABASE_MIGRATIONS.md). Xác nhận đích là database mới và rỗng trước khi nạp `database_schema.sql`. Schema cài mới tạo đối tượng trong một transaction và từ chối đối tượng đã tồn tại. Tiếp đó, operator chạy CLI migration từ image mới bằng credential migration, cấp quyền runtime và khởi tạo Admin theo phần dưới. Với database hiện hữu, bắt đầu từ phần nâng cấp. Compose production khởi động hai dịch vụ ứng dụng.
-3. Cấp năm tệp bí mật theo đường dẫn tuyệt đối trong mẫu. Mỗi tệp chứa một giá trị trên một dòng. Materialize tệp từ kho bí mật, dùng ACL của máy đích và kiểm người dùng `node` trong container đọc được chúng. Tạo JWT từ ít nhất 32 byte ngẫu nhiên mã hóa base64url và khóa account actions riêng từ 32 byte ngẫu nhiên mã hóa hex. Bản production yêu cầu provider HTTPS, SMTP có xác thực qua TLS và bật luồng mời/reset. Nếu dùng CA riêng, cấp tệp CA công khai chỉ đọc và đặt `NODE_EXTRA_CA_CERTS` trong container trước khi khởi động. [Cấu hình dịch vụ](CAU_HINH_DICH_VU_THAT.md)
+3. Cấp năm tệp bí mật theo đường dẫn tuyệt đối trong mẫu. Mỗi tệp chứa một giá trị trên một dòng. Materialize tệp từ kho bí mật, dùng ACL của máy đích và kiểm người dùng `node` trong container đọc được chúng. Tạo JWT từ ít nhất 32 byte ngẫu nhiên mã hóa base64url và khóa account actions riêng từ 32 byte ngẫu nhiên mã hóa hex. Bản production yêu cầu provider HTTPS, SMTP có xác thực qua TLS và bật luồng mời/reset. [Cấu hình dịch vụ](CAU_HINH_DICH_VU_THAT.md)
 4. Chạy lệnh sau với đường dẫn đến tệp cấu hình của máy đích. Kiểm `ps` và readiness, rồi tiếp tục smoke qua proxy.
 
 ```powershell
 $taskConfigPath = 'deploy/.env.production'
-docker compose --env-file $taskConfigPath -f docker-compose.production.yml config --quiet
-docker compose --env-file $taskConfigPath -f docker-compose.production.yml up -d --wait
-docker compose --env-file $taskConfigPath -f docker-compose.production.yml ps
+$taskComposeFiles = @('-f', 'docker-compose.production.yml')
+docker compose --env-file $taskConfigPath @taskComposeFiles config --quiet
+docker compose --env-file $taskConfigPath @taskComposeFiles up -d --wait
+docker compose --env-file $taskConfigPath @taskComposeFiles ps
 ```
 
-Khi xoay bí mật trong cửa sổ bảo trì, cập nhật giá trị trong kho bí mật và tệp được mount, rồi tạo lại backend bằng `docker compose --env-file $taskConfigPath -f docker-compose.production.yml up -d --no-deps --force-recreate --wait backend`. Nginx tra lại tên `backend` qua DNS nội bộ Docker khi địa chỉ thay đổi. Chạy lại smoke qua HTTPS sau khi backend báo healthy.
+Nếu PostgreSQL, provider, SMTP hoặc OIDC dùng CA nội bộ, đặt `CRYPTA_PRIVATE_CA_BUNDLE_FILE` thành đường dẫn tuyệt đối tới tệp PEM chỉ chứa chứng thư CA công khai đã được phê duyệt. Thêm `$taskComposeFiles += @('-f', 'deploy/compose.private-ca.yml')` sau khi khai báo mảng ở trên và trước các lệnh Compose. Tệp được mount chỉ đọc vào backend, và Node thêm CA đó vào bộ tin cậy hiện có. Cấp quyền đọc tệp cho người dùng `node`. Tiếp tục dùng hostname khớp chứng thư của từng dịch vụ. [Cấu hình CA nội bộ](deploy/compose.private-ca.yml)
+
+Khi xoay bí mật hoặc đổi CA trong cửa sổ bảo trì, cập nhật tệp và tạo lại backend bằng `docker compose --env-file $taskConfigPath @taskComposeFiles up -d --no-deps --force-recreate --wait backend`. Nginx tra lại tên `backend` qua DNS nội bộ Docker khi địa chỉ thay đổi. Chạy lại smoke qua HTTPS sau khi backend báo healthy.
 
 Nginx trong image frontend ghi `nginx.access` dạng JSON. Dùng `correlationId` để tra log API và audit. Khi backend chưa trả mã, dùng `proxyRequestId`, thời điểm và trạng thái upstream để khoanh vùng sự cố. Kiểm cấu hình log của ingress TLS và hệ thống thu thập riêng trên máy đích. Lưu `audit.http_failure_not_persisted` ở đích độc lập với PostgreSQL và thử khả năng truy xuất trong diễn tập mất DB. [Bằng chứng T21](T21_AUDIT_CORRELATION_2026-11-06.md)
 
@@ -66,6 +69,8 @@ node tools/smoke-deployment.cjs https://crypta.example.org
 ```
 
 Smoke kiểm liveness, readiness của PostgreSQL, trang SPA qua URL sâu, chính sách referrer của hai luồng tài khoản, MIME của JS/CSS và HTTP 404 cho chunk mất và API lạ. Đối chiếu image/digest với manifest riêng trước khi mở lưu lượng.
+
+Ngày 09/11, diễn tập Compose production với hai image từ `3b872fa` dùng CA riêng sinh cho stack cách ly. PostgreSQL từ chối kết nối khi thiếu CA hoặc hostname sai. Sau khi mount CA chỉ đọc, runtime LOGIN kết nối PostgreSQL qua TLS, 10 probe HTTPS đạt và cookie Secure/HttpOnly xoay qua refresh. Relay SMTP thử xác thực qua TLS và nhận thư. Một yêu cầu cấp khóa đi qua provider HTTPS thử đúng một lần, rồi chuyển sang hoàn tất. Đã dọn container, network, volume và tệp bí mật của lượt thử. [Báo cáo diễn tập](tools/test-artifacts/crypta-ca-test-e51ae369d971/report.json)
 
 ## Khởi tạo Admin đầu tiên
 
