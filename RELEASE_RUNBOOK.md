@@ -116,6 +116,26 @@ Chuyển cả cặp tệp vào kho sao lưu đã duyệt. Đối chiếu SHA-256
 
 Diễn tập 09/11 dùng PostgreSQL 17 TLS cách ly và tài khoản sao lưu chỉ đọc. Lệnh từ chối sai CA, sai hostname và sai mật khẩu, đồng thời dọn tệp tạm. Dump 144.151 byte khớp checksum và manifest ứng viên. Sao lưu mất 2,53 giây. Tạo database đích và nạp dump mất 2,48 giây trước bước đối chiếu. Dữ liệu 28 bảng và sequence audit khớp. Database phục hồi thu hồi quyền `CONNECT` của `PUBLIC`. Đây là số đo cục bộ với dữ liệu thử. [Báo cáo](tools/test-artifacts/crypta-ca-test-2c030d164f7e/report.json)
 
+### Phục hồi vào PostgreSQL thử bên ngoài Compose
+
+Dùng cặp dump và manifest từ kho đã duyệt. Chọn PostgreSQL cách ly, tài khoản operator được cấp quyền tạo database và tên `crypta_restore_*` mới. Tệp `pgpass` của operator cần cho phép kết nối vào database quản trị `postgres` và database thử. Nếu database quản trị có tên khác, truyền `--maintenance-database`.
+
+```powershell
+$taskRestoreArguments = @(
+  '--host', 'postgres-restore.example.org', '--database', 'crypta_restore_pilot',
+  '--user', 'crypta_restore_operator', '--password-file', 'C:\crypta-operator\restore.pgpass',
+  '--ca-file', 'C:\crypta-operator\restore-ca.pem', '--client-image', '<postgres-image@sha256:digest>',
+  '--backup', 'C:\crypta-operator\backups\crypta-example.dump'
+)
+node tools/restore-production-test.cjs @taskRestoreArguments
+```
+
+Lệnh cần đủ chỗ trống trong thư mục tạm của operator để chép một bản dump. Nó xác minh checksum và giải mã toàn bộ archive trước khi kết nối đích. Sau đó lệnh tạo database mới, thu hồi quyền `PUBLIC` trước khi mở kết nối cho owner, nạp dump trong một transaction và kiểm quyền hàm checkpoint audit. Đích đã tồn tại bị từ chối. Nếu một bước lỗi sau khi tạo database, giữ database thử để điều tra. [Lệnh phục hồi](tools/restore-production-test.cjs)
+
+Áp quyền runtime trên database thử trước khi dựng API kiểm tra. Đối chiếu phiên bản ledger, số liệu, sequence audit, đăng nhập, lineage và trạng thái provider. Dùng dịch vụ thử cách ly cho lần khởi động sau phục hồi. [Quyền runtime](DATABASE_MIGRATIONS.md) · [Quay lui](#trước-khi-nâng-cấp)
+
+Ngày 09/11, operator có `CREATEDB` và `NOSUPERUSER` phục hồi qua TLS vào database cách ly. Bốn ca bị từ chối gồm checksum sai, dump bị cắt dù checksum đã tính lại, tên database nguồn và tên đích đã có. Lệnh phục hồi hợp lệ mất 6,25 giây. Dữ liệu 28 bảng và sequence audit khớp. Sau khi cấp quyền runtime, API đăng nhập và đọc được yêu cầu đã hoàn tất, lịch sử tài sản và Audit Log. Provider thử vẫn ghi đúng một lần cấp sau khi khởi động lại. [Báo cáo](tools/test-artifacts/crypta-ca-test-e498bf0e5acb/report.json)
+
 ## Trước khi nâng cấp
 
 1. Ghi lại Git SHA, image ID/digest, PostgreSQL major version, DB đích, ledger, role runtime/migrator và chế độ provider/SMTP. Đối chiếu phạm vi provider, `APP_URL`, cookie HTTPS và đường kết nối DB của bản mới với cấu hình vận hành. Giữ sẵn image cũ và cấu hình tương thích trong kho bí mật.
