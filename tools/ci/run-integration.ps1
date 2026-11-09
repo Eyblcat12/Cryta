@@ -48,6 +48,7 @@ $taskCiVerification = {
   # The signal rehearsal leaves the backend stopped for a stable backup snapshot.
   & (Join-Path $taskCiRoot 'tools/test-real-shutdown.ps1') -ReportPath $ReportPath
   & (Join-Path $taskCiRoot 'tools/test-backup-restore.ps1') -ReportPath $ReportPath
+  & (Join-Path $taskCiRoot 'tools/test-real-proxy-recovery.ps1') -ReportPath $ReportPath
 }
 
 $taskCiArtifactRoot = Join-Path $taskCiRoot 'tools/test-artifacts'
