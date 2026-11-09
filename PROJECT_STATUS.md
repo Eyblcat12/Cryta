@@ -2,6 +2,8 @@
 
 ## Hiện trạng ngày 09/11/2026
 
+GitHub Actions đạt đủ năm job trên `69178b9`. Hai artifact đã đối chiếu checksum và xác nhận Trivy ghi 0 Critical/High trên hai image `linux/amd64`. Bản dựng cục bộ từ `dc60474` qua kiểm archive và cùng cổng quét image. [Manifest và bằng chứng quét](docs/CI_REMOTE_2026-11-07.md#đối-chiếu-gói-và-quét-image-ngày-0911)
+
 GitHub Actions đạt đủ năm job trên `d55dfda` và `ef4c557`. Đã đối chiếu checksum artifact tích hợp và manifest hai image của từng commit. Ca phiên HTTPS đạt 2/2. Nginx phục hồi readiness sau 3,26 giây trong CI khi backend đổi IP, với frontend giữ nguyên. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md#đối-chiếu-phiên-https-và-phục-hồi-nginx-ngày-0911)
 
 Lượt ngày 08/11 trên `fd4577145db8db35a38437b7f81501ad78549142` đạt đủ năm job. Artifact xác nhận backend 520/520, frontend 148/148, SMTP loopback 6/6, Chromium 65/65, quyền runtime 51/51, worker 37/37 và hết hạn 21/21. Audit dependency ghi 0 advisory cho ba package ở lượt này. CI đã dọn stack. SHA-256 của hai context build và mẫu cấu hình khớp khi tạo lại từ cùng commit. [Bằng chứng CI](docs/CI_REMOTE_2026-11-07.md#đối-chiếu-artifact-trên-commit-ứng-viên)
