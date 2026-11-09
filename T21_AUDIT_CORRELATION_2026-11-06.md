@@ -69,3 +69,7 @@ Trên Nginx/PostgreSQL cách ly, HTTP 401 có cùng mã truy vết ở phản h�
 Diễn tập SIGTERM đạt 2/2. Sau khi backend thoát, Nginx ghi HTTP 502 và mã proxy. Cả hai luồng log của container đều loại dữ liệu giả trong query và referrer của probe. Stack được dọn sau kiểm. [Báo cáo](tools/test-artifacts/integration/crypta-t30-test-69e83aa8549e/shutdown-916ccdd8edd4/results.json)
 
 Nghiệm thu môi trường đích còn cần kiểm log khởi động với cấu hình đích, dữ liệu SMTP lịch sử, log của ingress TLS và nơi thu thập fallback độc lập với PostgreSQL. Vận hành cần chốt thời hạn lưu, quyền đọc và thử truy xuất sau diễn tập mất DB. [Runbook](RELEASE_RUNBOOK.md#cấu-hình-docker-production)
+
+## Log khởi động ngày 10/11/2026
+
+Trên Compose production cách ly với PostgreSQL TLS, image `51c9a4a` in nguyên một giá trị giả lấy từ dòng migration lạ. Image `02023a4` thoát mã 1 và ghi `application.startup_failed` cùng mã `UNKNOWN_DATABASE_MIGRATION` trong log JSON. Giá trị thử và stack trace vắng mặt trong cả stdout lẫn stderr. Khi bỏ dòng thử, log khởi động Nest và xác minh SMTP xuất hiện, smoke HTTPS đạt 10/10. Cả hai stack đã dọn và ID của 15 container bên ngoài được giữ nguyên. [Đối chứng trước sửa](tools/test-artifacts/crypta-ca-test-f8f73d6a3188/report.json) · [Sau sửa](tools/test-artifacts/crypta-ca-test-8bf764b84c4d/report.json)

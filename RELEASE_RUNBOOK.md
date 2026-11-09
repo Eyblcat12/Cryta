@@ -62,6 +62,8 @@ Khi xoay bí mật hoặc đổi CA trong cửa sổ bảo trì, cập nhật t�
 
 Nginx trong image frontend ghi `nginx.access` dạng JSON. Dùng `correlationId` để tra log API và audit. Khi backend chưa trả mã, dùng `proxyRequestId`, thời điểm và trạng thái upstream để khoanh vùng sự cố. Kiểm cấu hình log của ingress TLS và hệ thống thu thập riêng trên máy đích. Lưu `audit.http_failure_not_persisted` ở đích độc lập với PostgreSQL và thử khả năng truy xuất trong diễn tập mất DB. [Bằng chứng T21](T21_AUDIT_CORRELATION_2026-11-06.md)
 
+Khi API khởi động thất bại, tra `message.event` và `message.code` trong log JSON. Lỗi chung dùng `application.startup_failed`. Kiểm SMTP thất bại giữ sự kiện `email.smtp_verify_failed`. Nếu mã chỉ tới migration, đối chiếu ledger bằng công cụ vận hành. [Hợp đồng migration](DATABASE_MIGRATIONS.md) · [Diễn tập log khởi động](T21_AUDIT_CORRELATION_2026-11-06.md#log-khởi-động-ngày-10112026)
+
 Chạy smoke từ máy operator qua điểm vào HTTPS mà người dùng sẽ truy cập. Thay URL ví dụ bằng `APP_ORIGIN` của môi trường. Nếu proxy dùng CA nội bộ, cấp CA công khai đã xác minh qua `NODE_EXTRA_CA_CERTS` trước khi chạy Node. Smoke chỉ đọc, dùng URL cố định không chứa thông tin đăng nhập và trả mã thoát khác 0 khi có lỗi.
 
 ```powershell
