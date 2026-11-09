@@ -1,5 +1,5 @@
 // Compiled validator under an actual restricted PostgreSQL role, allocated DB only.
-const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto'),{execFileSync}=require('node:child_process');
+const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto'),{execFileSync,spawnSync}=require('node:child_process');
 async function main(options){
  assert.match(options.project,/^crypta-t30-test-[a-f0-9]{12}$/);assert.match(options.database,/^crypta_ledger_test_[a-f0-9]{12}$/);
  assert.equal(process.env.CRYPTO_PROVIDER_MODE,'MOCK');assert.equal(process.env.SMTP_ENABLED,'false');
@@ -7,7 +7,7 @@ async function main(options){
  require('/app/node_modules/reflect-metadata');const {Pool}=require('/app/node_modules/pg');const {MigrationService}=require('/app/dist/database/migration.service.js');
  const admin=new Pool({connectionString:url.href,max:2,statement_timeout:10000});const runtime=new Pool({connectionString:url.href,max:2,statement_timeout:10000});
  const role=`crypta_ledger_role_${options.database.slice(-12)}`;assert.match(role,/^crypta_ledger_role_[a-f0-9]{12}$/);
- const results=[];const report={database:options.database,fixtureOnly:false,success:false,role,results,compiledServiceHashes:Object.fromEntries(['database/migration.service.js','database/migrate.js'].map(n=>[n,crypto.createHash('sha256').update(fs.readFileSync('/app/dist/'+n)).digest('hex')])),roleSelection:'SET ROLE using dedicated test connections, not LOGIN credential authentication'};
+ const results=[];const report={database:options.database,fixtureOnly:false,success:false,role,results,compiledServiceHashes:Object.fromEntries(['database/migration.service.js','database/migrate.js','main.js','common/startup-failure.js'].map(n=>[n,crypto.createHash('sha256').update(fs.readFileSync('/app/dist/'+n)).digest('hex')])),roleSelection:'SET ROLE using dedicated test connections, not LOGIN credential authentication'};
  const sql=(q,v)=>admin.query(q,v);const ledger=async()=> (await sql('SELECT version,checksum FROM public.schema_migrations ORDER BY version')).rows;
  const runtimePool={async connect(){const c=await runtime.connect();try{await c.query(`SET ROLE "${role}"`);return c;}catch(e){c.release();throw e;}}};
  const service=new MigrationService(runtimePool);let created=false;
@@ -55,8 +55,31 @@ async function main(options){
    await sql("UPDATE schema_migrations SET checksum=repeat('a',64) WHERE version=$1",[original[0].version]);await rejectValidation('DATABASE_MIGRATION_CHANGED');
    await sql('UPDATE schema_migrations SET checksum=$2 WHERE version=$1',[original[0].version,original[0].checksum]);
   });
-  await test('Unknown future migration is rejected and retained for investigation',async()=>{
-   await sql("INSERT INTO schema_migrations(version,checksum) VALUES('999_future',repeat('a',64))");await rejectValidation('UNKNOWN_DATABASE_MIGRATION');await sql("DELETE FROM schema_migrations WHERE version='999_future'");
+  await test('Compiled API rejects an unknown migration and logs only its safe failure code',async()=>{
+   const version = `999_private_${crypto.randomBytes(12).toString('hex')}`;
+   await sql("INSERT INTO schema_migrations(version,checksum) VALUES($1,repeat('a',64))", [version]);
+   try {
+    await rejectValidation('UNKNOWN_DATABASE_MIGRATION');
+    const beforeStartup = await ledger();
+    const startup = spawnSync(process.execPath, ['/app/dist/main.js'], {
+     env: { ...process.env, DATABASE_URL: url.href, DATABASE_MIGRATION_MODE: 'validate', PORT: '0' },
+     encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 15000,
+    });
+    assert.ok(!startup.error && startup.status === 1, 'Compiled API must exit with status 1 on the invalid ledger.');
+    assert.ok(!startup.stdout.includes(version) && !startup.stderr.includes(version), 'Startup output exposed the ledger version.');
+    const lines = startup.stderr.trim().split(/\r?\n/);
+    assert.equal(lines.length, 1, 'Expected one startup failure diagnostic on stderr.');
+    let diagnostic;
+    try { diagnostic = JSON.parse(lines[0]); } catch { throw new Error('Expected a JSON startup failure diagnostic.'); }
+    assert.ok(diagnostic?.level === 'error' && diagnostic?.context === 'Bootstrap' && !('stack' in diagnostic)
+     && diagnostic?.message?.event === 'application.startup_failed'
+     && diagnostic?.message?.code === 'UNKNOWN_DATABASE_MIGRATION' && Object.keys(diagnostic.message).length === 2,
+     'Startup diagnostic has an unexpected shape or code.');
+    assert.ok(JSON.stringify(await ledger()) === JSON.stringify(beforeStartup), 'Compiled API startup changed the migration ledger.');
+    return { exitStatus: startup.status, code: diagnostic.message.code };
+   } finally {
+    await sql('DELETE FROM schema_migrations WHERE version=$1', [version]);
+   }
   });
   await test('Missing ledger is rejected without creating a table',async()=>{
    await sql('ALTER TABLE schema_migrations RENAME TO ledger_saved');try{await assert.rejects(()=>service.validateApplied(),/DATABASE_MIGRATIONS_REQUIRED/);

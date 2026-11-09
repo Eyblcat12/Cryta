@@ -126,12 +126,13 @@ async function main(reportArgument) {
     outsideContainerInventoryBefore: beforeOthers, outsideContainerCountBefore: beforeOthers.length,
     comparisonHasSubjects: beforeOthers.length > 0, limitations: [
       'Privileges exercised using SET ROLE in a dedicated connection pool; this is not login, password rotation or full restricted API verification.',
-      'No runtime grants for business tables are provisioned here; complete T43 remains open.',
+      'The compiled API startup check uses the allocated database owner to isolate the invalid-ledger failure.',
     ],
   };
   for (const relative of ['tools/test-real-runtime-ledger.cjs', 'tools/testing/runtime-ledger-runner.cjs',
     'database_schema.sql', 'backend/src/database/migrate.ts',
-    'backend/src/database/database.module.ts', 'backend/src/database/migration.service.ts']) {
+    'backend/src/database/database.module.ts', 'backend/src/database/migration.service.ts',
+    'backend/src/main.ts', 'backend/src/common/startup-failure.ts']) {
     report.sourceHashes[relative] = await hashFile(relative);
   }
   let createdDatabase = false;
