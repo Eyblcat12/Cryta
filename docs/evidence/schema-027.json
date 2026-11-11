@@ -1,0 +1,2946 @@
+{
+  "migration": "027_email_worker_status",
+  "tables": [
+    {
+      "name": "account_action_limits",
+      "columns": [
+        {
+          "name": "bucket_key",
+          "type": "character varying(80)",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "attempt_count",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "account_action_limits_attempt_count_check",
+          "kind": "c",
+          "definition": "CHECK ((attempt_count > 0))"
+        },
+        {
+          "name": "account_action_limits_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (bucket_key)"
+        }
+      ]
+    },
+    {
+      "name": "account_actions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "purpose",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "token_version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "account_actions_check",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > created_at))"
+        },
+        {
+          "name": "account_actions_id_user_id_purpose_key",
+          "kind": "u",
+          "definition": "UNIQUE (id, user_id, purpose)"
+        },
+        {
+          "name": "account_actions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "account_actions_purpose_check",
+          "kind": "c",
+          "definition": "CHECK (((purpose)::text = ANY ((ARRAY['INVITATION'::character varying, 'PASSWORD_RESET'::character varying])::text[])))"
+        },
+        {
+          "name": "account_actions_token_hash_check",
+          "kind": "c",
+          "definition": "CHECK ((token_hash ~ '^[a-f0-9]{64}$'::text))"
+        },
+        {
+          "name": "account_actions_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "account_actions_token_version_check",
+          "kind": "c",
+          "definition": "CHECK ((token_version > 0))"
+        },
+        {
+          "name": "account_actions_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "approver_scopes",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "department_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "assigned_by",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "approver_scopes_assigned_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "approver_scopes_department_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "approver_scopes_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (user_id, department_id)"
+        },
+        {
+          "name": "approver_scopes_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "audit_logs",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "actor_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "actor_type",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "action",
+          "type": "character varying(100)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "entity_type",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "entity_id",
+          "type": "character varying(100)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "outcome",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "request_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "ip_address",
+          "type": "inet",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "metadata",
+          "type": "jsonb",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "audit_logs_actor_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "audit_logs_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "audit_logs_request_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "ck_audit_actor",
+          "kind": "c",
+          "definition": "CHECK (((((actor_type)::text = 'SYSTEM'::text) AND (actor_id IS NULL)) OR (((actor_type)::text = 'USER'::text) AND (actor_id IS NOT NULL))))"
+        },
+        {
+          "name": "ck_audit_actor_type",
+          "kind": "c",
+          "definition": "CHECK (((actor_type)::text = ANY ((ARRAY['USER'::character varying, 'SYSTEM'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_audit_metadata",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(metadata) = 'object'::text))"
+        },
+        {
+          "name": "ck_audit_outcome",
+          "kind": "c",
+          "definition": "CHECK (((outcome)::text = ANY ((ARRAY['SUCCESS'::character varying, 'FAILED'::character varying, 'DENIED'::character varying])::text[])))"
+        }
+      ]
+    },
+    {
+      "name": "auth_mfa",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "credential_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sealed_secret",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_step",
+          "type": "bigint",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "recovery_hashes",
+          "type": "text[]",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "failed_attempts",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "locked_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_mfa_credential_id_key",
+          "kind": "u",
+          "definition": "UNIQUE (credential_id)"
+        },
+        {
+          "name": "auth_mfa_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (user_id)"
+        },
+        {
+          "name": "auth_mfa_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "ck_mfa_factor",
+          "kind": "c",
+          "definition": "CHECK ((((credential_id IS NULL) AND (sealed_secret IS NULL) AND (last_step IS NULL) AND (cardinality(recovery_hashes) = 0)) OR ((credential_id IS NOT NULL) AND (sealed_secret IS NOT NULL) AND (last_step IS NOT NULL) AND (last_step >= 0))))"
+        },
+        {
+          "name": "ck_mfa_failed_attempts",
+          "kind": "c",
+          "definition": "CHECK (((failed_attempts >= 0) AND (failed_attempts <= 5)))"
+        },
+        {
+          "name": "ck_mfa_recovery_size",
+          "kind": "c",
+          "definition": "CHECK (((cardinality(recovery_hashes) <= 10) AND (array_position(recovery_hashes, NULL::text) IS NULL)))"
+        }
+      ]
+    },
+    {
+      "name": "auth_mfa_challenges",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "token_version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "purpose",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "pending_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "pending_secret",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "pending_step",
+          "type": "bigint",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "pending_hashes",
+          "type": "text[]",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "oidc_session_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_mfa_challenges_oidc_session_id_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "auth_mfa_challenges_pending_id_key",
+          "kind": "u",
+          "definition": "UNIQUE (pending_id)"
+        },
+        {
+          "name": "auth_mfa_challenges_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (user_id)"
+        },
+        {
+          "name": "auth_mfa_challenges_purpose_check",
+          "kind": "c",
+          "definition": "CHECK ((purpose = ANY (ARRAY['VERIFY'::text, 'ENROLL'::text, 'RECOVER'::text, 'REPLACE'::text])))"
+        },
+        {
+          "name": "auth_mfa_challenges_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "auth_mfa_challenges_token_version_check",
+          "kind": "c",
+          "definition": "CHECK ((token_version > 0))"
+        },
+        {
+          "name": "auth_mfa_challenges_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "ck_mfa_challenge_pending",
+          "kind": "c",
+          "definition": "CHECK (((pending_id IS NULL) = (pending_secret IS NULL)))"
+        },
+        {
+          "name": "ck_mfa_challenge_verified",
+          "kind": "c",
+          "definition": "CHECK ((((pending_step IS NULL) AND (pending_hashes IS NULL)) OR ((pending_id IS NOT NULL) AND (pending_step IS NOT NULL) AND (pending_step >= 0) AND (pending_hashes IS NOT NULL) AND (cardinality(pending_hashes) = 10) AND (array_position(pending_hashes, NULL::text) IS NULL))))"
+        },
+        {
+          "name": "ck_mfa_verify_has_no_pending",
+          "kind": "c",
+          "definition": "CHECK (((purpose <> 'VERIFY'::text) OR (pending_id IS NULL)))"
+        }
+      ]
+    },
+    {
+      "name": "auth_oidc_flows",
+      "columns": [
+        {
+          "name": "ticket_hash",
+          "type": "character(64)",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "browser_hash",
+          "type": "character(64)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "phase",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sealed_payload",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_oidc_flows_phase_check",
+          "kind": "c",
+          "definition": "CHECK ((phase = ANY (ARRAY['AUTHORIZE'::text, 'HANDOFF'::text])))"
+        },
+        {
+          "name": "auth_oidc_flows_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (ticket_hash)"
+        }
+      ]
+    },
+    {
+      "name": "auth_oidc_links",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "issuer",
+          "type": "character varying(2048)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "subject",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "linked_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_oidc_links_issuer_subject_key",
+          "kind": "u",
+          "definition": "UNIQUE (issuer, subject)"
+        },
+        {
+          "name": "auth_oidc_links_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (user_id)"
+        },
+        {
+          "name": "auth_oidc_links_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "auth_oidc_revocations",
+      "columns": [
+        {
+          "name": "issuer",
+          "type": "character varying(2048)",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "sid",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_oidc_revocations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (issuer, sid)"
+        }
+      ]
+    },
+    {
+      "name": "auth_oidc_sessions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "issuer",
+          "type": "character varying(2048)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "subject",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sid",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sealed_tokens",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "access_expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "authenticated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_oidc_sessions_id_user_id_key",
+          "kind": "u",
+          "definition": "UNIQUE (id, user_id)"
+        },
+        {
+          "name": "auth_oidc_sessions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "auth_oidc_sessions_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES auth_oidc_links(user_id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "auth_sessions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "token_hash",
+          "type": "character(64)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "user_agent",
+          "type": "character varying(500)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "ip_address",
+          "type": "inet",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "replaced_by",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "mfa_token_version",
+          "type": "integer",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "oidc_session_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "auth_sessions_mfa_token_version_check",
+          "kind": "c",
+          "definition": "CHECK ((mfa_token_version > 0))"
+        },
+        {
+          "name": "auth_sessions_oidc_session_id_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "auth_sessions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "auth_sessions_replaced_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (replaced_by) REFERENCES auth_sessions(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "auth_sessions_token_hash_key",
+          "kind": "u",
+          "definition": "UNIQUE (token_hash)"
+        },
+        {
+          "name": "auth_sessions_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "ck_auth_session_expiry",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > created_at))"
+        }
+      ]
+    },
+    {
+      "name": "certificates",
+      "columns": [
+        {
+          "name": "asset_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "serial_number",
+          "type": "character varying(100)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "subject_dn",
+          "type": "character varying(500)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "issuer_dn",
+          "type": "character varying(500)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "fingerprint",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "public_key_asset_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "certificates_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "certificates_fingerprint_key",
+          "kind": "u",
+          "definition": "UNIQUE (fingerprint)"
+        },
+        {
+          "name": "certificates_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (asset_id)"
+        },
+        {
+          "name": "certificates_public_key_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (public_key_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "certificates_serial_number_key",
+          "kind": "u",
+          "definition": "UNIQUE (serial_number)"
+        },
+        {
+          "name": "ck_cert_issuer",
+          "kind": "c",
+          "definition": "CHECK ((btrim((issuer_dn)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_cert_serial",
+          "kind": "c",
+          "definition": "CHECK ((btrim((serial_number)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_cert_subject",
+          "kind": "c",
+          "definition": "CHECK ((btrim((subject_dn)::text) <> ''::text))"
+        }
+      ]
+    },
+    {
+      "name": "crypto_assets",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "asset_code",
+          "type": "character varying(100)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "asset_type",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "owner_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "department_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "purpose",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "status",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "valid_from",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "replaces_asset_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "provider_reference",
+          "type": "character varying(255)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "provider_scope",
+          "type": "character varying(64)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_assets_code",
+          "kind": "c",
+          "definition": "CHECK ((btrim((asset_code)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_assets_dates",
+          "kind": "c",
+          "definition": "CHECK ((expires_at > valid_from))"
+        },
+        {
+          "name": "ck_assets_not_self_replacing",
+          "kind": "c",
+          "definition": "CHECK (((replaces_asset_id IS NULL) OR (replaces_asset_id <> id)))"
+        },
+        {
+          "name": "ck_assets_purpose",
+          "kind": "c",
+          "definition": "CHECK ((btrim((purpose)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_assets_status",
+          "kind": "c",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['REGISTERED'::character varying, 'ACTIVE'::character varying, 'EXPIRING_SOON'::character varying, 'EXPIRED'::character varying, 'REVOKED'::character varying, 'SUPERSEDED'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_assets_type",
+          "kind": "c",
+          "definition": "CHECK (((asset_type)::text = ANY ((ARRAY['KEY'::character varying, 'CERTIFICATE'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_assets_version",
+          "kind": "c",
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "crypto_assets_asset_code_key",
+          "kind": "u",
+          "definition": "UNIQUE (asset_code)"
+        },
+        {
+          "name": "crypto_assets_department_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "crypto_assets_owner_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "crypto_assets_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "crypto_assets_policy_version_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (policy_version_id) REFERENCES policy_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "crypto_assets_provider_scope_check",
+          "kind": "c",
+          "definition": "CHECK ((((provider_scope)::text = 'MOCK'::text) OR ((provider_scope)::text ~ '^[a-f0-9]{64}$'::text)))"
+        },
+        {
+          "name": "crypto_assets_replaces_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (replaces_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "cryptographic_keys",
+      "columns": [
+        {
+          "name": "asset_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "algorithm",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "key_size",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "usage",
+          "type": "character varying(100)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "public_key_fingerprint",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_keys_algorithm",
+          "kind": "c",
+          "definition": "CHECK (((algorithm)::text = ANY ((ARRAY['RSA'::character varying, 'ECDSA'::character varying, 'ED25519'::character varying, 'AES'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_keys_size",
+          "kind": "c",
+          "definition": "CHECK ((key_size > 0))"
+        },
+        {
+          "name": "ck_keys_usage",
+          "kind": "c",
+          "definition": "CHECK ((btrim((usage)::text) <> ''::text))"
+        },
+        {
+          "name": "cryptographic_keys_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "cryptographic_keys_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (asset_id)"
+        },
+        {
+          "name": "cryptographic_keys_public_key_fingerprint_key",
+          "kind": "u",
+          "definition": "UNIQUE (public_key_fingerprint)"
+        }
+      ]
+    },
+    {
+      "name": "departments",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "code",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "name",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_departments_code",
+          "kind": "c",
+          "definition": "CHECK ((btrim((code)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_departments_name",
+          "kind": "c",
+          "definition": "CHECK ((btrim((name)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_departments_version",
+          "kind": "c",
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "departments_code_key",
+          "kind": "u",
+          "definition": "UNIQUE (code)"
+        },
+        {
+          "name": "departments_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "email_worker_status",
+      "columns": [
+        {
+          "name": "singleton",
+          "type": "boolean",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "initialized_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_poll_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_poll_succeeded",
+          "type": "boolean",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "email_worker_status_check",
+          "kind": "c",
+          "definition": "CHECK (((last_poll_at IS NULL) = (last_poll_succeeded IS NULL)))"
+        },
+        {
+          "name": "email_worker_status_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (singleton)"
+        },
+        {
+          "name": "email_worker_status_singleton_check",
+          "kind": "c",
+          "definition": "CHECK (singleton)"
+        }
+      ]
+    },
+    {
+      "name": "expiry_scan_status",
+      "columns": [
+        {
+          "name": "singleton",
+          "type": "boolean",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "initialized_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_attempt_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_success_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_failed",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "expiry_scan_status_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (singleton)"
+        },
+        {
+          "name": "expiry_scan_status_singleton_check",
+          "kind": "c",
+          "definition": "CHECK (singleton)"
+        }
+      ]
+    },
+    {
+      "name": "notifications",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "asset_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "request_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "type",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "channel",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "delivery_status",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "deduplication_key",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "attempt_count",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "scheduled_for",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "read_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "error_message",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "account_action_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_notification_attempts",
+          "kind": "c",
+          "definition": "CHECK ((attempt_count >= 0))"
+        },
+        {
+          "name": "ck_notification_channel",
+          "kind": "c",
+          "definition": "CHECK (((channel)::text = ANY ((ARRAY['IN_APP'::character varying, 'EMAIL'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_notification_delivery",
+          "kind": "c",
+          "definition": "CHECK (((delivery_status)::text = ANY ((ARRAY['PENDING'::character varying, 'SENDING'::character varying, 'SENT'::character varying, 'FAILED'::character varying, 'RECONCILIATION_REQUIRED'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_notification_failed",
+          "kind": "c",
+          "definition": "CHECK ((((delivery_status)::text <> 'FAILED'::text) OR (failed_at IS NOT NULL)))"
+        },
+        {
+          "name": "ck_notification_sent",
+          "kind": "c",
+          "definition": "CHECK ((((delivery_status)::text <> 'SENT'::text) OR (sent_at IS NOT NULL)))"
+        },
+        {
+          "name": "ck_notification_subject",
+          "kind": "c",
+          "definition": "CHECK (((((type)::text = ANY ((ARRAY['INVITATION'::character varying, 'PASSWORD_RESET'::character varying])::text[])) AND ((channel)::text = 'EMAIL'::text) AND (account_action_id IS NOT NULL) AND (request_id IS NULL) AND (asset_id IS NULL)) OR (((type)::text = 'PASSWORD_RESET_COMPLETED'::text) AND ((channel)::text = 'EMAIL'::text) AND (account_action_id IS NULL) AND (request_id IS NULL) AND (asset_id IS NULL)) OR (((type)::text <> ALL ((ARRAY['INVITATION'::character varying, 'PASSWORD_RESET'::character varying, 'PASSWORD_RESET_COMPLETED'::character varying])::text[])) AND (account_action_id IS NULL) AND ((asset_id IS NOT NULL) OR (request_id IS NOT NULL)))))"
+        },
+        {
+          "name": "ck_notification_type",
+          "kind": "c",
+          "definition": "CHECK (((type)::text = ANY ((ARRAY['REQUEST_SUBMITTED'::character varying, 'REQUEST_APPROVED'::character varying, 'REQUEST_REJECTED'::character varying, 'REQUEST_COMPLETED'::character varying, 'REQUEST_RECONCILIATION_REQUIRED'::character varying, 'REQUEST_FAILED'::character varying, 'ASSET_EXPIRING'::character varying, 'ASSET_EXPIRED'::character varying, 'ASSET_REVOKED'::character varying, 'INVITATION'::character varying, 'PASSWORD_RESET'::character varying, 'PASSWORD_RESET_COMPLETED'::character varying, 'MFA_SECURITY_CHANGED'::character varying, 'REQUEST_SECOND_APPROVAL'::character varying])::text[])))"
+        },
+        {
+          "name": "fk_notifications_account_action",
+          "kind": "f",
+          "definition": "FOREIGN KEY (account_action_id, recipient_id, type) REFERENCES account_actions(id, user_id, purpose) ON DELETE RESTRICT"
+        },
+        {
+          "name": "notifications_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "notifications_deduplication_key_key",
+          "kind": "u",
+          "definition": "UNIQUE (deduplication_key)"
+        },
+        {
+          "name": "notifications_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "notifications_recipient_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "notifications_request_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "policies",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "code",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "name",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_policies_code",
+          "kind": "c",
+          "definition": "CHECK ((btrim((code)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_policies_name",
+          "kind": "c",
+          "definition": "CHECK ((btrim((name)::text) <> ''::text))"
+        },
+        {
+          "name": "policies_code_key",
+          "kind": "u",
+          "definition": "UNIQUE (code)"
+        },
+        {
+          "name": "policies_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "policy_versions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "policy_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "configuration",
+          "type": "jsonb",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "changed_by",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_policy_approval_configuration",
+          "kind": "c",
+          "definition": "CHECK (\nCASE\n    WHEN ((configuration -> 'approval_levels'::text) = '2'::jsonb) THEN COALESCE(((jsonb_typeof((configuration -> 'approval_deadline_hours'::text)) = 'number'::text) AND ((configuration ->> 'approval_deadline_hours'::text) ~ '^[1-9][0-9]{0,2}$'::text) AND ((((configuration ->> 'approval_deadline_hours'::text))::numeric >= (1)::numeric) AND (((configuration ->> 'approval_deadline_hours'::text))::numeric <= (168)::numeric))), false)\n    ELSE (((NOT (configuration ? 'approval_levels'::text)) OR ((configuration -> 'approval_levels'::text) = '1'::jsonb)) AND (NOT (configuration ? 'approval_deadline_hours'::text)))\nEND)"
+        },
+        {
+          "name": "ck_policy_configuration",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(configuration) = 'object'::text))"
+        },
+        {
+          "name": "ck_policy_version_positive",
+          "kind": "c",
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "policy_versions_changed_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "policy_versions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "policy_versions_policy_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "uq_policy_versions",
+          "kind": "u",
+          "definition": "UNIQUE (policy_id, version)"
+        }
+      ]
+    },
+    {
+      "name": "provider_operations",
+      "columns": [
+        {
+          "name": "request_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "operation_type",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "status",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "attempt_count",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "provider_reference",
+          "type": "character varying(255)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_error_code",
+          "type": "character varying(100)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "claim_version",
+          "type": "integer",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "retry_count",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "retry_after",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "failure_class",
+          "type": "character varying(30)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "receipt_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "input_digest",
+          "type": "character(64)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "receipt",
+          "type": "jsonb",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_provider_retry_state",
+          "kind": "c",
+          "definition": "CHECK (((retry_after IS NULL) OR (((status)::text = 'CLAIMED'::text) AND (attempt_count = 0) AND (provider_reference IS NULL) AND (claim_version IS NOT NULL))))"
+        },
+        {
+          "name": "provider_operations_attempt_count_check",
+          "kind": "c",
+          "definition": "CHECK ((attempt_count >= 0))"
+        },
+        {
+          "name": "provider_operations_claim_version_check",
+          "kind": "c",
+          "definition": "CHECK ((claim_version > 0))"
+        },
+        {
+          "name": "provider_operations_failure_class_check",
+          "kind": "c",
+          "definition": "CHECK (((failure_class)::text = ANY ((ARRAY['UNSENT_TRANSIENT'::character varying, 'UNSENT_PERMANENT'::character varying, 'OUTCOME_UNKNOWN'::character varying, 'RESULT_RECORDED'::character varying])::text[])))"
+        },
+        {
+          "name": "provider_operations_input_digest_check",
+          "kind": "c",
+          "definition": "CHECK ((input_digest ~ '^[a-f0-9]{64}$'::text))"
+        },
+        {
+          "name": "provider_operations_operation_type_check",
+          "kind": "c",
+          "definition": "CHECK (((operation_type)::text = ANY ((ARRAY['CREATE'::character varying, 'RENEW'::character varying, 'REVOKE'::character varying])::text[])))"
+        },
+        {
+          "name": "provider_operations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (request_id)"
+        },
+        {
+          "name": "provider_operations_receipt_check",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(receipt) = 'object'::text))"
+        },
+        {
+          "name": "provider_operations_request_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "provider_operations_retry_count_check",
+          "kind": "c",
+          "definition": "CHECK (((retry_count >= 0) AND (retry_count <= 3)))"
+        },
+        {
+          "name": "provider_operations_status_check",
+          "kind": "c",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['CLAIMED'::character varying, 'SENT'::character varying, 'PROVIDER_SUCCEEDED'::character varying, 'COMPLETED'::character varying, 'RECONCILIATION_REQUIRED'::character varying, 'FAILED'::character varying])::text[])))"
+        }
+      ]
+    },
+    {
+      "name": "report_exports",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "request_key",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "requester_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "token_version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "dataset",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "format",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "filters",
+          "type": "jsonb",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "scope",
+          "type": "jsonb",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "claim_token",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "attempts",
+          "type": "smallint",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "row_count",
+          "type": "integer",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "failure_code",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "content",
+          "type": "bytea",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "report_exports_attempts_check",
+          "kind": "c",
+          "definition": "CHECK (((attempts >= 0) AND (attempts <= 3)))"
+        },
+        {
+          "name": "report_exports_check",
+          "kind": "c",
+          "definition": "CHECK (((state = 'RUNNING'::text) = ((claim_token IS NOT NULL) AND (lease_until IS NOT NULL))))"
+        },
+        {
+          "name": "report_exports_check1",
+          "kind": "c",
+          "definition": "CHECK (((state = 'READY'::text) = (content IS NOT NULL)))"
+        },
+        {
+          "name": "report_exports_check2",
+          "kind": "c",
+          "definition": "CHECK (((state <> 'READY'::text) OR ((expires_at IS NOT NULL) AND (row_count IS NOT NULL))))"
+        },
+        {
+          "name": "report_exports_content_check",
+          "kind": "c",
+          "definition": "CHECK ((octet_length(content) <= 8388608))"
+        },
+        {
+          "name": "report_exports_dataset_check",
+          "kind": "c",
+          "definition": "CHECK ((dataset = ANY (ARRAY['ASSETS'::text, 'REQUESTS'::text, 'AUDIT'::text])))"
+        },
+        {
+          "name": "report_exports_filters_check",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(filters) = 'object'::text))"
+        },
+        {
+          "name": "report_exports_format_check",
+          "kind": "c",
+          "definition": "CHECK ((format = ANY (ARRAY['CSV'::text, 'PDF'::text])))"
+        },
+        {
+          "name": "report_exports_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "report_exports_requester_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "report_exports_requester_id_request_key_key",
+          "kind": "u",
+          "definition": "UNIQUE (requester_id, request_key)"
+        },
+        {
+          "name": "report_exports_row_count_check",
+          "kind": "c",
+          "definition": "CHECK (((row_count >= 1) AND (row_count <= 10000)))"
+        },
+        {
+          "name": "report_exports_scope_check",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(scope) = 'object'::text))"
+        },
+        {
+          "name": "report_exports_state_check",
+          "kind": "c",
+          "definition": "CHECK ((state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'READY'::text, 'FAILED'::text, 'CANCELLED'::text, 'EXPIRED'::text])))"
+        },
+        {
+          "name": "report_exports_token_version_check",
+          "kind": "c",
+          "definition": "CHECK ((token_version > 0))"
+        }
+      ]
+    },
+    {
+      "name": "request_decisions",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "request_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "approver_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "decision",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "comment",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "decided_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "approval_level",
+          "type": "smallint",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_decision_value",
+          "kind": "c",
+          "definition": "CHECK (((decision)::text = ANY ((ARRAY['APPROVED'::character varying, 'REJECTED'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_reject_comment",
+          "kind": "c",
+          "definition": "CHECK ((((decision)::text <> 'REJECTED'::text) OR (NULLIF(btrim(comment), ''::text) IS NOT NULL)))"
+        },
+        {
+          "name": "request_decisions_approval_level_check",
+          "kind": "c",
+          "definition": "CHECK ((approval_level = ANY (ARRAY[1, 2])))"
+        },
+        {
+          "name": "request_decisions_approver_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "request_decisions_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "request_decisions_request_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "uq_request_decision_actor",
+          "kind": "u",
+          "definition": "UNIQUE (request_id, approver_id)"
+        },
+        {
+          "name": "uq_request_decision_level",
+          "kind": "u",
+          "definition": "UNIQUE (request_id, approval_level)"
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "request_type",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "department_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "policy_version_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "target_asset_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "result_asset_id",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "status",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "reason",
+          "type": "text",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "emergency",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "requested_parameters",
+          "type": "jsonb",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "cancellation_reason",
+          "type": "text",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_requests_cancellation_reason",
+          "kind": "c",
+          "definition": "CHECK (((cancellation_reason IS NULL) OR (((status)::text = 'CANCELLED'::text) AND ((char_length(btrim(cancellation_reason)) >= 1) AND (char_length(btrim(cancellation_reason)) <= 500)))))"
+        },
+        {
+          "name": "ck_requests_completed_at",
+          "kind": "c",
+          "definition": "CHECK ((((status)::text <> 'COMPLETED'::text) OR (completed_at IS NOT NULL)))"
+        },
+        {
+          "name": "ck_requests_parameters",
+          "kind": "c",
+          "definition": "CHECK ((jsonb_typeof(requested_parameters) = 'object'::text))"
+        },
+        {
+          "name": "ck_requests_result",
+          "kind": "c",
+          "definition": "CHECK ((((status)::text <> 'COMPLETED'::text) OR (result_asset_id IS NOT NULL)))"
+        },
+        {
+          "name": "ck_requests_status",
+          "kind": "c",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'PROCESSING'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying, 'CANCELLED'::character varying, 'RECONCILIATION_REQUIRED'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_requests_submission",
+          "kind": "c",
+          "definition": "CHECK ((((submitted_at IS NULL) AND ((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'CANCELLED'::character varying])::text[])) AND (result_asset_id IS NULL) AND (completed_at IS NULL)) OR ((submitted_at IS NOT NULL) AND ((status)::text <> 'DRAFT'::text) AND (policy_version_id IS NOT NULL) AND (btrim(reason) <> ''::text))))"
+        },
+        {
+          "name": "ck_requests_target",
+          "kind": "c",
+          "definition": "CHECK (((((request_type)::text = 'CREATE'::text) AND (target_asset_id IS NULL)) OR (((request_type)::text = ANY ((ARRAY['RENEW'::character varying, 'REVOKE'::character varying])::text[])) AND ((target_asset_id IS NOT NULL) OR (submitted_at IS NULL)))))"
+        },
+        {
+          "name": "ck_requests_type",
+          "kind": "c",
+          "definition": "CHECK (((request_type)::text = ANY ((ARRAY['CREATE'::character varying, 'RENEW'::character varying, 'REVOKE'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_requests_version",
+          "kind": "c",
+          "definition": "CHECK ((version > 0))"
+        },
+        {
+          "name": "requests_creator_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "requests_department_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "requests_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "requests_policy_version_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (policy_version_id) REFERENCES policy_versions(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "requests_result_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (result_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "requests_target_asset_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (target_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "code",
+          "type": "character varying(50)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "name",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_roles_code",
+          "kind": "c",
+          "definition": "CHECK (((code)::text = ANY ((ARRAY['USER'::character varying, 'APPROVER'::character varying, 'ADMIN'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_roles_name",
+          "kind": "c",
+          "definition": "CHECK ((btrim((name)::text) <> ''::text))"
+        },
+        {
+          "name": "roles_code_key",
+          "kind": "u",
+          "definition": "UNIQUE (code)"
+        },
+        {
+          "name": "roles_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "schema_migrations",
+      "columns": [
+        {
+          "name": "version",
+          "type": "character varying(100)",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "applied_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "checksum",
+          "type": "character(64)",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schema_migrations_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (version)"
+        }
+      ]
+    },
+    {
+      "name": "user_roles",
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "role_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": true
+        },
+        {
+          "name": "assigned_by",
+          "type": "uuid",
+          "notNull": false,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "user_roles_assigned_by_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "user_roles_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (user_id, role_id)"
+        },
+        {
+          "name": "user_roles_role_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "user_roles_user_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": true,
+          "foreign": false
+        },
+        {
+          "name": "department_id",
+          "type": "uuid",
+          "notNull": true,
+          "primary": false,
+          "foreign": true
+        },
+        {
+          "name": "email",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "password_hash",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "display_name",
+          "type": "character varying(255)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "status",
+          "type": "character varying(30)",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "token_version",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "failed_login_attempts",
+          "type": "integer",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "locked_until",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "must_change_password",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "last_login_at",
+          "type": "timestamp with time zone",
+          "notNull": false,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        },
+        {
+          "name": "invitation_pending",
+          "type": "boolean",
+          "notNull": true,
+          "primary": false,
+          "foreign": false
+        }
+      ],
+      "constraints": [
+        {
+          "name": "ck_users_email",
+          "kind": "c",
+          "definition": "CHECK ((btrim((email)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_users_failed_login",
+          "kind": "c",
+          "definition": "CHECK ((failed_login_attempts >= 0))"
+        },
+        {
+          "name": "ck_users_name",
+          "kind": "c",
+          "definition": "CHECK ((btrim((display_name)::text) <> ''::text))"
+        },
+        {
+          "name": "ck_users_pending_invitation",
+          "kind": "c",
+          "definition": "CHECK (((NOT invitation_pending) OR (must_change_password AND ((status)::text = ANY ((ARRAY['INACTIVE'::character varying, 'LOCKED'::character varying])::text[])))))"
+        },
+        {
+          "name": "ck_users_status",
+          "kind": "c",
+          "definition": "CHECK (((status)::text = ANY ((ARRAY['ACTIVE'::character varying, 'INACTIVE'::character varying, 'LOCKED'::character varying])::text[])))"
+        },
+        {
+          "name": "ck_users_token_version",
+          "kind": "c",
+          "definition": "CHECK ((token_version > 0))"
+        },
+        {
+          "name": "users_department_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+        },
+        {
+          "name": "users_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "source": "account_actions",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "approver_scopes",
+      "target": "users",
+      "definition": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "approver_scopes",
+      "target": "departments",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "approver_scopes",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "audit_logs",
+      "target": "users",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "audit_logs",
+      "target": "requests",
+      "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "auth_mfa",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "auth_mfa_challenges",
+      "target": "auth_oidc_sessions",
+      "definition": "FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "auth_mfa_challenges",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "auth_oidc_links",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "auth_oidc_sessions",
+      "target": "auth_oidc_links",
+      "definition": "FOREIGN KEY (user_id) REFERENCES auth_oidc_links(user_id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "auth_sessions",
+      "target": "auth_oidc_sessions",
+      "definition": "FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "auth_sessions",
+      "target": "auth_sessions",
+      "definition": "FOREIGN KEY (replaced_by) REFERENCES auth_sessions(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "auth_sessions",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "certificates",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "certificates",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (public_key_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "crypto_assets",
+      "target": "departments",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "crypto_assets",
+      "target": "users",
+      "definition": "FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "crypto_assets",
+      "target": "policy_versions",
+      "definition": "FOREIGN KEY (policy_version_id) REFERENCES policy_versions(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "crypto_assets",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (replaces_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "cryptographic_keys",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "notifications",
+      "target": "account_actions",
+      "definition": "FOREIGN KEY (account_action_id, recipient_id, type) REFERENCES account_actions(id, user_id, purpose) ON DELETE RESTRICT"
+    },
+    {
+      "source": "notifications",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "notifications",
+      "target": "users",
+      "definition": "FOREIGN KEY (recipient_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "notifications",
+      "target": "requests",
+      "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "policy_versions",
+      "target": "users",
+      "definition": "FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "policy_versions",
+      "target": "policies",
+      "definition": "FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "provider_operations",
+      "target": "requests",
+      "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "report_exports",
+      "target": "users",
+      "definition": "FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "request_decisions",
+      "target": "users",
+      "definition": "FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "request_decisions",
+      "target": "requests",
+      "definition": "FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "requests",
+      "target": "users",
+      "definition": "FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "requests",
+      "target": "departments",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "requests",
+      "target": "policy_versions",
+      "definition": "FOREIGN KEY (policy_version_id) REFERENCES policy_versions(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "requests",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (result_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "requests",
+      "target": "crypto_assets",
+      "definition": "FOREIGN KEY (target_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "user_roles",
+      "target": "users",
+      "definition": "FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL"
+    },
+    {
+      "source": "user_roles",
+      "target": "roles",
+      "definition": "FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT"
+    },
+    {
+      "source": "user_roles",
+      "target": "users",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+    },
+    {
+      "source": "users",
+      "target": "departments",
+      "definition": "FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT"
+    }
+  ]
+}

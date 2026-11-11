@@ -1,6 +1,6 @@
 # ERD hiện hành của Crypta
 
-Schema sau migration `017_audit_search_trigram`, đối chiếu từ PostgreSQL 17 trên stack cách ly. Có 19 bảng và 33 khóa ngoại. Trang đầu của tệp draw.io chứa schema hiện hành. Trang thiết kế ban đầu được giữ để tra lịch sử. [ERD chỉnh sửa được](../erd_QuanLyKhoa_HTTT.drawio) · [Kiến trúc](../02_so_do_he_thong_tong_quat.md)
+Schema sau migration `027_email_worker_status`, đối chiếu từ PostgreSQL 17 trên stack cách ly. Có 28 bảng, 234 cột và 40 khóa ngoại. Trang đầu của tệp draw.io chứa schema hiện hành. Trang thiết kế ban đầu được giữ để tra lịch sử. [ERD chỉnh sửa được](../erd_QuanLyKhoa_HTTT.drawio) · [Kiến trúc](../02_so_do_he_thong_tong_quat.md)
 
 `PK` là cột khóa chính, `FK` là cột khóa ngoại. `nullable` cho biết cột cho phép NULL. Các điều kiện trạng thái và tính bất biến nằm trong constraint, trigger và service. Yêu cầu nháp có thể thiếu policy và tài sản đích.
 
@@ -60,6 +60,8 @@ erDiagram
         timestamp_with_time_zone revoked_at
         uuid replaced_by FK
         timestamp_with_time_zone created_at
+        integer mfa_token_version
+        uuid oidc_session_id FK
     }
     ACCOUNT_ACTIONS {
         uuid id PK
@@ -76,6 +78,78 @@ erDiagram
         character_varying_80_ bucket_key PK
         integer attempt_count
         timestamp_with_time_zone expires_at
+    }
+    AUTH_MFA {
+        uuid user_id PK,FK
+        uuid credential_id
+        text sealed_secret
+        bigint last_step
+        text__ recovery_hashes
+        integer failed_attempts
+        timestamp_with_time_zone locked_until
+    }
+    AUTH_MFA_CHALLENGES {
+        uuid user_id PK,FK
+        character_64_ token_hash
+        integer token_version
+        text purpose
+        timestamp_with_time_zone expires_at
+        uuid pending_id
+        text pending_secret
+        bigint pending_step
+        text__ pending_hashes
+        uuid oidc_session_id FK
+    }
+    AUTH_OIDC_LINKS {
+        uuid user_id PK,FK
+        character_varying_2048_ issuer
+        character_varying_255_ subject
+        timestamp_with_time_zone linked_at
+        timestamp_with_time_zone revoked_at
+    }
+    AUTH_OIDC_FLOWS {
+        character_64_ ticket_hash PK
+        character_64_ browser_hash
+        text phase
+        text sealed_payload
+        timestamp_with_time_zone expires_at
+    }
+    AUTH_OIDC_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        character_varying_2048_ issuer
+        character_varying_255_ subject
+        character_varying_255_ sid
+        text sealed_tokens
+        timestamp_with_time_zone access_expires_at
+        timestamp_with_time_zone authenticated_at
+        timestamp_with_time_zone expires_at
+        timestamp_with_time_zone revoked_at
+    }
+    AUTH_OIDC_REVOCATIONS {
+        character_varying_2048_ issuer PK
+        character_varying_255_ sid PK
+        timestamp_with_time_zone revoked_at
+    }
+    REPORT_EXPORTS {
+        uuid id PK
+        uuid request_key
+        uuid requester_id FK
+        integer token_version
+        text dataset
+        text format
+        jsonb filters
+        jsonb scope
+        text state
+        timestamp_with_time_zone created_at
+        timestamp_with_time_zone finished_at
+        timestamp_with_time_zone expires_at
+        timestamp_with_time_zone lease_until
+        uuid claim_token
+        smallint attempts
+        integer row_count
+        text failure_code
+        bytea content
     }
     POLICIES {
         uuid id PK
@@ -152,6 +226,7 @@ erDiagram
         character_varying_30_ decision
         text comment
         timestamp_with_time_zone decided_at
+        smallint approval_level
     }
     PROVIDER_OPERATIONS {
         uuid request_id PK,FK
@@ -208,12 +283,31 @@ erDiagram
         timestamp_with_time_zone applied_at
         character_64_ checksum
     }
+    EXPIRY_SCAN_STATUS {
+        boolean singleton PK
+        timestamp_with_time_zone initialized_at
+        timestamp_with_time_zone last_attempt_at
+        timestamp_with_time_zone last_success_at
+        boolean last_failed
+    }
+    EMAIL_WORKER_STATUS {
+        boolean singleton PK
+        timestamp_with_time_zone initialized_at
+        timestamp_with_time_zone last_poll_at
+        boolean last_poll_succeeded
+    }
     USERS ||--o{ ACCOUNT_ACTIONS : user_id
     USERS o|--o{ APPROVER_SCOPES : assigned_by
     DEPARTMENTS ||--o{ APPROVER_SCOPES : department_id
     USERS ||--o{ APPROVER_SCOPES : user_id
     USERS o|--o{ AUDIT_LOGS : actor_id
     REQUESTS o|--o{ AUDIT_LOGS : request_id
+    USERS ||--o| AUTH_MFA : user_id
+    AUTH_OIDC_SESSIONS o|--o{ AUTH_MFA_CHALLENGES : oidc_session_id_user_id
+    USERS ||--o| AUTH_MFA_CHALLENGES : user_id
+    USERS ||--o| AUTH_OIDC_LINKS : user_id
+    AUTH_OIDC_LINKS ||--o{ AUTH_OIDC_SESSIONS : user_id
+    AUTH_OIDC_SESSIONS o|--o{ AUTH_SESSIONS : oidc_session_id_user_id
     AUTH_SESSIONS o|--o{ AUTH_SESSIONS : replaced_by
     USERS ||--o{ AUTH_SESSIONS : user_id
     CRYPTO_ASSETS ||--o| CERTIFICATES : asset_id
@@ -230,8 +324,9 @@ erDiagram
     USERS o|--o{ POLICY_VERSIONS : changed_by
     POLICIES ||--o{ POLICY_VERSIONS : policy_id
     REQUESTS ||--o| PROVIDER_OPERATIONS : request_id
+    USERS ||--o{ REPORT_EXPORTS : requester_id
     USERS ||--o{ REQUEST_DECISIONS : approver_id
-    REQUESTS ||--o| REQUEST_DECISIONS : request_id
+    REQUESTS ||--o{ REQUEST_DECISIONS : request_id
     USERS ||--o{ REQUESTS : creator_id
     DEPARTMENTS ||--o{ REQUESTS : department_id
     POLICY_VERSIONS o|--o{ REQUESTS : policy_version_id
@@ -357,8 +452,12 @@ FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 | `revoked_at` | `timestamp with time zone` | NULL được phép |
 | `replaced_by` | `uuid` | FK |
 | `created_at` | `timestamp with time zone` | NOT NULL |
+| `mfa_token_version` | `integer` | NULL được phép |
+| `oidc_session_id` | `uuid` | FK |
 
 ```sql
+CHECK ((mfa_token_version > 0))
+FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT
 PRIMARY KEY (id)
 FOREIGN KEY (replaced_by) REFERENCES auth_sessions(id) ON DELETE SET NULL
 UNIQUE (token_hash)
@@ -404,6 +503,160 @@ CHECK ((attempt_count > 0))
 PRIMARY KEY (bucket_key)
 ```
 
+## auth_mfa
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `user_id` | `uuid` | PK, FK, NOT NULL |
+| `credential_id` | `uuid` | NULL được phép |
+| `sealed_secret` | `text` | NULL được phép |
+| `last_step` | `bigint` | NULL được phép |
+| `recovery_hashes` | `text[]` | NOT NULL |
+| `failed_attempts` | `integer` | NOT NULL |
+| `locked_until` | `timestamp with time zone` | NULL được phép |
+
+```sql
+UNIQUE (credential_id)
+PRIMARY KEY (user_id)
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CHECK ((((credential_id IS NULL) AND (sealed_secret IS NULL) AND (last_step IS NULL) AND (cardinality(recovery_hashes) = 0)) OR ((credential_id IS NOT NULL) AND (sealed_secret IS NOT NULL) AND (last_step IS NOT NULL) AND (last_step >= 0))))
+CHECK (((failed_attempts >= 0) AND (failed_attempts <= 5)))
+CHECK (((cardinality(recovery_hashes) <= 10) AND (array_position(recovery_hashes, NULL::text) IS NULL)))
+```
+
+## auth_mfa_challenges
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `user_id` | `uuid` | PK, FK, NOT NULL |
+| `token_hash` | `character(64)` | NOT NULL |
+| `token_version` | `integer` | NOT NULL |
+| `purpose` | `text` | NOT NULL |
+| `expires_at` | `timestamp with time zone` | NOT NULL |
+| `pending_id` | `uuid` | NULL được phép |
+| `pending_secret` | `text` | NULL được phép |
+| `pending_step` | `bigint` | NULL được phép |
+| `pending_hashes` | `text[]` | NULL được phép |
+| `oidc_session_id` | `uuid` | FK |
+
+```sql
+FOREIGN KEY (oidc_session_id, user_id) REFERENCES auth_oidc_sessions(id, user_id) ON DELETE RESTRICT
+UNIQUE (pending_id)
+PRIMARY KEY (user_id)
+CHECK ((purpose = ANY (ARRAY['VERIFY'::text, 'ENROLL'::text, 'RECOVER'::text, 'REPLACE'::text])))
+UNIQUE (token_hash)
+CHECK ((token_version > 0))
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+CHECK (((pending_id IS NULL) = (pending_secret IS NULL)))
+CHECK ((((pending_step IS NULL) AND (pending_hashes IS NULL)) OR ((pending_id IS NOT NULL) AND (pending_step IS NOT NULL) AND (pending_step >= 0) AND (pending_hashes IS NOT NULL) AND (cardinality(pending_hashes) = 10) AND (array_position(pending_hashes, NULL::text) IS NULL))))
+CHECK (((purpose <> 'VERIFY'::text) OR (pending_id IS NULL)))
+```
+
+## auth_oidc_links
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `user_id` | `uuid` | PK, FK, NOT NULL |
+| `issuer` | `character varying(2048)` | NOT NULL |
+| `subject` | `character varying(255)` | NOT NULL |
+| `linked_at` | `timestamp with time zone` | NOT NULL |
+| `revoked_at` | `timestamp with time zone` | NULL được phép |
+
+```sql
+UNIQUE (issuer, subject)
+PRIMARY KEY (user_id)
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+```
+
+## auth_oidc_flows
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `ticket_hash` | `character(64)` | PK, NOT NULL |
+| `browser_hash` | `character(64)` | NOT NULL |
+| `phase` | `text` | NOT NULL |
+| `sealed_payload` | `text` | NOT NULL |
+| `expires_at` | `timestamp with time zone` | NOT NULL |
+
+```sql
+CHECK ((phase = ANY (ARRAY['AUTHORIZE'::text, 'HANDOFF'::text])))
+PRIMARY KEY (ticket_hash)
+```
+
+## auth_oidc_sessions
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `id` | `uuid` | PK, NOT NULL |
+| `user_id` | `uuid` | FK, NOT NULL |
+| `issuer` | `character varying(2048)` | NOT NULL |
+| `subject` | `character varying(255)` | NOT NULL |
+| `sid` | `character varying(255)` | NOT NULL |
+| `sealed_tokens` | `text` | NULL được phép |
+| `access_expires_at` | `timestamp with time zone` | NOT NULL |
+| `authenticated_at` | `timestamp with time zone` | NOT NULL |
+| `expires_at` | `timestamp with time zone` | NOT NULL |
+| `revoked_at` | `timestamp with time zone` | NULL được phép |
+
+```sql
+UNIQUE (id, user_id)
+PRIMARY KEY (id)
+FOREIGN KEY (user_id) REFERENCES auth_oidc_links(user_id) ON DELETE RESTRICT
+```
+
+## auth_oidc_revocations
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `issuer` | `character varying(2048)` | PK, NOT NULL |
+| `sid` | `character varying(255)` | PK, NOT NULL |
+| `revoked_at` | `timestamp with time zone` | NOT NULL |
+
+```sql
+PRIMARY KEY (issuer, sid)
+```
+
+## report_exports
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `id` | `uuid` | PK, NOT NULL |
+| `request_key` | `uuid` | NOT NULL |
+| `requester_id` | `uuid` | FK, NOT NULL |
+| `token_version` | `integer` | NOT NULL |
+| `dataset` | `text` | NOT NULL |
+| `format` | `text` | NOT NULL |
+| `filters` | `jsonb` | NOT NULL |
+| `scope` | `jsonb` | NOT NULL |
+| `state` | `text` | NOT NULL |
+| `created_at` | `timestamp with time zone` | NOT NULL |
+| `finished_at` | `timestamp with time zone` | NULL được phép |
+| `expires_at` | `timestamp with time zone` | NULL được phép |
+| `lease_until` | `timestamp with time zone` | NULL được phép |
+| `claim_token` | `uuid` | NULL được phép |
+| `attempts` | `smallint` | NOT NULL |
+| `row_count` | `integer` | NULL được phép |
+| `failure_code` | `text` | NULL được phép |
+| `content` | `bytea` | NULL được phép |
+
+```sql
+CHECK (((attempts >= 0) AND (attempts <= 3)))
+CHECK (((state = 'RUNNING'::text) = ((claim_token IS NOT NULL) AND (lease_until IS NOT NULL))))
+CHECK (((state = 'READY'::text) = (content IS NOT NULL)))
+CHECK (((state <> 'READY'::text) OR ((expires_at IS NOT NULL) AND (row_count IS NOT NULL))))
+CHECK ((octet_length(content) <= 8388608))
+CHECK ((dataset = ANY (ARRAY['ASSETS'::text, 'REQUESTS'::text, 'AUDIT'::text])))
+CHECK ((jsonb_typeof(filters) = 'object'::text))
+CHECK ((format = ANY (ARRAY['CSV'::text, 'PDF'::text])))
+PRIMARY KEY (id)
+FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE RESTRICT
+UNIQUE (requester_id, request_key)
+CHECK (((row_count >= 1) AND (row_count <= 10000)))
+CHECK ((jsonb_typeof(scope) = 'object'::text))
+CHECK ((state = ANY (ARRAY['QUEUED'::text, 'RUNNING'::text, 'READY'::text, 'FAILED'::text, 'CANCELLED'::text, 'EXPIRED'::text])))
+CHECK ((token_version > 0))
+```
+
 ## policies
 
 | Cột | Kiểu PostgreSQL | Ràng buộc cột |
@@ -435,6 +688,11 @@ PRIMARY KEY (id)
 | `created_at` | `timestamp with time zone` | NOT NULL |
 
 ```sql
+CHECK (
+CASE
+    WHEN ((configuration -> 'approval_levels'::text) = '2'::jsonb) THEN COALESCE(((jsonb_typeof((configuration -> 'approval_deadline_hours'::text)) = 'number'::text) AND ((configuration ->> 'approval_deadline_hours'::text) ~ '^[1-9][0-9]{0,2}$'::text) AND ((((configuration ->> 'approval_deadline_hours'::text))::numeric >= (1)::numeric) AND (((configuration ->> 'approval_deadline_hours'::text))::numeric <= (168)::numeric))), false)
+    ELSE (((NOT (configuration ? 'approval_levels'::text)) OR ((configuration -> 'approval_levels'::text) = '1'::jsonb)) AND (NOT (configuration ? 'approval_deadline_hours'::text)))
+END)
 CHECK ((jsonb_typeof(configuration) = 'object'::text))
 CHECK ((version > 0))
 FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
@@ -571,14 +829,17 @@ FOREIGN KEY (target_asset_id) REFERENCES crypto_assets(id) ON DELETE RESTRICT
 | `decision` | `character varying(30)` | NOT NULL |
 | `comment` | `text` | NULL được phép |
 | `decided_at` | `timestamp with time zone` | NOT NULL |
+| `approval_level` | `smallint` | NOT NULL |
 
 ```sql
 CHECK (((decision)::text = ANY ((ARRAY['APPROVED'::character varying, 'REJECTED'::character varying])::text[])))
 CHECK ((((decision)::text <> 'REJECTED'::text) OR (NULLIF(btrim(comment), ''::text) IS NOT NULL)))
+CHECK ((approval_level = ANY (ARRAY[1, 2])))
 FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE RESTRICT
 PRIMARY KEY (id)
 FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
-UNIQUE (request_id)
+UNIQUE (request_id, approver_id)
+UNIQUE (request_id, approval_level)
 ```
 
 ## provider_operations
@@ -671,7 +932,7 @@ CHECK (((delivery_status)::text = ANY ((ARRAY['PENDING'::character varying, 'SEN
 CHECK ((((delivery_status)::text <> 'FAILED'::text) OR (failed_at IS NOT NULL)))
 CHECK ((((delivery_status)::text <> 'SENT'::text) OR (sent_at IS NOT NULL)))
 CHECK (((((type)::text = ANY ((ARRAY['INVITATION'::character varying, 'PASSWORD_RESET'::character varying])::text[])) AND ((channel)::text = 'EMAIL'::text) AND (account_action_id IS NOT NULL) AND (request_id IS NULL) AND (asset_id IS NULL)) OR (((type)::text = 'PASSWORD_RESET_COMPLETED'::text) AND ((channel)::text = 'EMAIL'::text) AND (account_action_id IS NULL) AND (request_id IS NULL) AND (asset_id IS NULL)) OR (((type)::text <> ALL ((ARRAY['INVITATION'::character varying, 'PASSWORD_RESET'::character varying, 'PASSWORD_RESET_COMPLETED'::character varying])::text[])) AND (account_action_id IS NULL) AND ((asset_id IS NOT NULL) OR (request_id IS NOT NULL)))))
-CHECK (((type)::text = ANY ((ARRAY['REQUEST_SUBMITTED'::character varying, 'REQUEST_APPROVED'::character varying, 'REQUEST_REJECTED'::character varying, 'REQUEST_COMPLETED'::character varying, 'REQUEST_RECONCILIATION_REQUIRED'::character varying, 'REQUEST_FAILED'::character varying, 'ASSET_EXPIRING'::character varying, 'ASSET_EXPIRED'::character varying, 'ASSET_REVOKED'::character varying, 'INVITATION'::character varying, 'PASSWORD_RESET'::character varying, 'PASSWORD_RESET_COMPLETED'::character varying])::text[])))
+CHECK (((type)::text = ANY ((ARRAY['REQUEST_SUBMITTED'::character varying, 'REQUEST_APPROVED'::character varying, 'REQUEST_REJECTED'::character varying, 'REQUEST_COMPLETED'::character varying, 'REQUEST_RECONCILIATION_REQUIRED'::character varying, 'REQUEST_FAILED'::character varying, 'ASSET_EXPIRING'::character varying, 'ASSET_EXPIRED'::character varying, 'ASSET_REVOKED'::character varying, 'INVITATION'::character varying, 'PASSWORD_RESET'::character varying, 'PASSWORD_RESET_COMPLETED'::character varying, 'MFA_SECURITY_CHANGED'::character varying, 'REQUEST_SECOND_APPROVAL'::character varying])::text[])))
 FOREIGN KEY (account_action_id, recipient_id, type) REFERENCES account_actions(id, user_id, purpose) ON DELETE RESTRICT
 FOREIGN KEY (asset_id) REFERENCES crypto_assets(id) ON DELETE CASCADE
 UNIQUE (deduplication_key)
@@ -690,4 +951,34 @@ FOREIGN KEY (request_id) REFERENCES requests(id) ON DELETE CASCADE
 
 ```sql
 PRIMARY KEY (version)
+```
+
+## expiry_scan_status
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `singleton` | `boolean` | PK, NOT NULL |
+| `initialized_at` | `timestamp with time zone` | NOT NULL |
+| `last_attempt_at` | `timestamp with time zone` | NULL được phép |
+| `last_success_at` | `timestamp with time zone` | NULL được phép |
+| `last_failed` | `boolean` | NOT NULL |
+
+```sql
+PRIMARY KEY (singleton)
+CHECK (singleton)
+```
+
+## email_worker_status
+
+| Cột | Kiểu PostgreSQL | Ràng buộc cột |
+| --- | --- | --- |
+| `singleton` | `boolean` | PK, NOT NULL |
+| `initialized_at` | `timestamp with time zone` | NOT NULL |
+| `last_poll_at` | `timestamp with time zone` | NULL được phép |
+| `last_poll_succeeded` | `boolean` | NULL được phép |
+
+```sql
+CHECK (((last_poll_at IS NULL) = (last_poll_succeeded IS NULL)))
+PRIMARY KEY (singleton)
+CHECK (singleton)
 ```

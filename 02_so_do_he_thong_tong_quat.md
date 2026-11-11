@@ -4,7 +4,7 @@
 
 > Tài liệu mô tả kiến trúc tổng quát, các thành phần, luồng dữ liệu và cách triển khai của hệ thống.
 
-Đối chiếu ngày 06/11/2026 với schema 017 và mã hiện hành. [ERD đủ cột và constraint](docs/ERD_HIEN_HANH.md) · [ERD draw.io](erd_QuanLyKhoa_HTTT.drawio) · [Hướng dẫn sử dụng](docs/HUONG_DAN_CRYPTA.md)
+Đối chiếu ngày 11/11/2026 với schema 027 và mã hiện hành. Catalog PostgreSQL có 28 bảng, 234 cột và 40 khóa ngoại. [ERD đủ cột và constraint](docs/ERD_HIEN_HANH.md) · [ERD draw.io](erd_QuanLyKhoa_HTTT.drawio) · [Hướng dẫn sử dụng](docs/HUONG_DAN_CRYPTA.md)
 
 ---
 
@@ -41,40 +41,28 @@ flowchart TB
     FE -->|"REST/JSON + access token"| API["NestJS Backend API"]
 
     subgraph APP["Application Layer"]
-        AUTH["Authentication & Session"]
-        IAM["RBAC, Scope & SoD"]
-        REQ["Request Workflow"]
-        APR["Quyết định trong Requests"]
-        ASSET["Asset Lifecycle"]
-        POLICY["Policy Engine"]
-        AUDIT["Audit Service"]
-        NOTI["Notification Service"]
+        AUTH["Auth · JWT, MFA TOTP và OIDC"]
+        DOMAIN["RBAC, scope, SoD<br/>Requests, phê duyệt, Assets, Policies"]
+        OPS["Audit, Notifications<br/>Xuất CSV/PDF nền"]
         JOB["Scheduler & Worker"]
         ADAPTER["Crypto Provider Adapter"]
     end
 
     API --> AUTH
-    API --> IAM
-    API --> REQ
-    API --> APR
-    API --> ASSET
-    API --> POLICY
-    API --> AUDIT
-    API --> NOTI
+    API --> DOMAIN
+    API --> OPS
 
     AUTH --> DB[("PostgreSQL")]
-    IAM --> DB
-    REQ --> DB
-    APR --> DB
-    ASSET --> DB
-    POLICY --> DB
-    AUDIT --> DB
-    NOTI --> DB
+    DOMAIN --> DB
+    OPS --> DB
+    AUTH -->|"OIDC khi bật"| IDP["IdP OIDC · Keycloak thử nghiệm"]
 
     JOB -->|"Claim request, provider ledger, email queue"| DB
     JOB --> ADAPTER
     ADAPTER --> PROVIDER["MOCK hoặc adapter HTTP"]
     JOB -->|"EmailWorker khi bật"| MAIL["SMTP"]
+    CHECKPOINT["CLI checkpoint Ed25519"] -->|"Snapshot audit"| DB
+    CHECKPOINT --> CHECKPOINT_STORE["Kho checkpoint độc lập theo cấu hình"]
 ```
 
 ---
@@ -125,6 +113,7 @@ flowchart TB
 - Demo dùng provider MOCK để mô phỏng tác động bên ngoài.
 - Adapter HTTP là ranh giới tích hợp. Sandbox KMS/CA/HSM và khả năng đối chiếu theo `operationId` cần xác minh với provider được chọn.
 - Backend chỉ lưu `provider_reference` và metadata an toàn.
+- Adapter OpenBao Transit chạy ở tiến trình riêng và nối qua hợp đồng HTTP T16. Phạm vi sandbox gồm khóa ký RSA/ECDSA. [X06](docs/X06_OPENBAO_TRANSIT.md)
 
 ---
 
@@ -140,6 +129,7 @@ flowchart LR
     API --> POLICIES["Policies"]
     API --> AUDIT["Audit"]
     API --> NOTIFICATIONS["Notifications"]
+    API --> REPORTS["Reports"]
 
     AUTH --> IAM["IAM Guards"]
     USERS --> IAM
@@ -160,24 +150,28 @@ flowchart LR
     DEPARTMENTS --> AUDIT
     ASSETS --> AUDIT
     POLICIES --> AUDIT
+    REPORTS --> AUDIT
 ```
 
 ### Trách nhiệm module
 
 | Module | Trách nhiệm chính |
 |---|---|
-| Auth | Login, refresh token, logout và session |
+| Auth | Login, refresh, logout, MFA TOTP/mã khôi phục và OIDC khi bật |
 | IAM | RBAC, object scope và SoD guard |
 | Users | Hồ sơ, trạng thái tài khoản, vai trò, phòng ban |
 | Requests | Tạo, submit, cancel và truy vấn request |
 | Departments | Quản lý đơn vị và kiểm liên kết trước khi ngừng hoạt động |
-| Quyết định trong Requests | Approve/reject nguyên tử và chống duyệt đồng thời |
+| Quyết định trong Requests | Approve/reject nguyên tử, một hoặc hai cấp theo policy và chống quyết định đồng thời |
 | Assets | Quản lý metadata và vòng đời tài sản |
 | Policies | Versioning và kiểm tra thuật toán/thời hạn |
 | Audit | Ghi sự kiện append-only và che dữ liệu nhạy cảm |
 | Notifications | Thông báo trong ứng dụng và email |
+| Reports | Tác vụ xuất CSV/PDF theo quyền, bộ lọc và thời hạn tải |
 | Jobs | Expiry scan, reminder, provisioning và retry |
-| Crypto Provider | Chế độ MOCK và adapter HTTP |
+| Crypto Provider | Chế độ MOCK và adapter HTTP, gồm cầu nối OpenBao Transit |
+
+MFA và OIDC thuộc luồng xác thực. Tệp báo cáo nằm trong `report_exports.content` và được xóa khi hết hạn. CLI checkpoint đọc snapshot audit và ký vào kho do vận hành cấu hình. [X01](docs/MFA_X01.md) · [X03](docs/X03_OIDC.md) · [X04](docs/X04_REPORT_EXPORTS.md) · [X05](docs/X05_AUDIT_ANCHOR.md)
 
 ---
 
@@ -192,6 +186,12 @@ erDiagram
     DEPARTMENTS ||--o{ APPROVER_SCOPES : scopes
     USERS ||--o{ AUTH_SESSIONS : authenticates
     USERS ||--o{ ACCOUNT_ACTIONS : receives
+    USERS ||--o| AUTH_MFA : enrolls
+    USERS ||--o{ AUTH_MFA_CHALLENGES : verifies
+    USERS ||--o| AUTH_OIDC_LINKS : links
+    AUTH_OIDC_LINKS ||--o{ AUTH_OIDC_SESSIONS : authenticates
+    AUTH_OIDC_SESSIONS o|--o{ AUTH_SESSIONS : binds
+    USERS ||--o{ REPORT_EXPORTS : requests
 
     USERS ||--o{ CRYPTO_ASSETS : owns
     DEPARTMENTS ||--o{ CRYPTO_ASSETS : groups
@@ -203,7 +203,7 @@ erDiagram
     DEPARTMENTS ||--o{ REQUESTS : scopes
     CRYPTO_ASSETS o|--o{ REQUESTS : targets
     CRYPTO_ASSETS o|--o{ REQUESTS : results
-    REQUESTS ||--o| REQUEST_DECISIONS : receives
+    REQUESTS ||--o{ REQUEST_DECISIONS : receives_by_level
     REQUESTS ||--o| PROVIDER_OPERATIONS : tracks
     USERS ||--o{ REQUEST_DECISIONS : decides
 
@@ -223,11 +223,14 @@ erDiagram
 |---|---|---|
 | Danh tính | `users`, `roles`, `user_roles`, `departments` | Tài khoản và phân quyền |
 | Tài sản | `crypto_assets`, `cryptographic_keys`, `certificates` | Metadata khóa/chứng thư |
-| Workflow | `requests`, `request_decisions`, `provider_operations` | Yêu cầu, quyết định duy nhất và biên nhận provider |
+| Workflow | `requests`, `request_decisions`, `provider_operations` | Yêu cầu, quyết định theo cấp và biên nhận provider |
 | Chính sách | `policies`, `policy_versions` | Quy tắc có phiên bản |
 | Hệ thống | `audit_logs`, `notifications`, `auth_sessions`, `account_actions`, `account_action_limits`, `schema_migrations` | Kiểm toán, hàng đợi, phiên, token một lần và ledger |
+| Xác thực mở rộng | `auth_mfa`, `auth_mfa_challenges`, `auth_oidc_links`, `auth_oidc_flows`, `auth_oidc_sessions`, `auth_oidc_revocations` | Đăng ký TOTP, challenge, liên kết OIDC và hàng đợi thu hồi |
+| Báo cáo | `report_exports` | Hàng đợi, nội dung tệp và thời hạn tải |
+| Quan sát worker | `expiry_scan_status`, `email_worker_status` | Lần khởi tạo, lần quét và kết quả dùng chung giữa các tiến trình |
 
-ERD mô tả quan hệ chính sau migration 017. Yêu cầu nháp có thể thiếu policy, còn tài sản đã cấp luôn có `policy_version_id`. Nhật ký actor hoặc request có thể rỗng. [Bootstrap schema](database_schema.sql) · [Migration](backend/src/database/migration.service.ts)
+ERD trên mô tả các quan hệ chính sau migration 027. Bản đầy đủ liệt kê 40 khóa ngoại, gồm khóa ghép của phiên OIDC. Yêu cầu nháp có thể thiếu policy, tài sản đã cấp có `policy_version_id`. Nhật ký actor hoặc request có thể rỗng. [ERD đầy đủ](docs/ERD_HIEN_HANH.md) · [Bootstrap schema](database_schema.sql) · [Migration](backend/src/database/migration.service.ts)
 
 ---
 

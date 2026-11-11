@@ -4,7 +4,7 @@
 
 > Tài liệu mô tả cách hệ thống vận hành từ khi người dùng gửi yêu cầu đến khi tài sản được cấp phát, gia hạn, thu hồi hoặc hết hạn. Các sơ đồ sử dụng Mermaid và có thể hiển thị trực tiếp trên GitHub hoặc trình đọc Markdown hỗ trợ Mermaid.
 
-Đối chiếu ngày 06/11/2026 với backend, worker và schema 017. [Kịch bản nghiệm thu](docs/NGHIEM_THU_UAT.md) · [Kiến trúc và ERD](02_so_do_he_thong_tong_quat.md)
+Đối chiếu ngày 11/11/2026 với backend, worker và schema 027. Các sơ đồ cấp phát, gia hạn và thu hồi mô tả quyết định phê duyệt cuối. Policy hai cấp giữ yêu cầu ở `PENDING` sau cấp một như luồng tại mục 8. [Kịch bản nghiệm thu](docs/NGHIEM_THU_UAT.md) · [Kiến trúc và ERD](02_so_do_he_thong_tong_quat.md)
 
 ---
 
@@ -232,11 +232,20 @@ flowchart TD
     C -->|"Không"| E3["SOD_VIOLATION"]
     C -->|"Có"| ST{"Request đang PENDING?"}
     ST -->|"Không"| E4["409 Conflict"]
-    ST -->|"Có"| TX["Transaction: decision + status + audit"]
+    ST -->|"Có"| LEVELS{"Policy yêu cầu hai cấp?"}
+    LEVELS -->|"Không"| TX["Ghi quyết định cuối, trạng thái và audit"]
+    LEVELS -->|"Có"| SAME{"Người này đã duyệt cấp một?"}
+    SAME -->|"Có"| E5["SECOND_APPROVER_REQUIRED"]
+    SAME -->|"Không"| REJECT{"Quyết định từ chối?"}
+    REJECT -->|"Có"| TX
+    REJECT -->|"Không"| FIRST{"Đã có cấp một?"}
+    FIRST -->|"Có"| TX
+    FIRST -->|"Không"| PARTIAL["Ghi cấp một, giữ PENDING và thông báo"]
+    PARTIAL --> WAIT["Chờ Approver khác trong cùng phạm vi"]
     TX --> OK["Quyết định thành công"]
 ```
 
-Hệ thống dùng transaction và version/row lock để bảo đảm khi hai Approver cùng xử lý, chỉ một quyết định có hiệu lực.
+Hệ thống dùng transaction và version/row lock để mỗi cấp nhận tối đa một quyết định. Với cùng phiên bản yêu cầu, một giao dịch thắng và giao dịch còn lại nhận xung đột. Policy hai cấp yêu cầu hai Approver khác nhau trong cùng phạm vi. Cấp một giữ `PENDING`, cấp hai hoàn tất phê duyệt. Từ chối ở một cấp kết thúc yêu cầu và giữ lịch sử trước đó. [Phê duyệt hai cấp](docs/X02_TWO_STAGE_APPROVAL.md)
 
 ---
 
@@ -270,7 +279,8 @@ stateDiagram-v2
     [*] --> PENDING: Gửi mới trực tiếp
     DRAFT --> PENDING: Submit
     DRAFT --> CANCELLED: Cancel
-    PENDING --> APPROVED: Approve
+    PENDING --> PENDING: Cấp một của policy hai cấp
+    PENDING --> APPROVED: Đủ số cấp theo policy
     PENDING --> REJECTED: Reject
     PENDING --> CANCELLED: Creator cancels
     APPROVED --> PROCESSING: Worker starts
@@ -313,7 +323,7 @@ stateDiagram-v2
 | Thuật toán không phù hợp policy | Từ chối với lỗi `POLICY_VIOLATION` |
 | User xem asset của người khác | Trả 403 hoặc 404, không lộ dữ liệu |
 | Người tạo tự phê duyệt | Trả `SOD_VIOLATION` và ghi Audit Log |
-| Hai Approver cùng phê duyệt | Một người thành công, người còn lại nhận 409 |
+| Hai Approver cùng quyết định trên một phiên bản | Một người thành công, người còn lại nhận 409 và cần tải lại |
 | Lỗi tạm thời trước khi gọi provider | Lên lịch lại có giới hạn khi đã xác minh chưa gửi |
 | Kết quả provider chưa rõ | `RECONCILIATION_REQUIRED`, đối chiếu operation và biên nhận |
 | Job quét cảnh báo chạy lặp | Deduplication key giữ một bản ghi theo người nhận, mốc và kênh |

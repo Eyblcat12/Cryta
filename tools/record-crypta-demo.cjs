@@ -5,7 +5,8 @@ const { createHash } = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
-const [reportArgument, playwrightDirectory] = process.argv.slice(2);
+const [reportArgument, playwrightDirectory, browserChannel = 'chrome'] = process.argv.slice(2);
+assert.ok(['chrome', 'chromium', 'msedge'].includes(browserChannel));
 const actors = { user: 'dev.nguyen@congty.com', approver: 'it.manager@congty.com', admin: 'admin@congty.com' };
 const rsa = '05555555-1111-1111-1111-111111111112';
 
@@ -41,7 +42,7 @@ async function main() {
   const output = path.join(path.dirname(reportPath), `demo-${Date.now()}`);
   await fs.mkdir(output);
   const { chromium } = require(path.join(playwrightDirectory, 'playwright'));
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  const browser = await chromium.launch({ channel: browserChannel, headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, recordVideo: { dir: output, size: { width: 1440, height: 900 } } });
   const page = await context.newPage();
   page.setDefaultTimeout(15_000);
@@ -97,7 +98,8 @@ async function main() {
     await button(revoke ? 'Xác nhận thu hồi' : 'Gửi yêu cầu').click();
     await page.getByRole('button', { name: new RegExp(reason) }).click();
     await page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
-    await page.getByText('Chờ duyệt', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: reason, exact: true }).waitFor();
+    await page.getByRole('region', { name: 'Chi tiết', exact: true }).getByText('Chờ duyệt', { exact: true }).waitFor();
     return new URL(page.url()).pathname;
   }
   async function decide(requestPath, reason, reject = false, showQueue = false) {
@@ -234,6 +236,7 @@ async function main() {
     const bytes = await fs.readFile(videoPath);
     assert.ok(bytes.length > 100_000 && bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])));
     await fs.writeFile(path.join(output, 'results.json'), JSON.stringify({ success, project: stack.project, chapters, provider: 'MOCK', smtpEnabled: false,
+      browserChannel, browserVersion: browser.version(), recordedAt: new Date().toISOString(),
       images: { backend: backend.Image, frontend: frontend.Image }, buildAssets: stack.buildAssets,
       video: path.basename(videoPath), bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') }, null, 2) + '\n');
   }
