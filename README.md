@@ -4,6 +4,8 @@ Crypta là ứng dụng web quản lý metadata và vòng đời khóa/chứng t
 
 [Hướng dẫn sử dụng, API và vận hành](docs/HUONG_DAN_CRYPTA.md) · [Demo và bàn giao](docs/DEMO_VA_BAN_GIAO.md) · [Kịch bản nghiệm thu](docs/NGHIEM_THU_UAT.md) · [Cấu hình dịch vụ thật](CAU_HINH_DICH_VU_THAT.md)
 
+Bản bàn giao đồ án phục vụ chạy cục bộ và bảo vệ trên trường, theo phạm vi được xác nhận ngày 12/11/2026. Xem [bộ tài liệu đồ án](docs/DO_AN.md), [báo cáo](docs/BAO_CAO_DO_AN.md) và [slide](docs/media/crypta-bao-ve.pptx). Demo dùng dữ liệu mẫu và provider MOCK, SMTP tắt mặc định. Các điều kiện triển khai dịch vụ thật được theo dõi riêng trong kế hoạch vận hành.
+
 ## Khởi động nhanh trên Windows
 
 Backend chạy trực tiếp mặc định chỉ kiểm migration (`validate`). Operator chạy migration riêng trước startup. Compose demo khai báo `apply` để giữ quy trình local bên dưới. [Quy trình migration và quyền runtime](DATABASE_MIGRATIONS.md) · [Đóng gói, nâng cấp và phục hồi](RELEASE_RUNBOOK.md)

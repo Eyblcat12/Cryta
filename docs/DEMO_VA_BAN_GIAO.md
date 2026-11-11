@@ -1,5 +1,7 @@
 # Demo và bàn giao Crypta
 
+Bản đồ án trên trường có [báo cáo kỹ thuật](BAO_CAO_DO_AN.md), [slide 14 trang](media/crypta-bao-ve.pptx), [ghi chú bảo vệ](THUYET_TRINH.md) và [phạm vi bàn giao](DO_AN.md). Video dưới đây dùng để xem nhanh hoặc dự phòng khi demo trực tiếp.
+
 [Mở video demo](media/crypta-demo.webm) quay ngày 11/11/2026, dài khoảng 57 giây, độ phân giải 1440 × 900. Video có chú thích và dùng dữ liệu mẫu trong PostgreSQL cách ly với schema 027. Có thể dừng ở từng chương để đối chiếu với hướng dẫn. Provider chạy chế độ MOCK và SMTP tắt trong lần quay này.
 
 | Mốc gần đúng | Chương | Thao tác và kết quả |

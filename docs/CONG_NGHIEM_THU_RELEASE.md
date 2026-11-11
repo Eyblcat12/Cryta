@@ -1,5 +1,7 @@
 # Rà điều kiện nghiệm thu Crypta
 
+Phạm vi bàn giao hiện tại đã được xác nhận là đồ án trên trường ngày 12/11/2026. [Bộ đồ án](DO_AN.md) dùng local và dữ liệu mô phỏng. Hồ sơ dưới đây tiếp tục ghi các điều kiện vận hành tổ chức, SMTP/provider và ký R1/R2, phục vụ bước triển khai thật sau này.
+
 Ngày 10/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.** Bảng dưới đối chiếu mục 7 của kế hoạch với bằng chứng hiện có. Chủ dự án, QA và vận hành cần xác nhận lại trên cùng commit, image và môi trường trước khi gắn phiên bản phát hành. [Kế hoạch](../KE_HOACH_HOAN_THIEN_DU_AN.md) · [Bảng từng task](../TASK_STATUS_2026-11-05.md)
 
 | Điều kiện R1 | Bằng chứng hiện có | Còn thiếu và người xác nhận |

@@ -1,5 +1,7 @@
 # CRYPTA — Kế hoạch hoàn thiện và nghiệm thu toàn bộ dự án
 
+> Cập nhật phạm vi ngày 12/11/2026 theo xác nhận chủ dự án rằng đây là đồ án trên trường. Lần bàn giao hiện tại tập trung chạy local, đủ chức năng, kiểm thử và bộ bảo vệ. [Biên bản phạm vi và bộ bàn giao](docs/DO_AN.md) ghi phần được giao cùng giới hạn. T01–T54 và X01–X06 bên dưới giữ nguyên tiêu chí vận hành gốc để theo dõi hướng phát triển, không tự đánh dấu đạt các dịch vụ thật hoặc chữ ký nghiệm thu chưa có.
+
 > Cập nhật06/11/2026: [tiến độ và các pha kiểm chứng](PROJECT_PROGRESS_2026-11-05.md), [54+6 task](TASK_STATUS_2026-11-05.md). Worker, dependency/parser, runtime LOGIN19, delayed GET26 mỗi Edge/Chrome, focus fix96/full180 mỗi browser và CSS focus contrast600/radio keyboard12 đã có bằng chứng riêng từng pha; N6, rollout, nghiệp vụ và các cổng release còn mở. T30 vẫn ưu tiên đầu.
 
 Ngày lập: 27/09/2026. Phạm vi: kế hoạch công việc, chưa phải biên bản nghiệm thu.
