@@ -204,6 +204,123 @@ async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
           await page.getByRole('heading', { name: 'Nội dung đã lưu từ tab thứ hai', exact: true }).waitFor();
         } finally { await other.close(); }
       });
+      await scenario('committed direct submission with lost response is inspected through the owner list without replay', width, theme, async page => {
+        await expect(page.getByLabel('Chính sách', { exact: true })).toBeEnabled();
+        const reason = `Gửi trực tiếp mất phản hồi ${channel} ${width}`;
+        await page.getByLabel('Lý do nghiệp vụ').fill(reason);
+        let id;
+        let attempts = 0;
+        await page.route('**/api/v1/requests', async route => {
+          if (route.request().method() !== 'POST') return route.continue();
+          attempts++;
+          const response = await route.fetch();
+          assert.equal(response.status(), 201);
+          id = (await response.json()).data.id;
+          assert.match(id, /^[a-f0-9-]{36}$/);
+          await route.abort('failed');
+        });
+        await page.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
+        await page.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).waitFor();
+        await expect(page.getByRole('button', { name: 'Gửi yêu cầu', exact: true })).toBeDisabled();
+        await expect(page.getByLabel('Lý do nghiệp vụ')).toHaveValue(reason);
+        const submitted = effects(id);
+        assert.equal(submitted.status, 'PENDING');
+        assert.equal(submitted.submittedAudit, 1);
+        assert.ok(submitted.notifications > 0);
+        assert.equal(submitted.provider, 0);
+        const inspected = page.waitForResponse(response => response.request().method() === 'GET'
+          && new URL(response.url()).pathname === '/api/v1/requests'
+          && new URL(response.url()).searchParams.get('createdByMe') === 'true');
+        await page.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).click();
+        const inspection = await inspected;
+        assert.equal(inspection.status(), 200);
+        assert.ok((await inspection.json()).data.items.some(request => request.id === id));
+        await page.getByLabel('Tôi đã đối chiếu dữ liệu', { exact: false }).check();
+        await page.getByRole('button', { name: 'Kết thúc đối chiếu', exact: true }).click();
+        await page.getByRole('button', { name: 'Đóng', exact: true }).click();
+        await page.getByRole('alertdialog', { name: 'Bỏ các thay đổi đang nhập?', exact: true })
+          .getByRole('button', { name: 'Bỏ thay đổi', exact: true }).click();
+        await page.goto(stack.origin + '/requests/' + id);
+        await page.getByText('Chờ duyệt', { exact: true }).waitFor();
+        assert.equal(attempts, 1);
+        assert.deepEqual(effects(id), submitted);
+      });
+      await scenario('committed draft submission with lost response is inspected without replay', width, theme, async page => {
+        await expect(page.getByLabel('Chính sách', { exact: true })).toBeEnabled();
+        await page.getByLabel('Lý do nghiệp vụ').fill(`Gửi nháp mất phản hồi ${channel} ${width}`);
+        await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
+        await page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
+        const id = uuidFromUrl(page.url());
+        await page.getByRole('button', { name: 'Sửa bản nháp', exact: true }).click();
+        let attempts = 0;
+        await page.route(`**/api/v1/requests/${id}/submit`, async route => {
+          attempts++;
+          const response = await route.fetch();
+          assert.equal(response.status(), 201);
+          await route.abort('failed');
+        });
+        await page.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
+        await page.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).waitFor();
+        await expect(page.getByRole('button', { name: 'Gửi yêu cầu', exact: true })).toBeDisabled();
+        const submitted = effects(id);
+        assert.equal(submitted.status, 'PENDING');
+        assert.equal(submitted.version, 2);
+        assert.equal(submitted.submittedAudit, 1);
+        assert.ok(submitted.notifications > 0);
+        assert.equal(submitted.provider, 0);
+        const inspected = page.waitForResponse(response => response.request().method() === 'GET'
+          && new URL(response.url()).pathname === `/api/v1/requests/${id}`);
+        await page.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).click();
+        assert.equal((await inspected).status(), 200);
+        await page.getByLabel('Tôi đã đối chiếu dữ liệu', { exact: false }).check();
+        await page.getByRole('button', { name: 'Kết thúc đối chiếu', exact: true }).click();
+        await page.getByRole('button', { name: 'Đóng', exact: true }).click();
+        await page.goto(stack.origin + '/requests/' + id);
+        await page.getByText('Chờ duyệt', { exact: true }).waitFor();
+        assert.equal(attempts, 1);
+        assert.deepEqual(effects(id), submitted);
+      });
+      await scenario('committed cancellation with lost response is inspected without replay', width, theme, async page => {
+        await expect(page.getByLabel('Chính sách', { exact: true })).toBeEnabled();
+        await page.getByLabel('Lý do nghiệp vụ').fill(`Hủy yêu cầu mất phản hồi ${channel} ${width}`);
+        await page.getByRole('button', { name: 'Lưu bản nháp', exact: true }).click();
+        await page.waitForURL(url => /^\/requests\/[a-f0-9-]{36}$/.test(url.pathname));
+        const id = uuidFromUrl(page.url());
+        await page.getByRole('button', { name: 'Sửa bản nháp', exact: true }).click();
+        await page.getByRole('button', { name: 'Gửi yêu cầu', exact: true }).click();
+        await page.waitForURL(url => url.pathname === '/requests/' + id);
+        await page.getByText('Chờ duyệt', { exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Hủy yêu cầu', exact: true }).click();
+        const dialog = page.getByRole('dialog', { name: 'Hủy yêu cầu này?', exact: true });
+        await dialog.getByRole('textbox', { name: /Lý do hủy/ }).fill('Dừng yêu cầu đã gửi để kiểm thử mất phản hồi');
+        let attempts = 0;
+        await page.route(`**/api/v1/requests/${id}/cancel`, async route => {
+          attempts++;
+          const response = await route.fetch();
+          assert.equal(response.status(), 201);
+          await route.abort('failed');
+        });
+        await dialog.getByRole('button', { name: 'Xác nhận hủy', exact: true }).click();
+        await dialog.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).waitFor();
+        await expect(dialog.getByRole('button', { name: 'Xác nhận hủy', exact: true })).toBeDisabled();
+        const cancelled = effects(id);
+        assert.equal(cancelled.status, 'CANCELLED');
+        assert.equal(cancelled.version, 3);
+        assert.equal(cancelled.submittedAudit, 1);
+        assert.equal(cancelled.cancelAudit, 1);
+        assert.equal(cancelled.provider, 0);
+        const inspected = page.waitForResponse(response => response.request().method() === 'GET'
+          && new URL(response.url()).pathname === `/api/v1/requests/${id}`);
+        await dialog.getByRole('button', { name: 'Kiểm tra dữ liệu', exact: true }).click();
+        assert.equal((await inspected).status(), 200);
+        await dialog.getByLabel('Tôi đã đối chiếu dữ liệu', { exact: false }).check();
+        await dialog.getByRole('button', { name: 'Kết thúc đối chiếu', exact: true }).click();
+        await dialog.getByRole('button', { name: 'Đóng', exact: true }).click();
+        await page.reload();
+        await page.getByText('Đã hủy yêu cầu', { exact: true }).waitFor();
+        assert.equal(attempts, 1);
+        assert.deepEqual(effects(id), cancelled);
+      });
       for (const [type, label] of [['RENEW', 'Gia hạn'], ['REVOKE', 'Thu hồi']]) {
         await scenario(type + ' draft can be saved before selection and submitted after reopening', width, theme, async page => {
           const target = sql(`SELECT to_json(a.id) FROM crypto_assets a JOIN users u ON u.id=a.owner_id
@@ -268,7 +385,7 @@ async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
     }
     report.passed = report.results.filter(result => result.passed).length;
     report.total = report.results.length;
-    report.success = report.total === 12 && report.passed === report.total;
+    report.success = report.total === 18 && report.passed === report.total;
   } finally {
     await browser.close();
     await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(report, null, 2));
