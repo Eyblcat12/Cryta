@@ -1,4 +1,27 @@
-# T02 — Ma trận 12 use case, trạng thái và quyền, 06/10/2026
+# T02 — Ma trận 12 use case, trạng thái và quyền
+
+## Hiện trạng đối chiếu ngày 11/11/2026
+
+Mã nguồn và CI của ứng viên `c159894` là căn cứ cho trạng thái hiện tại. Ma trận 12 UC theo UI, API, DB/job và kiểm quyền nằm trong hồ sơ UAT. Bảng dưới cập nhật những luồng đã được tích hợp sau baseline tháng 10. Nghiệm thu nghiệp vụ, SMTP/provider và môi trường đích vẫn theo cổng T54. [Ma trận UC](docs/NGHIEM_THU_UAT.md#đối-chiếu-bằng-chứng-theo-commit) · [CI ứng viên](https://github.com/Eyblcat12/Cryta/actions/runs/42662961812) · [Cổng nghiệm thu](docs/CONG_NGHIEM_THU_RELEASE.md)
+
+| Luồng | Hành vi hiện tại | Căn cứ |
+| --- | --- | --- |
+| Nháp và gửi yêu cầu | `PUT /requests/drafts/:id` lưu nháp có version. Người tạo sửa, gửi `DRAFT → PENDING` hoặc hủy. Nháp không xuất hiện cho người duyệt. Giao diện có lưu nháp, mở lại, sửa, gửi và đối chiếu khi mất phản hồi. | [Controller](backend/src/requests/requests.controller.ts) · [Service](backend/src/requests/requests.service.ts) · [Ca UI/PostgreSQL](tools/test-real-request-draft-ui.cjs) |
+| Hủy yêu cầu | Người tạo hủy `DRAFT` hoặc `PENDING`, kiểm version nếu được gửi. Lý do lưu cùng thay đổi trạng thái và audit trong transaction. Giao diện yêu cầu xác nhận và giữ dữ liệu khi có xung đột. | [Service](backend/src/requests/requests.service.ts) · [T09](T09_REQUEST_DRAFTS_2026-11-06.md) |
+| Phê duyệt, tham số và tài sản mục tiêu | API và worker dùng chung hàm xác thực tham số. Trước khi duyệt gia hạn/thu hồi, kiểm lại chủ sở hữu, trạng thái, thời hạn, policy và tham chiếu provider. Policy hai cấp giữ `PENDING` sau cấp một và yêu cầu Approver khác cùng phạm vi ở cấp hai. | [Validation](backend/src/requests/request-policy.ts) · [Quyết định](backend/src/requests/requests.service.ts) · [Worker](backend/src/jobs/asset-processing.service.ts) · [X02](docs/X02_TWO_STAGE_APPROVAL.md) |
+| Hoàn tất và phục hồi provider | Worker enqueue `REQUEST_COMPLETED`, `REQUEST_FAILED` hoặc `REQUEST_RECONCILIATION_REQUIRED`. Admin dùng `/operations/provider` để xác nhận kết quả đã lưu, lên lịch thử lại hoặc kết thúc theo bằng chứng. API yêu cầu version, lý do và action. | [Worker](backend/src/jobs/asset-processing.service.ts) · [Controller đối soát](backend/src/jobs/provider-recovery.controller.ts) · [T15](T15_PROVIDER_RECOVERY_2026-11-06.md) |
+| Tài sản và truy vết | User, Approver và Admin có route tài sản. API kiểm owner/phạm vi cho chi tiết và lịch sử. Gia hạn liên kết tài sản trước/sau. | [Routes](frontend/src/routes.ts) · [Controller](backend/src/assets/assets.controller.ts) · [T18](T18_ASSET_LINEAGE_2026-11-06.md) |
+| Hàng chờ và chi tiết quyết định | Danh sách có lọc đơn vị, thời gian, loại và mức khẩn. Chi tiết yêu cầu trả quyết định cuối cùng hoặc lịch sử hai cấp theo policy. Giao diện hiển thị người duyệt, lý do từ chối và trạng thái kết thúc. | [RequestsService](backend/src/requests/requests.service.ts) · [Ca tích hợp](tools/test-real-integration.cjs) |
+| Vòng đời policy | Admin tạo policy, phát hành phiên bản, xem lịch sử và ngừng áp dụng. Phiên bản đã gắn với yêu cầu/tài sản được giữ lại để kiểm và truy vết. | [Controller policy](backend/src/policies/policies.controller.ts) · [T20](T20_POLICY_LIFECYCLE_2026-11-06.md) |
+| Đơn vị và truy cập | Admin quản lý đơn vị và chuyển người dùng qua giao diện đã duyệt. Thay đổi quyền/phạm vi thu hồi phiên. Lịch sử nghiệp vụ giữ phạm vi đã ghi trên đối tượng. | [Service đơn vị](backend/src/departments/departments.service.ts) · [T08](T08_DEPARTMENT_ADMINISTRATION_2026-11-06.md) |
+| Mời và đặt lại mật khẩu | Admin mời tài khoản. Người dùng tự yêu cầu đặt lại mật khẩu qua email. Token một lần và thu hồi phiên được kiểm ở backend. | [Auth controller](backend/src/auth/auth.controller.ts) · [T07](T07_ACCOUNT_ACTIONS_2026-11-06.md) |
+| Cảnh báo và vận hành email | Chủ sở hữu, Approver đúng phạm vi và Admin nhận cảnh báo tài sản theo cấu hình đã duyệt. Admin xem hàng đợi, ghi kết quả đối soát và lên lịch gửi lại email đủ điều kiện. | [NotificationsService](backend/src/notifications/notifications.service.ts) · [T27](T27_HARDENING_2026-11-06.md) · [Vận hành email](EMAIL_OPERATIONS.md) |
+
+Các quy tắc còn cần xác nhận nghiệp vụ gồm gia hạn khi policy ngừng áp dụng hoặc tài sản đã hết hạn, phân loại lý do khẩn và quyền tạo yêu cầu của tài khoản chỉ có Approver. Hiện API chặn Admin tạo yêu cầu, route tạo dành cho User và hàm kiểm quyền tạo cho phép tài khoản không có Admin. Các lựa chọn này được giữ để chủ dự án xác nhận trong UAT. [Kiểm quyền](backend/src/requests/request-policy.ts) · [Routes](frontend/src/routes.ts)
+
+## Baseline lịch sử ngày 06/10/2026
+
+Phần dưới lưu kết quả rà soát tại baseline tháng 10. Các khoảng trống đã được xử lý sau thời điểm đó được cập nhật trong bảng hiện trạng phía trên.
 
 Đây là bản đối chiếu **source hiện tại và báo cáo đã lưu**, chuẩn bị đặc tả T02. Có đủ bằng chứng để ghi nhận T02 **một phần**: 12 UC đã được ánh xạ, tên trạng thái/guard hiện có được phân biệt với kế hoạch và các quyết định còn mở có nhóm phụ trách. **Chưa nghiệm thu T02 hoặc R1**, chưa thay quyết định nghiệp vụ của chủ dự án. Lượt lập tài liệu này chỉ đọc file và ghi tài liệu; không chạy lại build/test/Docker/browser.
 

@@ -10,6 +10,8 @@ Sau khi build hai image phát hành, CI đối chiếu tag, image ID và nhãn v
 
 `run-integration.ps1` dựng project Docker mới, chạy smoke rồi lần lượt gọi các bộ parser, ledger, quyền runtime, phục hồi worker, hết hạn, giao email và trình duyệt/API. Stack dùng seed, provider MOCK và SMTP tắt. Các bài giao thư dựng SMTP loopback riêng. Sau thành công hoặc lỗi, script dọn stack và kiểm danh tính container ngoài project.
 
+CI chạy thêm 12 ca nháp với Chromium trên Nginx/PostgreSQL, gồm lưu chưa đủ dữ liệu, mở lại/sửa/gửi/hủy, mất phản hồi sau khi lưu, xung đột hai tab và giữ tham số cũ khi sửa lý do. Mỗi ca kiểm dữ liệu và tác động trong PostgreSQL. JavaScript được so hash giữa phản hồi HTTP và container frontend của stack. Báo cáo `draft-ui-chromium-*/results.json` nằm trong artifact `integration-results`. [Bộ kiểm nháp](../test-real-request-draft-ui.cjs)
+
 Sau ca Chromium với PostgreSQL, CI chạy trọn bộ hồi quy điều hướng, trạng thái tải và trợ năng T30/T34 trên cùng bundle do Nginx phục vụ, với motion mặc định tắt. Bộ này dùng API mô phỏng trong từng phiên trình duyệt. Script từ chối bộ lọc để tránh bỏ qua ca kiểm và đối chiếu tên bundle với smoke. Báo cáo `spa-workspace/results-chromium.json` nằm trong `integration-results`. [Bộ kiểm trình duyệt](../test-spa-workspace.cjs)
 
 Lượt diễn tập cục bộ ngày 09/11 đạt 193/193, gồm tám ca T34. Tên bundle khớp smoke và stack đã được dọn. [Kết quả Chromium](../test-artifacts/integration/crypta-t30-test-077b32d068ec/spa-workspace/results-chromium.json) · [Báo cáo stack](../test-artifacts/integration/crypta-t30-test-077b32d068ec/report.json)

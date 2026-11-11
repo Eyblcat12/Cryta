@@ -11,8 +11,7 @@ function docker(args, input) {
 }
 
 async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
-  assert.ok(['msedge', 'chrome'].includes(channel));
-  const root = path.resolve(__dirname, '..');
+  assert.ok(['msedge', 'chrome', 'chromium'].includes(channel));
   const artifactRoot = await fs.realpath(path.join(__dirname, 'test-artifacts/integration'));
   const reportPath = await fs.realpath(reportArgument);
   assert.ok(reportPath.startsWith(artifactRoot + path.sep));
@@ -52,7 +51,7 @@ async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
   await fs.mkdir(output);
   const { chromium } = require(path.join(playwrightDirectory, 'playwright'));
   const browser = await chromium.launch({ channel, headless: true });
-  const report = { success: false, channel, browserVersion: browser.version(), project: stack.project,
+  const report = { success: false, fixtureOnly: false, channel, browserVersion: browser.version(), project: stack.project,
     images: { backend: backend.Image, frontend: frontend.Image }, results: [] };
   const { expect } = require(path.join(playwrightDirectory, 'playwright/test'));
   const uuidFromUrl = url => new URL(url).pathname.split('/')[2];
@@ -92,11 +91,13 @@ async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
   try {
     const html = await (await fetch(stack.origin)).text();
     const js = html.match(/src="(\/assets\/[^"]+\.js)"/)?.[1];
-    assert.ok(js);
+    assert.match(js ?? '', /^\/assets\/[a-zA-Z0-9_-]+\.js$/);
+    assert.ok(stack.buildAssets.includes(js), 'JavaScript must match the isolated stack smoke report.');
     const served = Buffer.from(await (await fetch(stack.origin + js)).arrayBuffer());
     report.jsAsset = js;
     report.jsSha256 = createHash('sha256').update(served).digest('hex');
-    assert.equal(report.jsSha256, createHash('sha256').update(await fs.readFile(path.join(root, 'frontend/dist', js))).digest('hex'));
+    const imageHash = docker(['exec', frontend.Id, 'sha256sum', '/usr/share/nginx/html' + js]).split(/\s+/)[0];
+    assert.equal(report.jsSha256, imageHash, 'Served JavaScript must match the running frontend image.');
     for (const [width, theme] of [[1440, 'light'], [390, 'dark']]) {
       await scenario('save incomplete, reopen, edit, submit, cancel', width, theme, async page => {
         const shortReason = 'Nháp';
@@ -265,7 +266,9 @@ async function main(reportArgument, playwrightDirectory, channel = 'msedge') {
         assert.equal(effects(id).version, 2);
       });
     }
-    report.success = report.results.length === 12 && report.results.every(result => result.passed);
+    report.passed = report.results.filter(result => result.passed).length;
+    report.total = report.results.length;
+    report.success = report.total === 12 && report.passed === report.total;
   } finally {
     await browser.close();
     await fs.writeFile(path.join(output, 'results.json'), JSON.stringify(report, null, 2));

@@ -36,6 +36,8 @@ $taskCiVerification = {
     & node (Join-Path $taskCiRoot "tools/$script") $ReportPath
     if ($LASTEXITCODE -ne 0) { throw "Integration failed in $script." }
   }
+  & node (Join-Path $taskCiRoot 'tools/test-real-request-draft-ui.cjs') $ReportPath $taskCiTooling chromium
+  if ($LASTEXITCODE -ne 0) { throw 'Real request draft UI integration failed.' }
   & node (Join-Path $taskCiRoot 'tools/test-real-integration.cjs') $ReportPath $taskCiTooling chromium
   if ($LASTEXITCODE -ne 0) { throw 'Real Chromium integration failed.' }
 

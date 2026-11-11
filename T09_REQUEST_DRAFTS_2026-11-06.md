@@ -1,5 +1,7 @@
 # T09 — Nháp, gửi duyệt và hủy yêu cầu
 
+Ngày 11/11/2026, bộ kiểm đã có được nối vào CI với Chromium. Lượt WSL cục bộ đạt 12/12 ca qua Nginx/PostgreSQL ở 1440 px sáng và 390 px tối. Hash JavaScript HTTP khớp file trong container frontend. Stack đã dọn và giữ nguyên ID của 15 container bên ngoài. Kết quả remote của thay đổi này được theo dõi riêng trong GitHub Actions. [Báo cáo cục bộ](tools/test-artifacts/integration/crypta-t30-test-9fca882dd2bb/draft-ui-chromium-1794393201258/results.json) · [Luồng CI](tools/ci/run-integration.ps1)
+
 Migration `009_request_drafts` bổ sung trạng thái DRAFT và lý do hủy. Nháp chưa chọn policy, tài sản hoặc chưa nhập lý do vẫn lưu được. `submittedAt` là null cho đến khi gửi duyệt. Nháp và bản đã hủy trước khi gửi chỉ xuất hiện với người tạo. Hàng duyệt, worker và lịch sử tài sản dùng các trạng thái đã gửi phù hợp.
 
 | API | Hành vi |
