@@ -108,7 +108,15 @@ async function verifyAccountActions({ api, login, sql, test, sleep, startApi, st
       [inviteToken, resetToken] = await Promise.all([received(inviteEmail, 'activate'), received(resetEmail, 'reset-password')]);
       assert.ok(inviteToken !== resetToken);
       for (const [token, purpose] of [[inviteToken, 'INVITATION'], [resetToken, 'PASSWORD_RESET']]) {
-        const row = (await sql(`SELECT a.purpose,n.delivery_status FROM account_actions a JOIN notifications n ON a.id=n.account_action_id WHERE a.token_hash=$1`, [hash(token)])).rows[0];
+        // Capturing SMTP DATA precedes the worker's acknowledgement and DB commit.
+        // Wait only for that in-flight commit; terminal failures still fail the test.
+        const deadline = Date.now() + 8000;
+        let row;
+        do {
+          row = (await sql(`SELECT a.purpose,n.delivery_status FROM account_actions a JOIN notifications n ON a.id=n.account_action_id WHERE a.token_hash=$1`, [hash(token)])).rows[0];
+          if (row?.delivery_status !== 'SENDING') break;
+          await sleep(100);
+        } while (Date.now() < deadline);
         assert.equal(row?.purpose, purpose);
         assert.equal(row?.delivery_status, 'SENT');
       }
