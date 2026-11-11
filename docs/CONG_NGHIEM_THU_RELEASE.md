@@ -1,0 +1,49 @@
+# Rà điều kiện nghiệm thu Crypta
+
+Phạm vi bàn giao hiện tại đã được xác nhận là đồ án trên trường ngày 12/11/2026. [Bộ đồ án](DO_AN.md) dùng local và dữ liệu mô phỏng. Hồ sơ dưới đây tiếp tục ghi các điều kiện vận hành tổ chức, SMTP/provider và ký R1/R2, phục vụ bước triển khai thật sau này.
+
+Ngày 10/11/2026. **Chưa đủ điều kiện ký R1 hoặc triển khai pilot.** Bảng dưới đối chiếu mục 7 của kế hoạch với bằng chứng hiện có. Chủ dự án, QA và vận hành cần xác nhận lại trên cùng commit, image và môi trường trước khi gắn phiên bản phát hành. [Kế hoạch](../KE_HOACH_HOAN_THIEN_DU_AN.md) · [Bảng từng task](../TASK_STATUS_2026-11-05.md)
+
+| Điều kiện R1 | Bằng chứng hiện có | Còn thiếu và người xác nhận |
+| --- | --- | --- |
+| 12 UC qua UI, API, DB/job và kiểm quyền | Demo 12 chương, kịch bản UAT và bằng chứng kỹ thuật theo từng UC đối chiếu với CI của `ef4c557`. | QA đối chiếu đủ nhánh và quyền trên môi trường đích. Đại diện nghiệp vụ chạy và ký từng UC. [Ma trận UC](NGHIEM_THU_UAT.md#đối-chiếu-bằng-chứng-theo-commit) |
+| Xử lý mọi P0 và lỗi Critical/High | Hồi quy API/DB có thu hồi phiên, quyết định đồng thời, scope và bảo vệ Admin cuối. Quét OS và thư viện trên hai image `linux/amd64` ghi 0 Critical/High trong CI của `69178b9` và trên bản dựng cục bộ từ `dc60474`. | QA và chủ dự án đóng từng P0 trên commit ứng viên. Các mục phụ thuộc cấu hình và dữ liệu đích còn mở. [Đối chiếu image](CI_REMOTE_2026-11-07.md#đối-chiếu-gói-và-quét-image-ngày-0911) · [Tracker](../TASK_STATUS_2026-11-05.md) |
+| Bảo vệ bí mật qua mọi kênh | Stack cách ly xác nhận log Nginx và log fallback khi mất DB loại dữ liệu giả, đồng thời giữ mã truy vết. Có bộ kiểm log runtime và danh sách cho phép artifact CI. [T21](../T21_AUDIT_CORRELATION_2026-11-06.md) | Vận hành và QA kiểm ingress TLS, lưu fallback độc lập và xác nhận Git, image, DB, log, frontend và thư trên môi trường đích. [Quyền DB](../DATABASE_MIGRATIONS.md) · [CI](../tools/ci/README.md) |
+| Phục hồi tác vụ provider và đối soát | Worker chạy ca crash, receipt, retry và timeout trên DB với MOCK/HTTP loopback. Admin có luồng đối soát qua giao diện. | Vận hành diễn tập tình huống chưa rõ kết quả với cấu hình pilot. Nếu dùng provider thật, kiểm theo hợp đồng sandbox và đối chiếu operation ID. [T15](../T15_PROVIDER_RECOVERY_2026-11-06.md) · [T16](../T16_HTTP_ADAPTER_2026-11-06.md) |
+| Policy, lịch cảnh báo và hết hạn | API phiên bản bất biến, worker giữ policy đã gắn, kiểm hết hạn và phân phạm vi người nhận trên PostgreSQL. | QA xác nhận toàn luồng trên bản build ứng viên và kiểm sau rollout. [T20](../T20_POLICY_LIFECYCLE_2026-11-06.md) · [T27](../T27_HARDENING_2026-11-06.md) |
+| Email đến hộp thư và theo dõi backlog | Compose production cách ly kiểm thư duyệt, sắp hết hạn, mời và reset qua relay STARTTLS. PostgreSQL có bản ghi `SENT` ở lần thử đầu cho cả bốn loại. CI backend đạt 7/7 ca SMTP. | Vận hành chọn SMTP và danh tính gửi. QA kiểm thư thực sự đến hộp thư thử cho quyết định, cảnh báo, mời và reset, gồm Inbox/Spam, header và URL. [Vận hành email](../EMAIL_OPERATIONS.md) |
+| Giao diện và khả năng truy cập | Có hồi quy trình duyệt cho hai theme, mobile, bàn phím và các trạng thái lỗi, chờ, trống. | QA hoàn tất kiểm T30, screen reader và các kịch bản UAT trên bản ứng viên. [Tracker giao diện](../IMPLEMENTATION_TRACKER.md) |
+| CI xanh trên commit phát hành | GitHub Actions trên `c159894` đạt đủ năm job. Đã đối chiếu SHA-256 của ba artifact, gồm tích hợp, manifest và báo cáo quét hai image. Nhánh thử riêng đã chứng minh cổng lỗi và cleanup. | Required checks bị GitHub trả 403 do điều kiện gói cho repo private. Xác nhận CI trên commit được chọn phát hành. [Hồ sơ ứng viên](#hồ-sơ-ứng-viên-ngày-10112026) · [Lịch sử CI](CI_REMOTE_2026-11-07.md) |
+| Startup, nâng cấp, backup, restore và tải | Diễn tập cách ly kiểm 27 migration, phục hồi bản baseline và ứng viên dưới owner mới, đối chiếu dữ liệu và quyền runtime. Hai image CI có manifest truy xuất nguồn. Smoke qua proxy HTTPS cục bộ đạt 10 probe trên Nginx/PostgreSQL và từ chối 10 tình huống lỗi. | Vận hành chạy smoke trên ingress đích, lặp diễn tập trên máy đích, chốt RPO/RTO và ngưỡng tải. [Runbook](../RELEASE_RUNBOOK.md) · [T50](../T50_CAPACITY_2026-11-06.md) |
+| Tài liệu, UAT và trách nhiệm hỗ trợ | Có hướng dẫn theo vai trò, changelog và demo bàn giao. | Chủ dự án chỉ định người tiếp nhận và người trực, sau đó người nhận tự dựng và xác nhận kịch bản. [Bàn giao](DEMO_VA_BAN_GIAO.md) |
+
+## Chuẩn bị pilot và quyết định release
+
+T51 cần staging được phép sử dụng, domain HTTPS, sao lưu, tài khoản thử và người trực. Trước khi mở cho nhóm thử, ghi SHA commit, digest image, ledger, chế độ provider, SMTP, kết quả smoke và bản backup. Vận hành kiểm cảnh báo cùng một chu kỳ nghiệp vụ và giữ điểm phục hồi. Khi T16 còn mở, pilot chỉ dùng dữ liệu mô phỏng và ghi rõ phạm vi đó. T25, T42 và T46 vẫn phải được xác nhận theo tiêu chí T51. [Điều kiện dịch vụ thật](../CAU_HINH_DICH_VU_THAT.md) · [Nâng cấp và quay lui](../RELEASE_RUNBOOK.md)
+
+Trước quyết định T54, ghi người duyệt, ngày, commit/image, kết quả từng hàng, lỗi còn mở, người xử lý và kênh hỗ trợ. Dữ liệu thật chỉ được đưa vào pilot sau khi mọi P0 đạt. Chỉ gắn phiên bản phát hành sau quyết định của chủ dự án. Để công nhận vận hành tài sản thật, cần thêm T16 và xác nhận quyền truy cập, secret, TLS, backup, đối soát và các yêu cầu bắt buộc của tổ chức.
+
+R2 gồm X01–X06 và được nghiệm thu riêng sau R1 theo phạm vi đã chọn. Cả sáu mục có bằng chứng trên stack cách ly. X06 dùng OpenBao cho khóa ký RSA/ECDSA. Môi trường đích còn cần realm HTTPS, kho checkpoint audit độc lập, cấu hình MFA và xác nhận phạm vi KMS/CA. [Bảng từng task](../TASK_STATUS_2026-11-05.md)
+
+## Hồ sơ ứng viên ngày 10/11/2026
+
+Commit ứng viên `c1598945a9ebf1a9867335130a7eb9ec4e428296`. CI đạt 5/5 job. Artifact tích hợp xác nhận 66/66 nhóm Chromium trên PostgreSQL, 197/197 ca Chromium với dữ liệu mô phỏng, 11/11 ca ledger và dọn stack thành công. Ca log khởi động chạy API đã biên dịch, xác nhận mã thoát `1` và chẩn đoán `UNKNOWN_DATABASE_MIGRATION` đã lọc dữ liệu. Báo cáo bảo mật khớp ID của hai image trong manifest CI và ghi 0 phát hiện Critical/High cho cả hai. [GitHub Actions](https://github.com/Eyblcat12/Cryta/actions/runs/42662961812)
+
+| Artifact CI | SHA-256 của ZIP đã đối chiếu |
+| --- | --- |
+| [Tích hợp](https://github.com/Eyblcat12/Cryta/actions/runs/42662961812/artifacts/13697260365) | `10bd6b2bd5edc820dd3a1d849d810be49632991d7438847db766f8616570bd85` |
+| [Manifest đóng gói](https://github.com/Eyblcat12/Cryta/actions/runs/42662961812/artifacts/13695779420) | `da820e6a8989edd0fc4ac3b05fb0434f20f8e142ac1b976918b3cb37f6014f15` |
+| [Quét image](https://github.com/Eyblcat12/Cryta/actions/runs/42662961812/artifacts/13696621490) | `97bfd694009b7a0220455c50be45c1c26f6d2d348da340b86cd915c20091b6e8` |
+
+Gói diễn tập WSL `0.0.0-rehearsal.20261110.handoff` của cùng commit có SHA-256 archive `797b4f8ec74c43d9f1f10f128f5056c0befc15c378c911a5af68fca1fe7bc6db`. Hai context build và mẫu `.env.example` khớp hash với CI. Sau khi gỡ hai tag diễn tập, nạp lại archive khôi phục đúng hai ID ghi trong manifest cục bộ. Compose production cách ly chạy trên hai image đã nạp. PostgreSQL TLS qua 27 migration, smoke HTTPS đạt 10/10, phiên xoay cookie an toàn, SMTP thử gửi bốn loại thư qua STARTTLS và provider thử ghi một lần cấp phát. Stack đã dọn và giữ nguyên ID của 15 container bên ngoài. Trivy kiểm lại đúng hai ID image cục bộ và ghi 0 phát hiện Critical/High. [Manifest cục bộ](../tools/test-artifacts/releases/0.0.0-rehearsal.20261110.handoff-c1598945a9eb/manifest.json) · [Báo cáo cục bộ](../tools/test-artifacts/crypta-ca-test-d0af451186d7/report.json) · [Quét image cục bộ](../tools/test-artifacts/releases/0.0.0-rehearsal.20261110.handoff-c1598945a9eb/image-security.json)
+
+### Biên bản chuẩn bị quyết định T54
+
+Kết luận rà soát ngày 10/11/2026 là **chưa mở pilot và chưa ký R1**. Người duyệt, tên người trực, kênh hỗ trợ và ngày ký đang chờ chủ dự án xác nhận. Ghi lại SHA, manifest, ngày kiểm và người xác nhận cho từng mục khi có môi trường đích.
+
+| Mục cần xác nhận | Vai trò phụ trách | Bằng chứng để đóng |
+| --- | --- | --- |
+| T51 staging, giám sát và phục hồi | Vận hành và chủ dự án | Đích HTTPS được phép, người trực và kênh hỗ trợ, smoke, một chu kỳ nghiệp vụ, diễn tập rollback và restore với RPO/RTO đã chốt. |
+| SMTP và provider/CA | Vận hành và QA | Hộp thư thử nhận đủ bốn loại thư. Nếu dùng tài sản thật, đối chiếu cấp phát, thời hạn, gia hạn, thu hồi và trạng thái chưa rõ với provider/CA thực tế. |
+| P0, T30 và UAT | QA và người phụ trách nghiệp vụ | Đóng từng P0, ghi kết quả bàn phím và trình đọc màn hình, ký 12 UC trên cùng bản ứng viên. |
+| R1 và R2 | Chủ dự án | Ký quyết định R1 sau khi đủ điều kiện. Xác nhận riêng phạm vi và kết quả X01–X06. |

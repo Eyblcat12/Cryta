@@ -1,0 +1,11 @@
+services:
+  backend:
+    environment:
+      NODE_EXTRA_CA_CERTS: /run/crypta/private-ca.pem
+    configs:
+      - source: crypta_private_ca
+        target: /run/crypta/private-ca.pem
+
+configs:
+  crypta_private_ca:
+    file: "${CRYPTA_PRIVATE_CA_BUNDLE_FILE:?Set the PEM bundle of approved public CA certificates}"

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypta · Mẫu phê duyệt hai cấp X02</title>
+  <style>
+    :root { font:15px/1.5 Inter,"Segoe UI",sans-serif; color-scheme:light; --bg:#f7f8fa; --card:#fff; --text:#172b4d; --muted:#465673; --border:#c6ccd6; --soft:#f1f3f6; --brand:#1252a4; --on-brand:#fff; --good:#135a41; --good-bg:#e3f7ed; --warn:#7d4109; --warn-bg:#fff3d9; --bad:#9d2924; }
+    :root[data-theme=dark] { color-scheme:dark; --bg:#121313; --card:#191a1a; --text:#f1f4f6; --muted:#c0c9d3; --border:#5d6872; --soft:#25282b; --brand:#a8bfff; --on-brand:#10243e; --good:#96eac7; --good-bg:#143830; --warn:#ffce8e; --warn-bg:#422e1e; --bad:#ffaaa2; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); }
+    [hidden] { display:none!important; }
+    button, input, select, textarea { font:inherit; color:inherit; border:1px solid var(--border); background:var(--card); border-radius:7px; padding:8px 12px; }
+    button, input, select { min-height:44px; }
+    button { font-weight:650; cursor:pointer; }
+    button:disabled { cursor:default; opacity:.65; }
+    button.primary { background:var(--brand); border-color:var(--brand); color:var(--on-brand); }
+    button.reject { color:var(--bad); }
+    :focus-visible { outline:3px solid var(--brand); outline-offset:3px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; padding:14px max(16px,calc((100% - 1100px)/2)); border-bottom:1px solid var(--border); background:var(--card); }
+    header small { display:block; color:var(--muted); }
+    .controls,.actions { display:flex; gap:8px; flex-wrap:wrap; }
+    main { width:min(1100px,calc(100% - 32px)); margin:32px auto; }
+    .eyebrow { margin:0 0 4px; font-size:.82rem; font-weight:750; color:var(--muted); text-transform:uppercase; }
+    h1 { margin:0 0 8px; font-size:clamp(1.6rem,5vw,2.1rem); line-height:1.2; }
+    h2 { margin:0 0 12px; font-size:1.15rem; }
+    p { margin:0 0 14px; }
+    .muted { color:var(--muted); }
+    .card { background:var(--card); padding:20px; border:1px solid var(--border); border-radius:10px; margin:18px 0; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:16px; }
+    .grid .card { margin:0; }
+    .badge { display:inline-block; padding:4px 9px; border-radius:999px; background:var(--warn-bg); color:var(--warn); font-weight:700; font-size:.84rem; }
+    .badge.good { background:var(--good-bg); color:var(--good); }
+    .row { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto; gap:14px; align-items:center; padding:12px 0; border-top:1px solid var(--border); }
+    .row span { display:block; }
+    .inline { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .timeline { list-style:none; padding:0; margin:0; }
+    .timeline li { display:grid; grid-template-columns:29px minmax(0,1fr); gap:12px; padding:10px 0; }
+    .timeline li + li { border-top:1px solid var(--border); }
+    .timeline b { display:grid; place-items:center; width:29px; height:29px; border-radius:50%; background:var(--soft); }
+    .timeline small { display:block; color:var(--muted); }
+    .notice { padding:10px 12px; margin:12px 0; border:1px solid var(--border); border-radius:7px; background:var(--soft); }
+    .notice:empty { display:none; }
+    label { display:grid; gap:5px; margin:12px 0; font-weight:650; }
+    label small { font-weight:400; color:var(--muted); }
+    textarea { width:100%; min-height:88px; resize:vertical; }
+    dialog { color:var(--text); border:1px solid var(--border); border-radius:10px; width:min(480px,calc(100% - 28px)); padding:20px; background:var(--card); }
+    dialog::backdrop { background:#1118; }
+    @media(max-width:620px) {
+      header { padding:12px 16px; }
+      .controls { display:grid; grid-template-columns:1fr auto; width:100%; }
+      main { margin:22px auto; }
+      .grid,.row { grid-template-columns:1fr; }
+      .card { padding:14px; }
+      .row button { justify-self:start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div><strong>Crypta · Bản xem trước X02</strong><small>Dữ liệu minh họa</small></div>
+    <div class="controls">
+      <select id="scenario" aria-label="Kịch bản mẫu">
+        <option value="queue">Hàng chờ phê duyệt</option><option value="first">Chi tiết · Duyệt cấp 1</option>
+        <option value="second">Chi tiết · Duyệt cấp 2</option><option value="same">Chi tiết · Tôi đã duyệt cấp 1</option>
+        <option value="expired">Chi tiết · Đã quá hạn</option><option value="single">Chi tiết · Policy một cấp</option><option value="owner">Người gửi · Theo dõi yêu cầu</option>
+        <option value="policy">Admin · Cấu hình policy</option>
+      </select>
+      <button id="theme" type="button">Giao diện tối</button>
+    </div>
+  </header>
+  <main>
+    <section id="queue" aria-labelledby="queue-title">
+      <p class="eyebrow">Trung tâm phê duyệt</p><h1 id="queue-title" tabindex="-1">Hàng chờ phê duyệt</h1>
+      <p class="muted">Yêu cầu thuộc phạm vi của bạn. Cột tiến độ cho biết yêu cầu đang ở cấp nào.</p>
+      <div class="card">
+        <div class="inline"><h2>Yêu cầu chờ xử lý</h2><span class="muted">Đơn vị Hạ tầng</span></div>
+        <div class="row"><div><strong>YC-0241</strong><span>Cấp chứng thư dịch vụ thanh toán</span></div><div><strong class="badge">Chờ cấp 2 · 1/2</strong><span class="muted">Còn 28 giờ</span></div><button type="button" data-show="second">Mở YC-0241</button></div>
+        <div class="row"><div><strong>YC-0245</strong><span>Cấp khóa ký nội bộ</span></div><div><strong class="badge">Chờ cấp 1 · 0/2</strong><span class="muted">Còn 46 giờ</span></div><button type="button" data-show="first">Mở YC-0245</button></div>
+        <div class="row"><div><strong>YC-0246</strong><span>Gia hạn khóa ứng dụng</span></div><div><strong class="badge">Chờ duyệt · 0/1</strong><span class="muted">Policy một cấp</span></div><button type="button" data-show="single">Mở YC-0246</button></div>
+      </div>
+    </section>
+    <section id="detail" hidden aria-labelledby="detail-title">
+      <p class="eyebrow" id="detail-eyebrow">Chi tiết yêu cầu</p>
+      <h1 id="detail-title" tabindex="-1">Cấp chứng thư dịch vụ thanh toán</h1>
+      <p id="detail-meta" class="muted"></p>
+      <div class="grid">
+        <div class="card">
+          <div class="inline"><h2>Trạng thái phê duyệt</h2><strong id="detail-badge" class="badge"></strong></div>
+          <p id="detail-hint" class="muted"></p>
+          <div id="outcome" class="notice" role="status"></div>
+          <div class="actions"><button id="approve" class="primary" type="button">Duyệt cấp 2</button><button id="reject" class="reject" type="button">Từ chối</button><button id="cancel-request" type="button">Hủy yêu cầu</button><button type="button" data-show="queue">Về hàng chờ</button></div>
+        </div>
+        <div class="card"><h2>Lịch sử phê duyệt</h2><ol class="timeline" id="timeline"></ol></div>
+      </div>
+    </section>
+    <section id="policy" hidden aria-labelledby="policy-title">
+      <p class="eyebrow">Quản trị policy</p><h1 id="policy-title" tabindex="-1">Phát hành phiên bản policy</h1>
+      <p class="muted">Policy chứng thư dịch vụ · Phiên bản 4 hiện áp dụng một cấp duyệt.</p>
+      <div class="card">
+        <form id="policy-form">
+          <h2>Yêu cầu phê duyệt cho phiên bản 5</h2>
+          <label>Số cấp phê duyệt<select id="levels"><option value="1">Một cấp</option><option value="2" selected>Hai cấp</option></select></label>
+          <label id="deadline-row">Thời hạn duyệt (giờ)<input id="deadline" type="number" value="48" min="1" max="168" required><small>Tính từ lúc gửi yêu cầu. Cấp hai cần một Approver khác cùng phạm vi.</small></label>
+          <p class="notice">Cấu hình áp dụng cho yêu cầu dùng phiên bản mới. Các yêu cầu gắn với phiên bản cũ giữ quy trình đã chọn.</p>
+          <button type="submit" class="primary">Xem trước thay đổi</button>
+          <p id="policy-result" class="notice" role="status"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+  <dialog id="decision" aria-labelledby="decision-title">
+    <form id="decision-form">
+      <h2 id="decision-title">Xác nhận quyết định</h2><p id="decision-hint" class="muted"></p>
+      <label id="reason-row">Lý do từ chối<textarea id="reason" maxlength="500"></textarea></label>
+      <div class="actions"><button class="primary" type="submit">Xác nhận</button><button id="close" type="button">Quay lại</button></div>
+    </form>
+  </dialog>
+  <script>
+    const el = id => document.getElementById(id);
+    const scenario = el('scenario');
+    const decision = el('decision');
+    let view = 'queue', action = '', result = '', rejectionReason = '', afterFirst = false;
+    const details = {
+      first: ['YC-0245','Cấp khóa ký nội bộ'], second: ['YC-0241','Cấp chứng thư dịch vụ thanh toán'],
+      same: ['YC-0241','Cấp chứng thư dịch vụ thanh toán'], expired: ['YC-0234','Cấp khóa dịch vụ lưu trữ'],
+      owner: ['YC-0241','Cấp chứng thư dịch vụ thanh toán'], single: ['YC-0246','Gia hạn khóa ứng dụng'],
+    };
+    function show(next) {
+      view = next;
+      result = '';
+      rejectionReason = '';
+      afterFirst = false;
+      if ([...scenario.options].some(option => option.value === next)) scenario.value = next;
+      el('queue').hidden = next !== 'queue';
+      el('policy').hidden = next !== 'policy';
+      el('detail').hidden = !details[next];
+      if (details[next]) renderDetail();
+      document.querySelector('main section:not([hidden]) h1').focus();
+    }
+    function timelineLine(number, title, note) {
+      const item = document.createElement('li');
+      const marker = document.createElement('b'); marker.textContent = number; marker.setAttribute('aria-hidden', 'true');
+      const body = document.createElement('div');
+      const heading = document.createElement('strong'); heading.textContent = title;
+      const detail = document.createElement('small'); detail.textContent = note;
+      body.append(heading,detail); item.append(marker,body);
+      return item;
+    }
+    function renderDetail() {
+      const [id,title] = details[view];
+      const total = view === 'single' ? 1 : 2;
+      const firstDone = afterFirst || ['second','same','owner','expired'].includes(view);
+      const level = firstDone ? 2 : 1;
+      const editable = !result && !afterFirst && !['owner','same','expired'].includes(view);
+      el('detail-title').textContent = title;
+      el('detail-eyebrow').textContent = view === 'owner' ? 'Theo dõi yêu cầu của tôi' : 'Chi tiết yêu cầu';
+      const deadline = view === 'expired' ? ' · Đã hết hạn' : total === 2 ? ` · Còn ${view === 'first' ? 46 : 28} giờ` : '';
+      el('detail-meta').textContent = `${id} · Đơn vị Hạ tầng · Policy ${total === 2 ? 'v5' : 'v4'}${deadline}`;
+      el('detail-badge').textContent = result || (view === 'expired' ? 'Quá hạn duyệt' : `Chờ cấp ${level} · ${Number(firstDone)}/${total}`);
+      el('detail-badge').classList.toggle('good',result === 'Đã phê duyệt');
+      el('detail-hint').textContent = view === 'expired' ? 'Đã hết thời hạn phê duyệt. Người gửi có thể hủy và tạo yêu cầu mới.'
+        : afterFirst || view === 'same' ? 'Bạn đã duyệt cấp 1. Cấp 2 cần một Approver khác trong phạm vi đơn vị Hạ tầng.'
+        : view === 'owner' ? 'Yêu cầu đã qua cấp 1 và đang chờ một Approver khác duyệt cấp 2.'
+        : total === 1 ? 'Phiên bản policy này yêu cầu một quyết định phê duyệt.'
+        : 'Yêu cầu chỉ được gửi xử lý khi đủ cả hai quyết định phê duyệt.';
+      el('approve').hidden = !editable;
+      el('approve').textContent = total === 1 ? 'Phê duyệt' : `Duyệt cấp ${level}`;
+      el('reject').hidden = !editable;
+      el('cancel-request').hidden = view !== 'owner' || !!result;
+      el('outcome').textContent = result === 'Đã phê duyệt' ? 'Đã đủ số cấp phê duyệt. Yêu cầu chuyển sang hàng chờ xử lý.'
+        : result === 'Đã từ chối' ? `Lý do từ chối · ${rejectionReason}`
+        : result === 'Đã hủy' ? 'Đã hủy yêu cầu và giữ lại lịch sử quyết định.'
+        : afterFirst ? 'Đã lưu quyết định cấp 1. Yêu cầu đang chờ cấp 2.' : '';
+      const firstActor = view === 'same' || afterFirst ? 'Bạn' : 'Nguyễn Minh Anh';
+      const timeline = el('timeline');
+      timeline.replaceChildren(timelineLine('1','Cấp 1', firstDone ? `${firstActor} · Đã duyệt` : result === 'Đã từ chối' ? result : result === 'Đã phê duyệt' ? 'Bạn · Đã duyệt' : 'Đang chờ quyết định'));
+      if (total === 2) timeline.append(timelineLine('2','Cấp 2', view === 'expired' ? 'Đã hết thời hạn'
+        : result && firstDone ? result : 'Chờ Approver khác đúng phạm vi'));
+    }
+    function confirm(next) {
+      action = next;
+      el('reason').value = '';
+      el('reason').required = next === 'reject';
+      el('reason-row').hidden = next !== 'reject';
+      el('decision-title').textContent = next === 'approve' ? `Xác nhận ${el('approve').textContent.toLowerCase()}`
+        : next === 'reject' ? 'Xác nhận từ chối yêu cầu' : 'Xác nhận hủy yêu cầu';
+      el('decision-hint').textContent = next === 'approve' && view === 'first' ? 'Sau quyết định này, yêu cầu vẫn chờ cấp 2.'
+        : next === 'approve' ? 'Yêu cầu sẽ chuyển sang hàng chờ xử lý.'
+        : 'Quyết định và lịch sử trước đó sẽ được lưu.';
+      decision.showModal();
+    }
+    el('decision-form').addEventListener('submit', event => {
+      event.preventDefault();
+      rejectionReason = el('reason').value.trim();
+      if (action === 'reject' && !rejectionReason) { el('reason').focus(); return; }
+      if (action === 'approve' && view === 'first') afterFirst = true;
+      else result = action === 'approve' ? 'Đã phê duyệt' : action === 'reject' ? 'Đã từ chối' : 'Đã hủy';
+      decision.close(); renderDetail(); el('detail-title').focus();
+    });
+    el('close').onclick = () => decision.close();
+    el('approve').onclick = () => confirm('approve');
+    el('reject').onclick = () => confirm('reject');
+    el('cancel-request').onclick = () => confirm('cancel');
+    el('levels').onchange = () => { el('deadline-row').hidden = el('levels').value === '1'; el('deadline').disabled = el('levels').value === '1'; el('policy-result').textContent = ''; };
+    el('policy-form').onsubmit = event => { event.preventDefault(); el('policy-result').textContent = el('levels').value === '2'
+      ? `Phiên bản 5 · Hai cấp duyệt trong ${el('deadline').value} giờ` : 'Phiên bản 5 · Một cấp duyệt'; };
+    el('theme').onclick = () => { const dark = document.documentElement.dataset.theme !== 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; el('theme').textContent = dark ? 'Giao diện sáng' : 'Giao diện tối'; };
+    scenario.onchange = () => show(scenario.value);
+    document.querySelectorAll('[data-show]').forEach(button => { button.onclick = () => show(button.dataset.show); });
+  </script>
+</body>
+</html>

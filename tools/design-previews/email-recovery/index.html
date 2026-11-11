@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypta · Đối soát email</title>
+<style>
+:root{color-scheme:light;--bg:#f5f7f7;--panel:#fff;--ink:#172b29;--muted:#526966;--line:#b1c4bf;--accent:#165d50;--soft:#e9f3ef;--danger:#9b2929}
+:root.dark{color-scheme:dark;--bg:#111c1c;--panel:#192a29;--ink:#edf5f2;--muted:#adc6c0;--line:#6c8981;--accent:#9ed6c1;--soft:#233f35;--danger:#ffb4ad}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}main,header,aside{max-width:1080px;margin:auto;padding:16px}h1,h2,h3,p,dd{margin:0}h1{font-size:28px}h2{font-size:21px}p+ p{margin-top:8px}header{border-bottom:1px solid var(--line);font-size:20px;font-weight:700}small,dt,p{color:var(--muted)}button,input,select{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 11px;min-height:42px;max-width:100%}button{cursor:pointer}button:disabled{cursor:default;opacity:.6}:focus-visible{outline:3px solid #398bbb;outline-offset:3px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.split{justify-content:space-between}.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-top:18px;padding:16px}.item+.item{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}.pill{display:inline-block;color:var(--accent);background:var(--soft);border-radius:5px;padding:3px 8px;margin:4px 0}.item strong,code{overflow-wrap:anywhere}dialog{color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;width:min(620px,calc(100% - 24px));max-height:calc(100% - 24px);padding:20px}dialog::backdrop{background:#071d1bc0}dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}dt{font-size:13px}form label{display:grid;gap:4px;margin:10px 0}.primary{background:var(--accent);color:var(--bg);font-weight:700}.alert{color:var(--danger);margin-top:10px}form{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}.controls{margin-top:14px}[hidden]{display:none!important}
+</style>
+<aside class="row"><strong>Bản xem trước · dữ liệu minh họa</strong><label>Trạng thái <select id="state"><option value="ready">Có dữ liệu</option><option value="loading">Đang tải</option><option value="empty">Trống</option><option value="error">Lỗi tải</option><option value="conflict">Xung đột khi lưu</option></select></label><button id="theme">Đổi sáng/tối</button></aside>
+<header>Crypta · Vận hành</header>
+<main>
+  <h1>Email cần xử lý</h1><p>Tra cứu lần gửi gần nhất và ghi nhận bằng chứng từ SMTP.</p>
+  <section class="panel" aria-label="Danh sách email cần xử lý">
+    <div id="feedback" role="status" aria-live="polite"></div>
+    <div id="rows">
+      <article class="item row split"><div><strong>Cảnh báo tài sản hết hạn</strong><br><span class="pill">Cần đối soát</span><br><small>2 lượt · Lần gần nhất lúc 09:42</small></div><button data-mail="unknown">Xem chi tiết cảnh báo</button></article>
+      <article class="item row split"><div><strong>Thông báo quyết định yêu cầu</strong><br><span class="pill">Gửi thất bại</span><br><small>1 lượt · SMTP 550</small></div><button data-mail="failed">Xem chi tiết quyết định</button></article>
+    </div>
+    <button id="retry" hidden>Thử tải lại</button>
+  </section>
+</main>
+<dialog id="detail" aria-labelledby="title">
+  <div class="row split"><h2 id="title" tabindex="-1">Chi tiết lần gửi</h2><button type="button" id="close">Đóng</button></div>
+  <dl><div><dt>Thông báo</dt><dd id="kind"></dd></div><div><dt>Trạng thái</dt><dd id="status"></dd></div><div><dt>Lần gửi gần nhất</dt><dd id="attempt"></dd></div><div><dt>Mã đối chiếu Message-ID</dt><dd><code id="lookup"></code></dd></div></dl>
+  <p id="diagnosis"></p>
+  <div id="resolution" class="controls" hidden>
+    <h3>Ghi nhận đối soát</h3><p>Đối chiếu Message-ID với nhật ký SMTP trước khi xác nhận. Thao tác này ghi audit và không gọi SMTP.</p>
+    <form id="action">
+      <label>Kết quả đã xác minh<select id="decision" required><option value="">Chọn kết quả</option><option value="accepted">SMTP đã chấp nhận</option><option value="unsent">SMTP xác nhận chưa chấp nhận</option></select></label>
+      <label id="timestamp" hidden>Thời điểm SMTP chấp nhận (UTC)<input id="acceptedAt" type="datetime-local"></label>
+      <label>Mã phiếu đối soát<input id="evidence" placeholder="VD SMTP-2041" required minlength="4" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._:\-]{3,63}"></label>
+      <p>Chỉ nhập mã tham chiếu nội bộ. Nội dung thư và thông tin xác thực nằm trong hệ thống nguồn.</p>
+      <p id="error" class="alert" role="alert"></p>
+      <div class="row controls"><button class="primary" type="submit">Ghi kết quả</button></div>
+    </form>
+  </div>
+</dialog>
+<script>
+const get = id => document.getElementById(id);
+const detail = get('detail'), rows = get('rows'), state = get('state'), feedback = get('feedback');
+const form = get('action'), decision = get('decision'), acceptedAt = get('acceptedAt');
+let trigger;
+function render() {
+  rows.hidden = !['ready','conflict'].includes(state.value);
+  get('retry').hidden = state.value !== 'error';
+  feedback.textContent = { loading:'Đang tải danh sách email…', empty:'Không có email cần xử lý.', error:'Không tải được danh sách email. Bạn có thể thử lại.' }[state.value] || '';
+}
+state.addEventListener('change', render);
+get('retry').onclick = () => { state.value = 'ready'; render(); rows.querySelector('button').focus(); };
+get('theme').onclick = () => document.documentElement.classList.toggle('dark');
+get('close').onclick = () => detail.close();
+detail.addEventListener('close', () => trigger?.focus());
+decision.onchange = () => { acceptedAt.required = decision.value === 'accepted'; get('timestamp').hidden = !acceptedAt.required; };
+for (const button of rows.querySelectorAll('[data-mail]')) button.onclick = () => {
+  trigger = button;
+  const unknown = button.dataset.mail === 'unknown';
+  get('kind').textContent = unknown ? 'Cảnh báo tài sản hết hạn' : 'Thông báo quyết định yêu cầu';
+  get('status').textContent = unknown ? 'Cần đối soát' : 'Gửi thất bại';
+  get('attempt').textContent = unknown ? '2 lượt · 09:42, 08/11/2026' : '1 lượt · 09:15, 08/11/2026';
+  get('lookup').textContent = unknown ? 'notification-73dfe503-75bc-4883-a8d2-3adc66a9a864' : 'notification-cde03d13-272f-43fb-b752-02654ae87975';
+  get('diagnosis').textContent = unknown ? 'Mất kết nối trước khi ghi nhận kết quả. Chưa rõ SMTP đã chấp nhận thư.' : 'SMTP từ chối vĩnh viễn (550).';
+  get('resolution').hidden = !unknown;
+  get('error').textContent = '';
+  form.reset(); decision.onchange();
+  detail.showModal(); get('title').focus();
+};
+form.addEventListener('submit', event => {
+  event.preventDefault();
+  if (state.value === 'conflict') {
+    get('error').textContent = 'Trạng thái đã được người khác cập nhật. Đóng chi tiết và tải lại để kiểm tra kết quả mới.';
+    return;
+  }
+  detail.close();
+  feedback.textContent = 'Đã ghi kết quả đối soát trong bản mẫu.';
+});
+</script>
+</html>

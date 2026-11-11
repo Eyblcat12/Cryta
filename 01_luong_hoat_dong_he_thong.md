@@ -4,6 +4,8 @@
 
 > Tài liệu mô tả cách hệ thống vận hành từ khi người dùng gửi yêu cầu đến khi tài sản được cấp phát, gia hạn, thu hồi hoặc hết hạn. Các sơ đồ sử dụng Mermaid và có thể hiển thị trực tiếp trên GitHub hoặc trình đọc Markdown hỗ trợ Mermaid.
 
+Đối chiếu ngày 11/11/2026 với backend, worker và schema 027. Các sơ đồ cấp phát, gia hạn và thu hồi mô tả quyết định phê duyệt cuối. Policy hai cấp giữ yêu cầu ở `PENDING` sau cấp một như luồng tại mục 8. [Kịch bản nghiệm thu](docs/NGHIEM_THU_UAT.md) · [Kiến trúc và ERD](02_so_do_he_thong_tong_quat.md)
+
 ---
 
 ## 1. Mục đích của hệ thống
@@ -42,14 +44,16 @@ flowchart LR
     P -->|"Không"| X["Từ chối và trả lý do"]
     P -->|"Có"| R["Request chuyển PENDING"]
     R --> A["Approver xem xét"]
-    A --> S{"Quyết định"]
+    A --> S{"Quyết định"}
     S -->|"Từ chối"| RJ["Request chuyển REJECTED"]
     S -->|"Phê duyệt"| AP["Request chuyển APPROVED"]
     AP --> W["Worker thực hiện nghiệp vụ"]
     W --> CP["Crypto Provider"]
     CP --> C{"Kết quả xử lý"}
     C -->|"Thành công"| OK["Tạo/cập nhật Crypto Asset"]
-    C -->|"Thất bại"| F["Request chuyển FAILED"]
+    C -->|"Kết quả chưa chắc chắn"| F["Request chuyển RECONCILIATION_REQUIRED"]
+    C -->|"Lỗi trước khi gửi, đủ điều kiện"| RT["Lên lịch thử lại có giới hạn"]
+    RT --> W
     OK --> DONE["Request chuyển COMPLETED"]
     DONE --> N["Thông báo cho User"]
     X --> L["Ghi Audit Log"]
@@ -63,7 +67,7 @@ flowchart LR
 - Frontend chỉ thu thập và hiển thị dữ liệu; backend mới là nơi quyết định người dùng có được phép thao tác hay không.
 - Approver chỉ xử lý yêu cầu thuộc phòng ban hoặc phạm vi được phân công.
 - Sau khi được duyệt, tác vụ cấp phát/gia hạn/thu hồi được thực hiện bởi worker để tránh làm API bị chậm.
-- Nếu provider gặp lỗi, request chuyển `FAILED` và có thể retry có kiểm soát.
+- Khi chưa rõ kết quả provider, request chuyển `RECONCILIATION_REQUIRED`. Admin đối chiếu bằng chứng trước khi thao tác. Lỗi tạm thời trước khi gửi có thể được lên lịch thử lại.
 - Mọi kết quả thành công, thất bại hoặc bị từ chối đều được ghi Audit Log.
 
 ---
@@ -89,7 +93,7 @@ sequenceDiagram
     U->>FE: Thực hiện một chức năng
     FE->>API: Gọi API kèm access token
     API->>API: Kiểm tra role + scope + business rule
-    API-->>FE: Dữ liệu hoặc lỗi 401/403/422
+    API-->>FE: Dữ liệu hoặc lỗi HTTP kèm requestId
 ```
 
 Ba lớp kiểm tra quyền:
@@ -105,14 +109,14 @@ Ba lớp kiểm tra quyền:
 ### 5.1. Các bước
 
 1. User mở form “Yêu cầu cấp mới”.
-2. User chọn loại tài sản, mục đích sử dụng, thuật toán và thời hạn.
+2. User chọn loại tài sản, policy và nhập lý do. Giao diện lấy thông số phù hợp policy. User có thể lưu nháp rồi mở lại trước khi gửi.
 3. Hệ thống kiểm tra dữ liệu với policy hiện hành.
 4. Request được tạo ở trạng thái `PENDING`.
 5. Approver phù hợp nhận thông báo.
 6. Approver mở yêu cầu và xem kết quả kiểm tra policy.
 7. Backend kiểm tra Approver khác người tạo và đúng phạm vi.
 8. Nếu được duyệt, worker yêu cầu Crypto Provider cấp tài sản.
-9. Metadata tài sản được lưu; private key không được lưu rõ trong database.
+9. Metadata và tham chiếu provider được lưu. Private key thuộc provider.
 10. User nhận thông báo cấp phát thành công.
 
 ### 5.2. Sơ đồ tuần tự
@@ -140,10 +144,11 @@ sequenceDiagram
     A->>API: Phê duyệt
     API->>API: Kiểm tra creator != approver
     API->>DB: APPROVED + decision + Audit Log
-    API->>W: Đưa provisioning job vào hàng đợi
-
+    W->>DB: Claim request APPROVED bằng khóa dòng
+    W->>DB: Lưu operation và đánh dấu lần gửi
     W->>CP: Tạo khóa/chứng thư
     CP-->>W: Metadata + provider reference
+    W->>DB: Ghi biên nhận provider
     W->>DB: Tạo asset + COMPLETED + Audit Log
     W-->>U: Tạo thông báo thành công
 ```
@@ -164,7 +169,7 @@ flowchart TD
     P --> AP["Approver phê duyệt"]
     AP --> W["Worker tạo asset kế tiếp"]
     W --> NEW["Asset mới ACTIVE"]
-    W --> OLD["Asset cũ SUPERSEDED hoặc hết hạn theo lịch"]
+    W --> OLD["Asset cũ SUPERSEDED khi gia hạn hoàn tất"]
     NEW --> LINK["Liên kết replaces_asset_id"]
     LINK --> LOG["Ghi Audit Log và thông báo"]
 ```
@@ -172,8 +177,8 @@ flowchart TD
 Quy tắc:
 
 - Chỉ owner mới được yêu cầu gia hạn.
-- Không tồn tại hai yêu cầu gia hạn đang mở cho cùng một tài sản.
-- Tài sản mới phải tuân thủ policy tại thời điểm gia hạn.
+- Các bản nháp có thể cùng tồn tại. Khi gửi, backend chặn yêu cầu đang mở khác trên cùng tài sản.
+- Gia hạn dùng phiên bản policy đã gắn với tài sản. Tài sản đích phải `ACTIVE` hoặc `EXPIRING_SOON` và thuộc cùng phạm vi provider hiện cấu hình.
 - Lịch sử tài sản cũ không bị ghi đè.
 
 ---
@@ -195,7 +200,7 @@ sequenceDiagram
     API-->>A: Thông báo ưu tiên
     A->>API: Kiểm tra và phê duyệt
     API->>DB: APPROVED + decision + audit
-    API->>W: Enqueue revoke job
+    W->>DB: Claim request APPROVED và ghi operation
     W->>CP: Thu hồi tài sản
     CP-->>W: Revocation result
     W->>DB: Asset REVOKED + request COMPLETED
@@ -219,7 +224,7 @@ Tài sản đã `REVOKED` không thể chuyển lại `ACTIVE`.
 
 ```mermaid
 flowchart TD
-    R["Approver gửi quyết định"] --> P{"Có permission request:approve?"}
+    R["Approver gửi quyết định"] --> P{"Có role APPROVER và không có ADMIN?"}
     P -->|"Không"| E1["403 Forbidden"]
     P -->|"Có"| S{"Request thuộc scope?"}
     S -->|"Không"| E2["403/404"]
@@ -227,11 +232,20 @@ flowchart TD
     C -->|"Không"| E3["SOD_VIOLATION"]
     C -->|"Có"| ST{"Request đang PENDING?"}
     ST -->|"Không"| E4["409 Conflict"]
-    ST -->|"Có"| TX["Transaction: decision + status + audit"]
+    ST -->|"Có"| LEVELS{"Policy yêu cầu hai cấp?"}
+    LEVELS -->|"Không"| TX["Ghi quyết định cuối, trạng thái và audit"]
+    LEVELS -->|"Có"| SAME{"Người này đã duyệt cấp một?"}
+    SAME -->|"Có"| E5["SECOND_APPROVER_REQUIRED"]
+    SAME -->|"Không"| REJECT{"Quyết định từ chối?"}
+    REJECT -->|"Có"| TX
+    REJECT -->|"Không"| FIRST{"Đã có cấp một?"}
+    FIRST -->|"Có"| TX
+    FIRST -->|"Không"| PARTIAL["Ghi cấp một, giữ PENDING và thông báo"]
+    PARTIAL --> WAIT["Chờ Approver khác trong cùng phạm vi"]
     TX --> OK["Quyết định thành công"]
 ```
 
-Hệ thống dùng transaction và version/row lock để bảo đảm khi hai Approver cùng xử lý, chỉ một quyết định có hiệu lực.
+Hệ thống dùng transaction và version/row lock để mỗi cấp nhận tối đa một quyết định. Với cùng phiên bản yêu cầu, một giao dịch thắng và giao dịch còn lại nhận xung đột. Policy hai cấp yêu cầu hai Approver khác nhau trong cùng phạm vi. Cấp một giữ `PENDING`, cấp hai hoàn tất phê duyệt. Từ chối ở một cấp kết thúc yêu cầu và giữ lịch sử trước đó. [Phê duyệt hai cấp](docs/X02_TWO_STAGE_APPROVAL.md)
 
 ---
 
@@ -239,7 +253,7 @@ Hệ thống dùng transaction và version/row lock để bảo đảm khi hai A
 
 ```mermaid
 flowchart TD
-    S["Scheduler chạy hàng ngày"] --> L["Nạp policy cảnh báo: 30, 7, 1 ngày"]
+    S["Quét khi backend khởi động và mỗi giờ"] --> L["Nạp warning_days của policy gắn tài sản"]
     L --> Q["Tìm tài sản ACTIVE/EXPIRING_SOON"]
     Q --> E{"expires_at <= hiện tại?"}
     E -->|"Có"| EX["Chuyển EXPIRED"]
@@ -248,12 +262,12 @@ flowchart TD
     W -->|"Có"| D{"Notification đã tồn tại?"}
     D -->|"Có"| SKIP
     D -->|"Chưa"| N["Tạo thông báo trong ứng dụng"]
-    N --> M["Gửi email qua SMTP/MailHog"]
+    N --> M["Xếp hàng EMAIL, gửi khi SMTP bật"]
     EX --> A["Ghi Audit Log"]
     M --> A
 ```
 
-Mỗi thông báo có `deduplication_key`, vì vậy job chạy lại không gửi trùng cùng một cảnh báo.
+Mỗi thông báo có `deduplication_key` để quét lại giữ một bản ghi cho cùng người nhận, mốc và kênh. Người nhận gồm owner, Approver đúng phạm vi và Admin đủ điều kiện. Nếu kết quả SMTP không chắc chắn, hàng đợi chuyển đối soát. [Vận hành email](EMAIL_OPERATIONS.md)
 
 ---
 
@@ -262,28 +276,31 @@ Mỗi thông báo có `deduplication_key`, vì vậy job chạy lại không g�
 ```mermaid
 stateDiagram-v2
     [*] --> DRAFT
+    [*] --> PENDING: Gửi mới trực tiếp
     DRAFT --> PENDING: Submit
     DRAFT --> CANCELLED: Cancel
-    PENDING --> APPROVED: Approve
+    PENDING --> PENDING: Cấp một của policy hai cấp
+    PENDING --> APPROVED: Đủ số cấp theo policy
     PENDING --> REJECTED: Reject
     PENDING --> CANCELLED: Creator cancels
     APPROVED --> PROCESSING: Worker starts
     PROCESSING --> COMPLETED: Provider succeeds
-    PROCESSING --> FAILED: Provider fails
-    FAILED --> PROCESSING: Authorized retry
+    PROCESSING --> APPROVED: Lỗi tạm thời đã xác minh chưa gửi, lên lịch lại
+    PROCESSING --> RECONCILIATION_REQUIRED: Chưa rõ kết quả hoặc cần can thiệp
+    RECONCILIATION_REQUIRED --> APPROVED: Admin lên lịch thử lại khi có bằng chứng chưa gửi
+    RECONCILIATION_REQUIRED --> COMPLETED: Áp dụng biên nhận đã ghi và kiểm đầu vào
+    RECONCILIATION_REQUIRED --> FAILED: Admin dừng thao tác đã xác minh chưa gửi
     COMPLETED --> [*]
     REJECTED --> [*]
     CANCELLED --> [*]
+    FAILED --> [*]
 ```
 
 ## 11. Trạng thái của tài sản
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_ACTIVATION
-    PENDING_ACTIVATION --> ACTIVE: Provision succeeds
-    PENDING_ACTIVATION --> PROVISIONING_FAILED: Provider fails
-    PROVISIONING_FAILED --> PENDING_ACTIVATION: Retry
+    [*] --> ACTIVE: Cấp phát thành công và lưu kết quả
     ACTIVE --> EXPIRING_SOON: Enters warning window
     ACTIVE --> EXPIRED: Reaches expiry time
     EXPIRING_SOON --> EXPIRED: Reaches expiry time
@@ -295,6 +312,8 @@ stateDiagram-v2
     SUPERSEDED --> [*]
 ```
 
+`REGISTERED` là trạng thái được schema hỗ trợ. Worker hiện tạo tài sản `ACTIVE` sau khi lưu kết quả thành công. Yêu cầu lỗi hoặc đang đối soát giữ thông tin trong `requests` và `provider_operations`. [Schema và trạng thái](backend/src/jobs/asset-processing.service.ts)
+
 ---
 
 ## 12. Xử lý lỗi và trường hợp ngoại lệ
@@ -304,10 +323,11 @@ stateDiagram-v2
 | Thuật toán không phù hợp policy | Từ chối với lỗi `POLICY_VIOLATION` |
 | User xem asset của người khác | Trả 403 hoặc 404, không lộ dữ liệu |
 | Người tạo tự phê duyệt | Trả `SOD_VIOLATION` và ghi Audit Log |
-| Hai Approver cùng phê duyệt | Một người thành công, người còn lại nhận 409 |
-| Crypto Provider tạm thời lỗi | Request `FAILED`, retry có giới hạn |
-| Job chạy lặp | Deduplication key ngăn gửi thông báo trùng |
-| Email lỗi | Lưu notification `FAILED`, retry; nghiệp vụ chính không rollback |
+| Hai Approver cùng quyết định trên một phiên bản | Một người thành công, người còn lại nhận 409 và cần tải lại |
+| Lỗi tạm thời trước khi gọi provider | Lên lịch lại có giới hạn khi đã xác minh chưa gửi |
+| Kết quả provider chưa rõ | `RECONCILIATION_REQUIRED`, đối chiếu operation và biên nhận |
+| Job quét cảnh báo chạy lặp | Deduplication key giữ một bản ghi theo người nhận, mốc và kênh |
+| Email lỗi | Phân loại từ chối rõ ràng và kết quả mơ hồ, lưu retry hoặc đối soát theo bằng chứng |
 | Tài sản đã thu hồi được yêu cầu thu hồi lại | Từ chối do trạng thái không hợp lệ |
 
 ---

@@ -5,9 +5,13 @@
   "description": "Crypta lifecycle management API",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "migrate": "node --env-file-if-exists=.env dist/database/migrate.js",
+    "audit:anchor": "node dist/audit/audit-anchor.cli.js",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "start:dev": "node --watch --env-file-if-exists=.env --import tsx src/main.ts",
     "test": "vitest run",
+    "test:openapi": "node tools/check-openapi.cjs",
+    "test:smtp": "vitest run --config vitest.smtp.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -19,7 +23,10 @@
     "bcryptjs": "^3.0.2",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "jose": "6.2.15",
     "nodemailer": "^10.0.0",
+    "openid-client": "6.8.9",
+    "pdfkit": "0.20.2",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
@@ -28,9 +35,18 @@
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/pdfkit": "0.17.7",
     "@types/pg": "^8.15.5",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.5.0"
+    },
+    "vitest": {
+      "vite": "^7.3.7"
+    }
   }
 }

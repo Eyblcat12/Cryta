@@ -1,30 +1,9 @@
 -- ĐỀ TÀI 20 - HỆ THỐNG QUẢN LÝ KHÓA MÃ HÓA VÀ CHỨNG THƯ SỐ
--- PostgreSQL bootstrap schema cho local/demo.
--- CẢNH BÁO: script DROP dữ liệu; production phải dùng migration riêng.
+-- Schema cơ sở cho database mới. Dữ liệu demo và migration nằm ở tệp riêng.
 
 BEGIN;
+SET LOCAL search_path TO public;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS auth_sessions CASCADE;
-DROP TABLE IF EXISTS audit_logs CASCADE;
-DROP TABLE IF EXISTS request_decisions CASCADE;
-DROP TABLE IF EXISTS requests CASCADE;
-DROP TABLE IF EXISTS certificates CASCADE;
-DROP TABLE IF EXISTS cryptographic_keys CASCADE;
-DROP TABLE IF EXISTS crypto_assets CASCADE;
-DROP TABLE IF EXISTS policy_versions CASCADE;
-DROP TABLE IF EXISTS approver_scopes CASCADE;
-DROP TABLE IF EXISTS user_roles CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS policies CASCADE;
-DROP TABLE IF EXISTS roles CASCADE;
-DROP TABLE IF EXISTS departments CASCADE;
-DROP FUNCTION IF EXISTS reject_audit_log_mutation() CASCADE;
-DROP FUNCTION IF EXISTS reject_request_decision_mutation() CASCADE;
-DROP FUNCTION IF EXISTS enforce_request_decision_rules() CASCADE;
-DROP FUNCTION IF EXISTS enforce_role_separation() CASCADE;
-DROP FUNCTION IF EXISTS set_updated_at() CASCADE;
 
 -- 1. Tổ chức và RBAC ---------------------------------------------------------
 CREATE TABLE departments (
@@ -153,6 +132,18 @@ CREATE TABLE policy_versions (
   CONSTRAINT ck_policy_configuration CHECK (JSONB_TYPEOF(configuration) = 'object')
 );
 
+-- Every row is a published snapshot. Publish changes by INSERTing a new version;
+-- changing or removing an earlier row would alter request/asset policy history.
+CREATE OR REPLACE FUNCTION reject_policy_version_mutation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'POLICY_VERSION_IMMUTABLE' USING ERRCODE = '23514';
+END;
+$$;
+CREATE TRIGGER trg_policy_versions_immutable
+BEFORE UPDATE OR DELETE ON policy_versions
+FOR EACH ROW EXECUTE FUNCTION reject_policy_version_mutation();
+
 -- 3. Tài sản mật mã ----------------------------------------------------------
 -- Chỉ lưu metadata/provider reference; không lưu private key dạng rõ.
 CREATE TABLE crypto_assets (
@@ -195,6 +186,17 @@ CREATE TABLE cryptographic_keys (
   CONSTRAINT ck_keys_usage CHECK (BTRIM(usage) <> '')
 );
 
+CREATE FUNCTION public.reject_key_asset_reassignment()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'KEY_ASSET_LINK_IMMUTABLE' USING ERRCODE = '23514';
+END;
+$$;
+CREATE TRIGGER trg_key_asset_identity
+BEFORE UPDATE OF asset_id ON public.cryptographic_keys
+FOR EACH ROW WHEN (OLD.asset_id IS DISTINCT FROM NEW.asset_id)
+EXECUTE FUNCTION public.reject_key_asset_reassignment();
+
 CREATE TABLE certificates (
   asset_id UUID PRIMARY KEY REFERENCES crypto_assets(id) ON DELETE CASCADE,
   serial_number VARCHAR(100) NOT NULL UNIQUE,
@@ -226,7 +228,7 @@ CREATE TABLE requests (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT ck_requests_type CHECK (request_type IN ('CREATE', 'RENEW', 'REVOKE')),
   CONSTRAINT ck_requests_status CHECK (
-    status IN ('PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED')
+    status IN ('PENDING', 'APPROVED', 'REJECTED', 'PROCESSING', 'COMPLETED', 'FAILED', 'CANCELLED', 'RECONCILIATION_REQUIRED')
   ),
   CONSTRAINT ck_requests_reason CHECK (BTRIM(reason) <> ''),
   CONSTRAINT ck_requests_parameters CHECK (JSONB_TYPEOF(requested_parameters) = 'object'),
@@ -238,6 +240,19 @@ CREATE TABLE requests (
   CONSTRAINT ck_requests_result CHECK (status <> 'COMPLETED' OR result_asset_id IS NOT NULL),
   CONSTRAINT ck_requests_completed_at CHECK (status <> 'COMPLETED' OR completed_at IS NOT NULL)
 );
+
+-- Provider effects are recorded before and after the external call.
+CREATE TABLE provider_operations (
+  request_id UUID PRIMARY KEY REFERENCES requests(id) ON DELETE RESTRICT,
+  operation_type VARCHAR(30) NOT NULL CHECK (operation_type IN ('CREATE', 'RENEW', 'REVOKE')),
+  status VARCHAR(30) NOT NULL CHECK (status IN ('CLAIMED', 'SENT', 'PROVIDER_SUCCEEDED', 'COMPLETED', 'RECONCILIATION_REQUIRED')),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  provider_reference VARCHAR(255),
+  last_error_code VARCHAR(100),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_provider_operations_status ON provider_operations(status, updated_at);
 
 CREATE TABLE request_decisions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -352,6 +367,7 @@ CREATE TABLE notifications (
   deduplication_key VARCHAR(255) NOT NULL UNIQUE,
   attempt_count INTEGER NOT NULL DEFAULT 0,
   scheduled_for TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  claimed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   sent_at TIMESTAMPTZ,
   failed_at TIMESTAMPTZ,
@@ -361,7 +377,7 @@ CREATE TABLE notifications (
     type IN ('REQUEST_SUBMITTED', 'REQUEST_APPROVED', 'REQUEST_REJECTED', 'ASSET_EXPIRING', 'ASSET_EXPIRED', 'ASSET_REVOKED')
   ),
   CONSTRAINT ck_notification_channel CHECK (channel IN ('IN_APP', 'EMAIL')),
-  CONSTRAINT ck_notification_delivery CHECK (delivery_status IN ('PENDING', 'SENDING', 'SENT', 'FAILED')),
+  CONSTRAINT ck_notification_delivery CHECK (delivery_status IN ('PENDING', 'SENDING', 'SENT', 'FAILED', 'RECONCILIATION_REQUIRED')),
   CONSTRAINT ck_notification_attempts CHECK (attempt_count >= 0),
   CONSTRAINT ck_notification_subject CHECK (asset_id IS NOT NULL OR request_id IS NOT NULL),
   CONSTRAINT ck_notification_sent CHECK (delivery_status <> 'SENT' OR sent_at IS NOT NULL),
@@ -392,10 +408,12 @@ CREATE INDEX idx_assets_replaces ON crypto_assets(replaces_asset_id) WHERE repla
 CREATE INDEX idx_requests_creator ON requests(creator_id, submitted_at DESC);
 CREATE INDEX idx_requests_queue ON requests(department_id, status, emergency DESC, submitted_at);
 CREATE INDEX idx_requests_target ON requests(target_asset_id) WHERE target_asset_id IS NOT NULL;
+CREATE INDEX idx_requests_result_asset ON requests(result_asset_id) WHERE result_asset_id IS NOT NULL;
 CREATE INDEX idx_decisions_approver ON request_decisions(approver_id, decided_at DESC);
 CREATE INDEX idx_audit_time ON audit_logs(occurred_at DESC);
 CREATE INDEX idx_audit_actor ON audit_logs(actor_id, occurred_at DESC) WHERE actor_id IS NOT NULL;
 CREATE INDEX idx_audit_request ON audit_logs(request_id, occurred_at) WHERE request_id IS NOT NULL;
+CREATE INDEX idx_audit_asset_entity ON audit_logs(entity_id, occurred_at DESC, id DESC) WHERE entity_type='CRYPTO_ASSET';
 CREATE INDEX idx_notifications_recipient ON notifications(recipient_id, created_at DESC);
 CREATE INDEX idx_notifications_delivery ON notifications(delivery_status, scheduled_for);
 CREATE INDEX idx_notifications_asset ON notifications(asset_id, created_at DESC) WHERE asset_id IS NOT NULL;

@@ -70,11 +70,27 @@ try {
   $initialLogin = Invoke-CryptaApi -Method POST -Path '/auth/login' -Body @{ email = $testEmail; password = $initialPassword }
   Assert-True ($initialLogin.data.user.mustChangePassword -eq $true) 'First login exposes the mandatory password-change state'
 
+  $businessBlocked = $false
+  try {
+    Invoke-CryptaApi -Method GET -Path '/assets' -Token $initialLogin.data.accessToken | Out-Null
+  } catch {
+    $businessBlocked = $_.Exception.Response.StatusCode.value__ -eq 403
+  }
+  Assert-True $businessBlocked 'Temporary-password session cannot access business endpoints'
+
   $changed = Invoke-CryptaApi -Method POST -Path '/auth/change-password' -Token $initialLogin.data.accessToken -Body @{
     currentPassword = $initialPassword
     newPassword = $newPassword
   }
   Assert-True ($changed.data.changed -eq $true -and $changed.data.loginRequired -eq $true) 'Password change revokes sessions and requires login again'
+
+  $oldTokenRejected = $false
+  try {
+    Invoke-CryptaApi -Method GET -Path '/auth/me' -Token $initialLogin.data.accessToken | Out-Null
+  } catch {
+    $oldTokenRejected = $_.Exception.Response.StatusCode.value__ -eq 401
+  }
+  Assert-True $oldTokenRejected 'Access token issued before password change is revoked'
 
   $oldPasswordRejected = $false
   try {

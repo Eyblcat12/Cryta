@@ -1,0 +1,11 @@
+services:
+  backend:
+    environment:
+      MFA_REQUIRED: "true"
+      MFA_ENCRYPTION_KEY_FILE: /run/secrets/crypta_mfa_encryption_key
+    secrets:
+      - crypta_mfa_encryption_key
+
+secrets:
+  crypta_mfa_encryption_key:
+    file: "${CRYPTA_MFA_ENCRYPTION_KEY_SECRET:?Set the dedicated MFA encryption key file}"

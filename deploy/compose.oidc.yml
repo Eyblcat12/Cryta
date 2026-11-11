@@ -1,0 +1,18 @@
+# Use together with docker-compose.production.yml and deploy/compose.mfa.yml.
+services:
+  backend:
+    environment:
+      OIDC_ENABLED: "true"
+      OIDC_ISSUER: "${CRYPTA_OIDC_ISSUER:?Set the HTTPS realm issuer}"
+      OIDC_CLIENT_ID: "${CRYPTA_OIDC_CLIENT_ID:?Set the confidential client ID}"
+      OIDC_CLIENT_SECRET_FILE: /run/secrets/crypta_oidc_client_secret
+      OIDC_STORAGE_KEY_FILE: /run/secrets/crypta_oidc_storage_key
+    secrets:
+      - crypta_oidc_client_secret
+      - crypta_oidc_storage_key
+
+secrets:
+  crypta_oidc_client_secret:
+    file: "${CRYPTA_OIDC_CLIENT_SECRET_FILE:?Set the confidential client secret file}"
+  crypta_oidc_storage_key:
+    file: "${CRYPTA_OIDC_STORAGE_KEY_FILE:?Set the dedicated OIDC storage key file}"

@@ -1,0 +1,134 @@
+{
+  "sourceRevision": "54929c9e59e61799454c2039a78e5563ccd1d4a7",
+  "verification": "ZIP SHA-256 matched GitHub artifact digest. Reports were read from verified ZIPs. Image IDs matched build manifests.",
+  "runs": [
+    {
+      "id": 43016090235,
+      "event": "push",
+      "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016090235",
+      "head": "54929c9e59e61799454c2039a78e5563ccd1d4a7",
+      "builtRevision": "54929c9e59e61799454c2039a78e5563ccd1d4a7",
+      "jobsPassed": 5,
+      "artifacts": [
+        {
+          "sha256": "be4421bc27f191745e1fe249a84ed3d61cc15f7a629ce0c38b414cce0a60902c",
+          "name": "integration-results",
+          "id": 13853562886,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016090235/artifacts/13853562886"
+        },
+        {
+          "sha256": "5d9b10833b66fa81850a463477a6f64655721c20b222090d153cd5c9cefdfd13",
+          "name": "release-build-manifest",
+          "id": 13854360670,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016090235/artifacts/13854360670"
+        },
+        {
+          "sha256": "d52abc95deba556ed7918a8e19e580347b0d3c740ff83f35b0879bdd86e0f9cb",
+          "name": "release-image-security",
+          "id": 13854670099,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016090235/artifacts/13854670099"
+        }
+      ],
+      "tests": {
+        "draftUi": {
+          "passed": 18,
+          "total": 18,
+          "fixtureOnly": false
+        },
+        "chromiumPostgresql": {
+          "passed": 66,
+          "total": 66,
+          "fixtureOnly": false
+        },
+        "chromiumFixture": {
+          "passed": 197,
+          "total": 197,
+          "fixtureOnly": true
+        }
+      },
+      "imageSecurity": {
+        "passed": true,
+        "scanner": "docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+        "databaseUpdatedAt": "2026-11-10T19:01:23.081219346Z",
+        "images": [
+          {
+            "component": "backend",
+            "imageId": "sha256:4db9915b3a4f7031584a108729600be873acc82c1a91ca2097c9ca085c86b778",
+            "findings": []
+          },
+          {
+            "component": "frontend",
+            "imageId": "sha256:a98422bdf288e0d05791601d0e5a1bd44a65c9318f8f268f81bc82b834c73526",
+            "findings": []
+          }
+        ]
+      },
+      "cleanupCompleted": true,
+      "containerIdentitiesPreserved": true
+    },
+    {
+      "id": 43016096992,
+      "event": "pull_request",
+      "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016096992",
+      "head": "54929c9e59e61799454c2039a78e5563ccd1d4a7",
+      "builtRevision": "1b9652bb63b0b11d48f06912a9ddfe8849691ea1",
+      "jobsPassed": 5,
+      "artifacts": [
+        {
+          "sha256": "4269252cbec0cc280fe1661d7cb3556d16ce92af0940cb25e89c17fc6e4d3297",
+          "name": "integration-results",
+          "id": 13854346011,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016096992/artifacts/13854346011"
+        },
+        {
+          "sha256": "6f54df2a4f34465e0a9e22e67412eb82242010c09ac4bc4c947f1d4002cc9797",
+          "name": "release-build-manifest",
+          "id": 13853792414,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016096992/artifacts/13853792414"
+        },
+        {
+          "sha256": "a8039c631e96596d3d89d2994d832f4028264b5eda5489cad5ef598eab87d3f7",
+          "name": "release-image-security",
+          "id": 13854001901,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43016096992/artifacts/13854001901"
+        }
+      ],
+      "tests": {
+        "draftUi": {
+          "passed": 18,
+          "total": 18,
+          "fixtureOnly": false
+        },
+        "chromiumPostgresql": {
+          "passed": 66,
+          "total": 66,
+          "fixtureOnly": false
+        },
+        "chromiumFixture": {
+          "passed": 197,
+          "total": 197,
+          "fixtureOnly": true
+        }
+      },
+      "imageSecurity": {
+        "passed": true,
+        "scanner": "docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+        "databaseUpdatedAt": "2026-11-10T19:01:23.081219346Z",
+        "images": [
+          {
+            "component": "backend",
+            "imageId": "sha256:a4592b285ce2b0370ce1fe8b3df2e318d5d518c4633c5b38ff53b6710b454fc6",
+            "findings": []
+          },
+          {
+            "component": "frontend",
+            "imageId": "sha256:e3038a9938372b5b4b39fedfc522113d6775a1b71be5748ac3eb432b85310f0f",
+            "findings": []
+          }
+        ]
+      },
+      "cleanupCompleted": true,
+      "containerIdentitiesPreserved": true
+    }
+  ]
+}
