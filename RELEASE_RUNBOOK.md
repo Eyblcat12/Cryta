@@ -22,7 +22,9 @@ node tools/ci/scan-release-images.cjs tools/test-artifacts/releases/<version>-<s
 
 Giữ manifest, `.env.example` và changelog cùng bản phát hành. Thêm `--archive` để đóng gói hai image thành `images.tar` và ghi kích thước, SHA-256 vào manifest. Chuyển archive và manifest đã duyệt cùng nhau. Nếu dùng registry, ghi lại digest được registry trả và dùng digest đó khi triển khai. Dùng đúng image đã lưu để cài lại cùng bản build. Cất cấu hình thực và thông tin bí mật trong hệ thống quản lý cấu hình của môi trường.
 
-Hai Dockerfile ghim digest của manifest OCI đa kiến trúc cho Node.js 22.23.4 và Nginx 1.30.6 trên Alpine. Khi cập nhật bản vá, xác minh tag chính thức và thay cả tag lẫn digest trong cùng thay đổi. Build lại rồi chạy smoke, kiểm phiên HTTPS và kiểm proxy phục hồi khi backend đổi IP. [Node.js 22.23.4](https://nodejs.org/en/blog/release/v22.23.4) · [Bản vá Nginx](https://nginx.org/en/security_advisories.html)
+Hai Dockerfile ghim digest của manifest OCI đa kiến trúc cho Node.js 22.23.4 trên Alpine và Nginx 1.30.6 `alpine-slim`. Frontend dùng bản slim để phục vụ web tĩnh và proxy API. Khi cập nhật bản vá, xác minh tag chính thức và thay cả tag lẫn digest trong cùng thay đổi. Build lại rồi chạy smoke, kiểm phiên HTTPS và kiểm proxy phục hồi khi backend đổi IP. [Node.js 22.23.4](https://nodejs.org/en/blog/release/v22.23.4) · [Bản vá Nginx](https://nginx.org/en/security_advisories.html)
+
+Ngày 11/11, CI của `5bbc962` chặn image frontend vì hai phát hiện High trong `libxslt`. Bản `f01f3b8` chuyển sang Nginx slim cùng phiên bản, ghim manifest chính thức `e2355aa95529a7999dad94ddcb45a8768abf6fb0b204c93b1a3ffce477d7b893`. Quét lại hai image cục bộ ghi 0 High/Critical. Smoke production cách ly kiểm HTTPS 10/10, PostgreSQL TLS và xoay phiên. [CI phát hiện](https://github.com/Eyblcat12/Cryta/actions/runs/43003970885) · [Quét bản sửa](tools/test-artifacts/releases/0.0.0-rehearsal.20261111.nginx-slim-f01f3b8ef8c7/image-security.json) · [Smoke bản sửa](tools/test-artifacts/crypta-ca-test-e8a987a63d63/report.json)
 
 ```powershell
 node tools/build-release-images.cjs <full-commit-sha> <release-version> --archive
