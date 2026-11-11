@@ -59,6 +59,8 @@ Nếu thấy **Quên mật khẩu?**, nhập email và mở liên kết trong h�
 
 ## API và truy vết
 
+[Hợp đồng OpenAPI trong bộ đồ án](openapi.json) được xuất từ build hiện hành và đã kiểm 68 đường dẫn, 74 thao tác, 31 JSON body.
+
 API đi qua Nginx dưới `/api/v1`. Swagger UI tại `/docs` và JSON tại `/docs-json` thuộc cổng nội bộ backend. Lấy spec từ thư mục dự án khi stack đang chạy.
 
 ```powershell
@@ -78,7 +80,11 @@ Phản hồi thành công có `data` và `requestId`. Phản hồi lỗi có `er
 | `409` | Đọc lại trạng thái và phiên bản hiện tại của đối tượng. |
 | `503` hoặc mất kết nối khi ghi | Kiểm tra dữ liệu và nhật ký bằng mã truy vết trước khi quyết định có gửi lại. |
 
-## Vận hành
+## Phần mở rộng
+
+MFA, OIDC và provider OpenBao cần cấu hình tương ứng trước khi sử dụng. Hướng dẫn riêng có thao tác đăng ký/khôi phục, phạm vi và các ca kiểm. [TOTP](MFA_X01.md) · [Duyệt hai cấp](X02_TWO_STAGE_APPROVAL.md) · [SSO Keycloak](X03_OIDC.md) · [Xuất CSV/PDF](X04_REPORT_EXPORTS.md) · [Checkpoint audit](X05_AUDIT_ANCHOR.md) · [OpenBao](X06_OPENBAO_TRANSIT.md).
+
+## Vận hành hệ thống
 
 | Container | Vai trò và dữ liệu |
 | --- | --- |
