@@ -22,6 +22,8 @@ Hồi quy N4 đạt 16/16 trên mỗi trình duyệt, gồm vị trí bảng khi
 
 ### T30 · Kiểm trực tiếp với NVDA
 
+Ngày 11/11, bản build từ source ứng viên `d9a8bde` chạy Chrome với NVDA 2026.3, viewport 390 px, fade tắt và dữ liệu mô phỏng. NVDA ghi nhận 6/8 chuỗi kiểm, gồm nút mở menu trước khi mở, hai trạng thái tải danh sách, số kết quả và hai trạng thái chi tiết Audit Log. Tên hộp điều hướng và nút mở sau Escape chưa được xác nhận. Công cụ desktop kích hoạt đúng cửa sổ QA nhưng thao tác click báo `coordinate input geometry is unavailable`. Lượt chụp lại báo `window crop is outside captured monitor`. T30 vẫn còn nghiệm thu trình đọc màn hình. [Kết quả lọc](tools/test-artifacts/t30-nvda-2026.3/results-d9a8bde-sky-chrome-20261111.json)
+
 NVDA 2026.3 chạy portable trên Windows với Chromium ở 390 px, tắt fade, dùng dữ liệu mô phỏng và bộ tổng hợp im lặng. Lượt đầu trên `41a749f` ghi nhận bốn chuỗi NVDA gửi cho bộ tổng hợp: tên hộp điều hướng, số kết quả Audit Log, trạng thái tải chi tiết và thông báo đã tải chi tiết. Hai câu cho nút mở sau Escape và lúc tải danh sách chưa được xác nhận. Lượt kế tiếp không ghi nhận câu nào từ Crypta. Lượt dùng công cụ desktop dừng ở bước kích hoạt cửa sổ thử do báo sai chủ sở hữu cửa sổ. Báo cáo chỉ giữ các chuỗi của Crypta. [NVDA 2026.3](https://github.com/nvaccess/nvda/releases/tag/release-2026.3) · [Kết quả lọc](tools/test-artifacts/t30-nvda-2026.3/results.json)
 
 ### T30 · Trạng thái đọc Yêu cầu và Thông báo
