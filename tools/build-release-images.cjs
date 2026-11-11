@@ -20,7 +20,7 @@ async function build(revision, version, archiveFlag) {
   assert(archiveFlag === undefined || archiveFlag === '--archive', 'The optional flag is --archive.');
   assert.equal(run('git', ['rev-parse', `${revision}^{commit}`]).toString().trim(), revision);
   const commitTime = run('git', ['show', '-s', '--format=%cI', revision]).toString().trim();
-  assert.match(commitTime, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/);
+  assert.match(commitTime, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/);
   run('docker', ['version', '--format', '{{.Server.Version}}']);
   const releases = path.join(__dirname, 'test-artifacts', 'releases');
   const directory = path.join(releases, `${version}-${revision.slice(0, 12)}`);

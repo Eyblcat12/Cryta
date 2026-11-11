@@ -1,8 +1,10 @@
 # Trạng thái triển khai Crypta
 
-## Hiện trạng ngày 10/11/2026
+## Hiện trạng ngày 11/11/2026
 
-Ứng viên `c159894` đạt 5/5 job GitHub Actions. Đã đối chiếu ba artifact CI, nạp lại đúng hai image từ archive cục bộ của cùng commit và chạy smoke HTTPS 10/10. Hồ sơ T54 ghi SHA, kết quả và người phụ trách theo vai trò cho các mục cần xác nhận trước pilot. [Hồ sơ ứng viên](docs/CONG_NGHIEM_THU_RELEASE.md#hồ-sơ-ứng-viên-ngày-10112026)
+Ứng viên `f568e93` đạt CI push sau khi chuyển Nginx sang image slim chính thức để xử lý hai cảnh báo High trong `libxslt`. Đã đối chiếu ba artifact CI, gồm manifest, tích hợp và quét image. Hai image có 0 phát hiện High/Critical. Lượt production cách ly trên bản sửa `f01f3b8` đạt HTTPS 10/10 và phục hồi khi backend đổi IP, với frontend giữ nguyên. [CI ứng viên](https://github.com/Eyblcat12/Cryta/actions/runs/43007299578) · [Diễn tập proxy](tools/test-artifacts/crypta-ca-test-eda7181b2990/report.json) · [Runbook](RELEASE_RUNBOOK.md)
+
+CI của PR phát hiện bộ đóng gói từ chối thời gian UTC có hậu tố `Z` của commit merge. Validator đã nhận cả `Z` và múi giờ dạng `+07:00`. Dựng và kiểm archive từ chính commit merge `a50c027` có thời gian `2026-11-11T10:52:58Z` đã đạt trên WSL. [Bộ đóng gói](tools/build-release-images.cjs) · [Manifest diễn tập](tools/test-artifacts/releases/0.0.0-rehearsal.20261111.merge-time-a50c0279bf7c/manifest.json) · [PR](https://github.com/Eyblcat12/Cryta/pull/1)
 
 54 task chính đã được đối chiếu ít nhất một phần và 6 mục mở rộng giữ trong phạm vi. Cả 12 UC có liên kết đến bằng chứng kỹ thuật theo commit. Quyết định R1 và nghiệm thu R2 còn chờ điều kiện đích, gồm UAT, hạ tầng HTTPS, hộp thư SMTP, provider/CA theo phạm vi, nơi sao lưu và người trực. [Tracker](TASK_STATUS_2026-11-05.md) · [Ma trận UC](docs/NGHIEM_THU_UAT.md#đối-chiếu-bằng-chứng-theo-commit) · [Cổng nghiệm thu](docs/CONG_NGHIEM_THU_RELEASE.md)
 
