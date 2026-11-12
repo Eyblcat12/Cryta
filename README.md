@@ -6,6 +6,12 @@ Crypta là ứng dụng web quản lý metadata và vòng đời khóa/chứng t
 
 Bản bàn giao đồ án phục vụ chạy cục bộ và bảo vệ trên trường, theo phạm vi được xác nhận ngày 12/11/2026. Xem [bộ tài liệu đồ án](docs/DO_AN.md), [báo cáo](docs/BAO_CAO_DO_AN.md) và [slide](docs/media/crypta-bao-ve.pptx). Demo dùng dữ liệu mẫu và provider MOCK, SMTP tắt mặc định. Các điều kiện triển khai dịch vụ thật được theo dõi riêng trong kế hoạch vận hành.
 
+## Dành cho giảng viên
+
+[Tải toàn bộ dự án từ main](https://github.com/Eyblcat12/Cryta/archive/refs/heads/main.zip), giải nén, mở Docker Desktop rồi nhấp đúp `start-crypta.cmd`. Khi các dịch vụ báo healthy, mở `http://localhost:8080`. Chạy demo bằng Docker không cần cài Node.js trên máy.
+
+[Hướng dẫn kiểm tra dành cho giảng viên](docs/GIANG_VIEN.md) có tài khoản mẫu, trình tự thử ba vai trò và vị trí báo cáo, slide, video, mã nguồn, kết quả CI. Đăng xuất trước mỗi lần đổi tài khoản trong cùng trình duyệt; các tab/cửa sổ cùng profile dùng chung phiên đăng nhập.
+
 ## Khởi động nhanh trên Windows
 
 Backend chạy trực tiếp mặc định chỉ kiểm migration (`validate`). Operator chạy migration riêng trước startup. Compose demo khai báo `apply` để giữ quy trình local bên dưới. [Quy trình migration và quyền runtime](DATABASE_MIGRATIONS.md) · [Đóng gói, nâng cấp và phục hồi](RELEASE_RUNBOOK.md)

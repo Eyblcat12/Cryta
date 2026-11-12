@@ -4,7 +4,9 @@
 
 Theo xác nhận của chủ dự án, lần bàn giao này phục vụ đồ án trên trường, chạy cục bộ với dữ liệu mẫu và provider MOCK. [Bộ bàn giao](docs/DO_AN.md) gồm bản ứng dụng, [báo cáo kỹ thuật](docs/BAO_CAO_DO_AN.md), [slide](docs/media/crypta-bao-ve.pptx), [ghi chú bảo vệ](docs/THUYET_TRINH.md), ERD và video dự phòng.
 
-Commit ứng dụng `54929c9` đạt 5/5 job ở cả CI push và PR. Đã đối chiếu SHA-256 sáu ZIP artifact. Mỗi lượt có 18/18 ca nháp và mất phản hồi, 66/66 ca Chromium qua PostgreSQL, 197/197 ca UI fixture và 0 High/Critical trên hai image đúng manifest. Stack test đã dọn. [CI push](https://github.com/Eyblcat12/Cryta/actions/runs/43016090235) · [CI PR](https://github.com/Eyblcat12/Cryta/actions/runs/43016096992) · [Bản ghi đối chiếu](docs/evidence/ci-54929c9.json)
+Head `8bc9f71` và bản merge PR `5614a25` đạt 5/5 job trên hai lượt phục hồi sau sự cố GitHub. Hai revision có cùng cây mã nguồn. Đã đối chiếu SHA-256 sáu ZIP artifact, thời gian commit, từng archive context và ID image. Mỗi lượt có 18/18 ca nháp/mất phản hồi, 66/66 ca Chromium qua PostgreSQL, 197/197 ca UI fixture và 0 High/Critical trên hai image. Backend 523/523, frontend 148/148, SMTP loopback 7/7 và ba dependency audit bằng 0 trên bản head. Stack test đã dọn. [CI head](https://github.com/Eyblcat12/Cryta/actions/runs/43146203979) · [CI merge](https://github.com/Eyblcat12/Cryta/actions/runs/43146204102) · [Bản ghi đối chiếu](docs/evidence/ci-8bc9f71.json)
+
+Repo đã public. `main` yêu cầu năm check từ GitHub Actions, áp dụng cả Admin, và yêu cầu nhánh cập nhật với base trước merge. Giảng viên có thể dùng [hướng dẫn tải và kiểm tra](docs/GIANG_VIEN.md) từ trang repo. Các lượt kiểm cũ bị kẹt trong sự cố GitHub được giữ trong lịch sử, tách khỏi bằng chứng hai revision đã chạy lại đầy đủ.
 
 Commit `7c7a45e` đã cập nhật bộ demo theo schema 027. ERD có 28 bảng, 234 cột, 40 khóa ngoại. Cả 20 sơ đồ Mermaid render đạt. Video dài 57,04 giây, đủ 12 chương, đã kiểm khung hình và phát đến cuối. Trang thiết kế draw.io ban đầu được giữ. [Demo](docs/DEMO_VA_BAN_GIAO.md) · [ERD](docs/ERD_HIEN_HANH.md)
 

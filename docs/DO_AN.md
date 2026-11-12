@@ -7,6 +7,7 @@ Các điều kiện dùng tài sản thật trong kế hoạch R1/R2 được gi
 ## Tài liệu bắt đầu
 
 - [README và tài khoản mẫu](../README.md) để chạy ứng dụng.
+- [Hướng dẫn giảng viên](GIANG_VIEN.md) để tải bản main và kiểm tra nhanh.
 - [Báo cáo đồ án](BAO_CAO_DO_AN.md) để đọc thiết kế và kết quả.
 - [Slide bảo vệ](media/crypta-bao-ve.pptx) và [ghi chú thuyết trình](THUYET_TRINH.md).
 - [Video dự phòng và 12 chương](DEMO_VA_BAN_GIAO.md).
@@ -32,7 +33,7 @@ Bảng trên mô tả phần đã xây và minh chứng kỹ thuật. Trạng th
 
 ## Chạy và chuẩn bị bảo vệ
 
-1. Checkout nhánh `codex/crypta-release-candidate-20261107` của [repo Cryta](https://github.com/Eyblcat12/Cryta). Mở Docker và chạy `start-crypta.cmd`. Script tạo bí mật local khi chưa có `.env`, build và chờ readiness. Mở `http://localhost:8080`.
+1. [Tải ZIP của nhánh main](https://github.com/Eyblcat12/Cryta/archive/refs/heads/main.zip) từ [repo Cryta](https://github.com/Eyblcat12/Cryta), rồi giải nén. Nếu dùng Git, clone repo và dùng nhánh `main`. Mở Docker và chạy `start-crypta.cmd`. Script tạo bí mật local khi chưa có `.env`, build và chờ readiness. Mở `http://localhost:8080`.
 2. Đăng nhập ba vai trò theo README. Thử một yêu cầu cấp mới bằng User, duyệt bằng Approver, rồi trở lại User đọc tài sản. Dùng dữ liệu giả và giữ provider MOCK trong buổi demo.
 3. Theo [ghi chú thuyết trình](THUYET_TRINH.md), trình bày kiến trúc và cơ chế bảo vệ trước khi demo. Mở sẵn video dự phòng và trang Audit Log.
 4. Chạy thử toàn bài hai lần trước buổi bảo vệ, đo thời gian trên máy sẽ trình bày. Người thuyết trình tự đánh dấu các mục đã thử trong [biên bản UAT](NGHIEM_THU_UAT.md). Các lượt kiểm tự động không thay việc luyện nói của nhóm.

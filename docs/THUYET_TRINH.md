@@ -23,7 +23,7 @@ Bộ slide có 14 trang và lời dẫn trong speaker notes. Thời gian gợi �
 
 ## Demo trực tiếp
 
-Chuẩn bị Docker hoạt động, chạy launcher và đăng nhập ba vai trò bằng ba cửa sổ riêng hoặc đăng xuất giữa các vai trò. Tạo yêu cầu với lý do dễ nhận biết như `Demo bảo vệ cấp khóa`. Tránh dựa vào ID cố định vì mỗi lượt tạo dữ liệu khác nhau. Chọn policy một cấp cho chuỗi chính để dễ theo dõi, giải thích hai cấp ở phần mở rộng.
+Chuẩn bị Docker hoạt động và chạy launcher. Dùng một cửa sổ, đăng xuất trước mỗi lần đổi tài khoản giữa ba vai trò. Nếu muốn dùng đồng thời, dùng các trình duyệt hoặc profile độc lập; các cửa sổ cùng profile dùng chung cookie và phiên đăng nhập. Tạo yêu cầu với lý do dễ nhận biết như `Demo bảo vệ cấp khóa`. Tránh dựa vào ID cố định vì mỗi lượt tạo dữ liệu khác nhau. Chọn policy một cấp cho chuỗi chính để dễ theo dõi, giải thích hai cấp ở phần mở rộng.
 
 1. User mở **Tạo yêu cầu**, chọn cấp khóa, nhập lý do và gửi. Nếu trình diễn nháp, lưu rồi mở lại và gửi trước khi chuyển vai trò.
 2. Approver lọc theo lý do trong hàng chờ đúng đơn vị, mở chi tiết và duyệt. User tải lại đến khi yêu cầu hoàn tất, mở tài sản vừa tạo.

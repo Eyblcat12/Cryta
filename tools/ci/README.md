@@ -1,6 +1,8 @@
 # Kiểm thử tích hợp trong CI
 
-GitHub Actions đã đạt đủ năm job trên commit ứng viên `a599aae`. Backend 419/419, frontend 147/147, SMTP loopback 6/6 và tích hợp Ubuntu 158/158. Nhánh thử lỗi riêng đã kiểm đúng bước thất bại và artifact cleanup. Required checks bị GitHub trả 403 do điều kiện gói cho repo private. [Bằng chứng remote và digest artifact](../../docs/CI_REMOTE_2026-11-07.md)
+Bằng chứng ngày 12/11/2026 trên head `8bc9f71` và merge `5614a25` đạt đủ năm job, với 18/18 ca nháp, 66/66 Chromium PostgreSQL, 197/197 UI fixture và 0 High/Critical trên hai image khớp manifest. Repo đã public và main đã có năm required checks áp dụng cả Admin. [Bằng chứng và cách phục hồi CI](../../docs/CI_REMOTE_2026-11-07.md#đối-chiếu-head-và-merge-ngày-12-tháng-11-năm-2026).
+
+Lịch sử ngày 07/11 trên `a599aae` đạt đủ năm job. Backend 419/419, frontend 147/147, SMTP loopback 6/6 và tích hợp Ubuntu 158/158. Nhánh thử lỗi riêng đã kiểm đúng bước thất bại và artifact cleanup. Khi repo còn private, required checks bị GitHub trả 403 do điều kiện gói. [Bằng chứng remote và digest artifact](../../docs/CI_REMOTE_2026-11-07.md)
 
 Lượt mới sau chỉnh schema cài mới và validator đạt 158/158 nhóm. Ledger có thêm ca từ chối nạp lại schema và giữ dữ liệu cùng lịch sử migration. Backend 419/419, lint và OpenAPI đạt. Stack đã được dọn và danh tính chín container ngoài test khớp. [Kết quả](../test-artifacts/integration/crypta-t30-test-f1f20ec87e12/ci-verification.json)
 
