@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypta · Xem trước mời và khôi phục tài khoản</title>
+  <style>
+    :root { color-scheme: light dark; font: 15px/1.55 system-ui,sans-serif; --bg:#f7f8f9; --card:#fff; --text:#172b4d; --soft:#44546f; --line:#b7bdc8; --brand:#0055cc; --brandText:#fff; --error:#9f211a; --errorBg:#ffeceb; --ok:#145c40; --okBg:#dcfff1; }
+    :root[data-theme="dark"] { color-scheme:dark; --bg:#090a0a; --card:#191a1a; --text:#f3f4f4; --soft:#c7cccf; --line:#626970; --brand:#9ab5ff; --brandText:#101b34; --error:#ffb3ad; --errorBg:#422322; --ok:#adf2cf; --okBg:#163829; }
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text)}
+    .preview{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:12px clamp(16px,4vw,48px);border-bottom:1px solid var(--line);background:var(--card)}
+    .preview div{display:flex;gap:8px;flex-wrap:wrap} .preview small,.hint,p{color:var(--soft)}
+    main{padding:clamp(24px,6vh,76px) 14px;display:grid;justify-items:center}
+    article{width:min(100%,460px);padding:clamp(20px,5vw,36px);background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 35px #121b2a16}
+    .brand{display:flex;align-items:center;gap:12px;margin-bottom:24px;font-weight:750}.badge{display:grid;place-items:center;color:var(--brandText);background:var(--brand);width:38px;height:38px;border-radius:10px}
+    h1{font-size:clamp(23px,6vw,29px);line-height:1.18;margin:0 0 10px} p{margin:0 0 18px}
+    label{display:grid;gap:5px;margin:14px 0;font-weight:650} input,select,button{font:inherit;color:inherit}
+    input,select,button{min-height:44px;border:1px solid var(--line);background:var(--card);border-radius:7px;padding:8px 12px}
+    input{width:100%;min-width:0} button{cursor:pointer;font-weight:650} .primary{width:100%;border-color:var(--brand);background:var(--brand);color:var(--brandText);margin:8px 0 14px}
+    :focus-visible{outline:3px solid var(--brand);outline-offset:3px}.link{color:var(--brand);text-decoration:underline}.message{margin:12px 0;padding:12px;border-radius:8px;background:var(--okBg);color:var(--ok)}.error{background:var(--errorBg);color:var(--error)} .hint{font-size:14px;font-weight:400} [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+  <header class="preview"><span><strong>Bản xem trước T07</strong> <small>· Dữ liệu minh họa</small></span><div>
+    <select id="scenario" aria-label="Tình huống xem trước">
+      <option value="request">Yêu cầu đặt lại mật khẩu</option><option value="sent">Phản hồi sau khi yêu cầu</option>
+      <option value="reset">Chọn mật khẩu mới</option><option value="activate">Chấp nhận lời mời</option>
+      <option value="expired">Liên kết hết hạn hoặc đã dùng</option><option value="done">Đã đổi mật khẩu</option>
+      <option value="admin">Security Admin mời tài khoản</option>
+    </select><button id="theme" type="button">Đổi sáng/tối</button>
+  </div></header>
+  <main><article><div class="brand"><span class="badge" aria-hidden="true">C</span><span>Crypta</span></div><div id="screen"></div></article></main>
+  <script>
+    const scenario = document.getElementById('scenario');
+    const screen = document.getElementById('screen');
+    const password = '<label>Mật khẩu mới<input type="password" autocomplete="new-password" minlength="12" required><span class="hint">Ít nhất 12 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</span></label><label>Nhập lại mật khẩu<input type="password" autocomplete="new-password" required></label>';
+    const link = '<a class="link" href="#request">Yêu cầu liên kết mới</a>';
+    const screens = {
+      request:'<h1>Quên mật khẩu?</h1><p>Nhập email công việc để yêu cầu liên kết đặt lại mật khẩu.</p><form data-next="sent"><label>Email công việc<input type="email" autocomplete="email" required placeholder="ten@congty.com"></label><button class="primary">Gửi yêu cầu</button></form>',
+      sent:'<h1>Kiểm tra hộp thư</h1><p class="message" role="status">Nếu email đủ điều kiện, Crypta sẽ gửi liên kết đặt lại mật khẩu. Hãy kiểm tra cả thư rác.</p>',
+      reset:'<h1>Đặt lại mật khẩu</h1><p>Sau khi lưu, các phiên của tài khoản sẽ kết thúc.</p><form data-next="done">'+password+'<button class="primary">Lưu mật khẩu mới</button></form>',
+      activate:'<h1>Kích hoạt tài khoản</h1><p>Đặt mật khẩu để sử dụng tài khoản Crypta được mời.</p><form data-next="done">'+password+'<button class="primary">Kích hoạt tài khoản</button></form>',
+      expired:'<h1>Liên kết không còn hiệu lực</h1><p class="message error" role="alert">Liên kết có thể đã hết hạn hoặc đã được sử dụng. Với lời mời, liên hệ quản trị viên để nhận liên kết mới.</p>'+link,
+      done:'<h1>Mật khẩu đã được lưu</h1><p class="message" role="status">Bạn có thể đăng nhập bằng mật khẩu mới.</p><button class="primary" type="button" data-preview-login>Về đăng nhập</button>',
+      admin:'<h1>Mời tài khoản</h1><p>Người nhận sẽ nhận liên kết thiết lập mật khẩu. Tài khoản chờ kích hoạt cho đến khi chấp nhận lời mời.</p><form data-next="sent"><label>Họ và tên<input required value="Nguyễn Minh Anh"></label><label>Email công việc<input type="email" required value="minh.anh@example.test"></label><label>Đơn vị<select><option>Phòng Công nghệ thông tin</option></select></label><label>Vai trò<select><option>Nhân viên</option><option>Người phê duyệt</option></select></label><button class="primary">Gửi lời mời</button></form>'
+    };
+    function show(value) { scenario.value=value; screen.innerHTML=screens[value]; }
+    scenario.addEventListener('change',()=>show(scenario.value));
+    screen.addEventListener('submit',event=>{event.preventDefault();show(event.target.dataset.next)});
+    screen.addEventListener('click',event=>{if(event.target.matches('[href="#request"],[data-preview-login]')){event.preventDefault();show('request')}});
+    document.getElementById('theme').addEventListener('click',()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'});
+    show('request');
+  </script>
+</body>
+</html>

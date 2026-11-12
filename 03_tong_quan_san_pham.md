@@ -118,10 +118,10 @@ flowchart LR
 ### 5.6. Cảnh báo tự động
 
 - Quét tài sản định kỳ.
-- Cảnh báo trước 30, 7 hoặc 1 ngày.
+- Cảnh báo theo `warning_days` trong policy gắn tài sản.
 - Chuyển trạng thái sang `EXPIRED` khi hết hạn.
-- Gửi thông báo trong ứng dụng và email demo.
-- Không gửi trùng khi job chạy lại.
+- Gửi thông báo trong ứng dụng và xếp hàng email cho owner, Approver đúng phạm vi và Admin đủ điều kiện.
+- Giữ một bản ghi theo người nhận, mốc và kênh khi quét lại. Email phụ thuộc SMTP và quy trình đối soát.
 
 ### 5.7. Audit Log
 
@@ -252,7 +252,7 @@ Sản phẩm không chỉ thực hiện CRUD mà còn có state machine, transac
 
 ---
 
-## 10. Phạm vi MVP
+## 10. Phạm vi đồ án hiện hành
 
 ### Có trong MVP
 
@@ -266,30 +266,34 @@ Sản phẩm không chỉ thực hiện CRUD mà còn có state machine, transac
 - Mock Crypto Provider.
 - Docker Compose, dữ liệu demo và Swagger.
 
-### Hướng phát triển
+### Phần mở rộng đã triển khai
 
-- Tích hợp Vault/KMS/CA thật.
-- MFA cho vai trò nhạy cảm.
-- Phê duyệt hai cấp.
-- Hash-chain Audit Log.
-- SSO/OIDC.
-- Báo cáo PDF/CSV có kiểm soát.
-- Tích hợp HSM.
+- [MFA TOTP và mã khôi phục](docs/MFA_X01.md) cho vai trò nhạy cảm.
+- [Phê duyệt hai cấp](docs/X02_TWO_STAGE_APPROVAL.md) bằng hai Approver khác nhau trong cùng phạm vi.
+- [Checkpoint audit ký Ed25519](docs/X05_AUDIT_ANCHOR.md) để xác minh thay đổi so với mốc lưu độc lập.
+- [SSO/OIDC với Keycloak](docs/X03_OIDC.md) đã kiểm trên môi trường cách ly.
+- [Báo cáo CSV/PDF](docs/X04_REPORT_EXPORTS.md) theo bộ lọc và quyền hiện tại.
+- [HTTP bridge sang OpenBao Transit](docs/X06_OPENBAO_TRANSIT.md) đã kiểm sandbox cho khóa ký RSA/ECDSA.
+
+### Hướng phát triển khi có môi trường tổ chức
+
+Kết nối provider/CA và hộp thư bên ngoài, triển khai staging HTTPS, chốt kho checkpoint độc lập và hoàn tất nghiệm thu vận hành. HSM phần cứng hoặc CA thương mại cần adapter và kiểm riêng theo nhà cung cấp được chọn. [Phạm vi bàn giao đồ án](docs/DO_AN.md) giữ rõ các giới hạn của bản local.
 
 ---
 
-## 11. Công nghệ dự kiến
+## 11. Công nghệ đang sử dụng
 
 | Lớp | Công nghệ |
 |---|---|
-| Frontend | React + TypeScript |
-| Backend | Node.js + TypeScript |
-| Database | PostgreSQL |
-| ORM | Prisma hoặc TypeORM |
-| Job | BullMQ/Redis hoặc node-cron cho MVP |
+| Frontend | React, TypeScript, Vite, React Router |
+| Backend | Node.js, TypeScript, NestJS |
+| Database | PostgreSQL 17 qua driver `pg` |
+| Job | Worker trong backend, transaction và hàng đợi PostgreSQL |
 | API | REST + OpenAPI/Swagger |
-| Email demo | MailHog |
+| Email | Nodemailer qua SMTP khi được bật |
 | Đóng gói | Docker Compose |
+
+Demo chạy với adapter MOCK, PostgreSQL và Nginx trên máy thử. SMTP, provider và môi trường triển khai thật cần được cấu hình và nghiệm thu trước khi đưa tài sản thật vào hệ thống. [Hướng dẫn sử dụng](docs/HUONG_DAN_CRYPTA.md) · [Kiến trúc hiện hành](02_so_do_he_thong_tong_quat.md) · [Nghiệm thu 12 luồng](docs/NGHIEM_THU_UAT.md)
 
 ---
 

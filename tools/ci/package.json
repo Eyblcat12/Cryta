@@ -1,0 +1,19 @@
+{
+  "name": "crypta-ci-tooling",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pinned lint and browser tooling for CI",
+  "scripts": {
+    "lint": "cd ../.. && eslint --config tools/ci/eslint.config.mjs --max-warnings 0 backend/src backend/test backend/vitest.smtp.config.ts frontend/src frontend/vite.config.ts"
+  },
+  "overrides": {
+    "minimatch": "11.0.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "playwright": "1.62.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

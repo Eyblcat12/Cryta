@@ -1,5 +1,5 @@
-export type AssetStatus = 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'SUPERSEDED';
-export type RequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type AssetStatus = 'REGISTERED' | 'ACTIVE' | 'EXPIRING_SOON' | 'EXPIRED' | 'REVOKED' | 'SUPERSEDED';
+export type RequestStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'RECONCILIATION_REQUIRED';
 
 export interface Asset {
   id: string;
@@ -15,11 +15,19 @@ export interface Asset {
   provider: string;
   fingerprint: string;
   ownerName?: string;
+  ownerId?: string;
+  departmentId?: string;
   departmentName?: string;
   policyCode?: string;
   policyVersionId?: string;
+  policyVersion?: number;
   version?: number;
 }
+
+export type RequestDecision = {
+  decision: 'APPROVED' | 'REJECTED'; comment: string | null; approverId: string;
+  approverName?: string | null; decidedAt: string;
+};
 
 export interface RequestItem {
   id: string;
@@ -27,13 +35,20 @@ export interface RequestItem {
   subject: string;
   status: RequestStatus;
   submittedAt: string;
+  submitted?: boolean;
+  cancellationReason?: string | null;
   approver?: string;
+  decision?: RequestDecision | null;
+  approval?: { levels: 2; approved: number; deadlineAt: string | null; firstApproverId: string | null };
+  approvalHistory?: Array<RequestDecision & { level: 1 | 2 }>;
   emergency?: boolean;
   creatorName?: string;
+  creatorId?: string;
+  departmentId?: string;
   departmentName?: string;
   targetAssetCode?: string;
   version?: number;
 }
 
 export type UserRole = 'USER' | 'APPROVER' | 'ADMIN';
-export interface AuthUser { id:string; email:string; displayName:string; departmentId:string; roles:UserRole[]; approverDepartmentIds:string[]; mustChangePassword:boolean }
+export interface AuthUser { id:string; email:string; displayName:string; departmentId:string; departmentName?:string; roles:UserRole[]; approverDepartmentIds:string[]; mustChangePassword:boolean; accountActionsEnabled?:boolean; mfaEnrolled?:boolean; signInMethod?:'SSO' }

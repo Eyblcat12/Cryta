@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypta · Lên lịch gửi lại email</title>
+<style>
+  :root { color-scheme: light; --page: #f3f5f7; --surface: #fff; --text: #17283b; --muted: #465a70; --line: #b9c7d5; --brand: #0755bf; --on-brand: #fff; --error: #a62e30; }
+  :root.dark { color-scheme: dark; --page: #151920; --surface: #222832; --text: #eef3fa; --muted: #bac8d8; --line: #728298; --brand: #a2b8ff; --on-brand: #131d39; --error: #ffb1ad; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.55 system-ui,sans-serif; }
+  main, aside { max-width: 860px; margin: auto; padding: 16px; }
+  aside, header, footer { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; }
+  section, dialog { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  dialog { color: var(--text); width: min(550px, calc(100% - 24px)); max-height: calc(100% - 24px); }
+  dialog::backdrop { background: #0a1326af; }
+  h1, h2, p, dd { margin: 0; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 20px; }
+  p { margin-block: 8px; }
+  p, dt, aside { color: var(--muted); }
+  dl { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); }
+  dd, code { overflow-wrap: anywhere; }
+  label { display: flex; gap: 8px; align-items: center; }
+  input[type="checkbox"] { width: 18px; height: 18px; flex: none; }
+  button, select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; min-height: 44px; padding: 6px 12px; }
+  button { cursor: pointer; }
+  button.primary { color: var(--on-brand); background: var(--brand); font-weight: 700; }
+  button:disabled { opacity: .62; cursor: default; }
+  :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+  footer { justify-content: flex-end; margin-top: 16px; }
+  [role="alert"] { color: var(--error); }
+  [hidden] { display: none !important; }
+</style>
+<aside>
+  <strong>Bản xem trước · dữ liệu minh họa</strong>
+  <label>Trạng thái
+    <select id="scenario">
+      <option value="ready">Đủ điều kiện</option>
+      <option value="unknown">Kết quả SMTP chưa rõ</option>
+      <option value="exhausted">Đã hết lượt</option>
+      <option value="conflict">Thay đổi khi đang xác nhận</option>
+    </select>
+  </label>
+  <button type="button" id="theme">Đổi sáng/tối</button>
+</aside>
+<main>
+  <p>Crypta · Vận hành email</p>
+  <h1>Chi tiết lần gửi</h1>
+  <section aria-labelledby="event">
+    <h2 id="event">Cảnh báo tài sản sắp hết hạn</h2>
+    <dl>
+      <div><dt>Trạng thái</dt><dd id="status"></dd></div>
+      <div><dt>Số lượt đã dùng</dt><dd id="attempts"></dd></div>
+      <div><dt>Mã phiếu đã xác minh</dt><dd id="evidence">SMTP-2041</dd></div>
+      <div><dt>Mã đối chiếu Message-ID</dt><dd><code>notification-73dfe503-75bc-4883-a8d2-3adc66a9a864</code></dd></div>
+    </dl>
+    <p id="explanation"></p>
+    <button type="button" id="start" class="primary">Lên lịch gửi lại</button>
+    <p id="feedback" role="status" tabindex="-1"></p>
+  </section>
+</main>
+<dialog id="confirmation" aria-labelledby="title">
+  <form id="retry">
+    <header><h2 id="title">Xác nhận gửi lại</h2><button type="button" id="close">Đóng</button></header>
+    <p>Mã phiếu <strong>SMTP-2041</strong> ghi nhận SMTP chưa chấp nhận thư. Crypta sẽ lên lịch để worker nhận thư sau ít nhất 2 phút và ghi Audit Log.</p>
+    <p>Worker sẽ kiểm tra điều kiện gửi hiện tại trước khi dùng lượt 3 trên 5.</p>
+    <label><input type="checkbox" id="verified" required> Tôi đã đối chiếu mã phiếu và xác nhận SMTP chưa chấp nhận thư này.</label>
+    <p id="error" role="alert"></p>
+    <footer><button type="submit" class="primary" id="submit" disabled>Lên lịch gửi lại</button></footer>
+  </form>
+</dialog>
+<script>
+  const get = id => document.getElementById(id);
+  const scenario = get('scenario'), confirmation = get('confirmation'), start = get('start');
+  let conflict = false;
+  function render() {
+    const unknown = scenario.value === 'unknown', exhausted = scenario.value === 'exhausted';
+    get('status').textContent = unknown ? 'Cần đối soát' : 'Đã xác minh SMTP chưa chấp nhận';
+    get('attempts').textContent = exhausted ? '5/5' : '2/5';
+    get('evidence').textContent = unknown ? '—' : 'SMTP-2041';
+    get('explanation').textContent = unknown ? 'Hãy đối soát với nhật ký SMTP trước khi lên lịch.'
+      : exhausted ? 'Đã dùng đủ năm lượt. Kiểm tra nguyên nhân với nhà cung cấp.'
+      : 'Có thể lên lịch thêm một lượt dựa trên bằng chứng đã ghi.';
+    get('feedback').textContent = '';
+    start.hidden = unknown || exhausted;
+  }
+  scenario.onchange = render;
+  get('theme').onclick = () => document.documentElement.classList.toggle('dark');
+  get('verified').onchange = () => { get('submit').disabled = conflict || !get('verified').checked; };
+  get('close').onclick = () => confirmation.close();
+  confirmation.addEventListener('close', () => { if (!start.hidden) start.focus(); });
+  start.onclick = () => {
+    conflict = false;
+    get('retry').reset();
+    get('submit').disabled = true;
+    get('error').textContent = '';
+    confirmation.showModal();
+    get('close').focus();
+  };
+  get('retry').onsubmit = event => {
+    event.preventDefault();
+    if (scenario.value === 'conflict') {
+      conflict = true;
+      get('error').textContent = 'Trạng thái đã thay đổi. Đóng hộp thoại và tải lại chi tiết trước khi tiếp tục.';
+      get('submit').disabled = true;
+      return;
+    }
+    confirmation.close();
+    get('status').textContent = 'Đã lên lịch';
+    get('explanation').textContent = 'Worker sẽ nhận việc từ thời điểm đã lên lịch.';
+    get('feedback').textContent = 'Đã lên lịch gửi lại. Số lượt sẽ tăng khi worker nhận việc.';
+    start.hidden = true;
+    get('feedback').focus();
+  };
+  render();
+</script>
+</html>

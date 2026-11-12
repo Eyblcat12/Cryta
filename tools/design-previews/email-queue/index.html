@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="vi">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypta · Tình trạng hàng đợi email</title>
+<style>
+  :root { color-scheme: light; --page: #f3f5f7; --surface: #fff; --text: #182b40; --muted: #435871; --line: #b9c7d5; --brand: #0755bf; --warning: #783c09; --warning-bg: #fff3dc; }
+  :root.dark { color-scheme: dark; --page: #151920; --surface: #222832; --text: #eef3fa; --muted: #bac8d8; --line: #728298; --brand: #a2b8ff; --warning: #ffcf92; --warning-bg: #4b341c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text); font: 15px/1.55 system-ui,sans-serif; }
+  main, aside { max-width: 1060px; margin: auto; padding: 16px; }
+  aside, header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-top: 14px; }
+  h1, h2, p, dd { margin: 0; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 19px; }
+  dt, p, aside { color: var(--muted); }
+  dl { display: grid; gap: 12px; margin: 16px 0 0; }
+  #counts { grid-template-columns: repeat(5,minmax(0,1fr)); }
+  #counts > div { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  #counts dd { font-size: 21px; font-weight: 650; }
+  #observations { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  #observations dd { font-weight: 600; }
+  button, select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; min-height: 44px; padding: 6px 12px; }
+  button { cursor: pointer; }
+  button:disabled { opacity: .62; cursor: default; }
+  :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+  #warning { margin-top: 12px; padding: 8px 10px; border-radius: 6px; background: var(--warning-bg); color: var(--warning); }
+  #status, #sample-time { margin-top: 10px; }
+  #status:empty, [hidden] { display: none !important; }
+  @media (max-width: 640px) { #counts { grid-template-columns: repeat(2,minmax(0,1fr)); } #observations { grid-template-columns: 1fr; } }
+</style>
+<aside>
+  <strong>Bản xem trước · dữ liệu minh họa</strong>
+  <label>Trạng thái <select id="scenario">
+    <option value="ready">Đã đọc tình trạng</option>
+    <option value="stale">Worker quá hạn</option>
+    <option value="failed">Lượt quét lỗi</option>
+    <option value="disabled">SMTP đang tắt</option>
+    <option value="loading">Đang tải</option>
+    <option value="error">Lỗi đọc</option>
+  </select></label>
+  <button type="button" id="theme">Đổi sáng/tối</button>
+</aside>
+<main>
+  <p>Crypta · Vận hành email</p>
+  <h1>Email cần xử lý</h1>
+  <section aria-labelledby="queue-title">
+    <header>
+      <div><h2 id="queue-title">Tình trạng hàng đợi</h2><p>Chỉ tính thư qua SMTP.</p></div>
+      <button type="button" id="refresh">Làm mới tình trạng</button>
+    </header>
+    <p id="status" role="status"></p>
+    <div id="data">
+      <dl id="counts">
+        <div><dt>Chờ gửi</dt><dd>14</dd></div>
+        <div><dt>Đang gửi</dt><dd>1</dd></div>
+        <div><dt>SMTP đã chấp nhận</dt><dd>218</dd></div>
+        <div><dt>Gửi thất bại</dt><dd>2</dd></div>
+        <div><dt>Cần đối soát</dt><dd>1</dd></div>
+      </dl>
+      <dl id="observations">
+        <div><dt>Thư đến hạn chờ lâu nhất</dt><dd id="age"></dd></div>
+        <div><dt>Lỗi gần nhất trong hàng đợi</dt><dd>09:34, 08/11/2026</dd></div>
+        <div><dt>Lượt quét worker gần nhất</dt><dd id="worker"></dd></div>
+      </dl>
+      <p id="warning"></p>
+      <p id="sample-time">Lấy số liệu lúc 09:48, 08/11/2026 · giờ Việt Nam.</p>
+    </div>
+  </section>
+  <section aria-labelledby="issue-title"><h2 id="issue-title">Danh sách email cần xử lý</h2><p>Mở từng email để xem lần gửi và đối soát.</p></section>
+</main>
+<script>
+  const get = id => document.getElementById(id);
+  const samples = {
+    ready: ['45 giây', '09:48 · Đã hoàn tất', ''],
+    stale: ['8 phút 12 giây', '09:41 · Quá hạn', 'Có thư đến hạn chờ hơn 5 phút. Chưa ghi nhận lượt quét worker trong 5 phút gần đây.'],
+    failed: ['45 giây', '09:47 · Có lỗi', 'Lượt quét gần nhất của worker gặp lỗi.'],
+    disabled: ['8 phút 12 giây', 'SMTP đang tắt', 'Thư tiếp tục chờ cho đến khi SMTP được bật.'],
+  };
+  const scenario = get('scenario'), refresh = get('refresh');
+  let lastSample = samples.ready;
+  function render() {
+    const mode = scenario.value;
+    if (samples[mode]) lastSample = samples[mode];
+    const [age, worker, warning] = lastSample;
+    get('data').hidden = mode === 'loading';
+    refresh.disabled = mode === 'loading';
+    get('status').textContent = mode === 'loading' ? 'Đang tải tình trạng hàng đợi…'
+      : mode === 'error' ? 'Không thể đọc tình trạng. Đang hiển thị số liệu lần đọc trước.' : '';
+    get('age').textContent = age;
+    get('worker').textContent = worker;
+    get('warning').textContent = warning;
+    get('warning').hidden = !warning;
+  }
+  scenario.onchange = render;
+  get('theme').onclick = () => document.documentElement.classList.toggle('dark');
+  refresh.onclick = () => { scenario.value = 'ready'; render(); };
+  render();
+</script>
+</html>

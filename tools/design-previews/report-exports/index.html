@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi" data-theme="light">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypta · Mẫu xuất báo cáo X04</title>
+<style>
+  :root{color-scheme:light;--bg:#f5f7fb;--surface:#fff;--text:#18253b;--muted:#495c76;--border:#cbd5e1;--brand:#2454b5;--on-brand:#fff;--soft:#eaf0ff;--danger:#a61b26;--success:#176443;--focus:#1c57bf;font:15px system-ui,sans-serif}
+  [data-theme=dark]{color-scheme:dark;--bg:#101827;--surface:#182337;--text:#e7efff;--muted:#adbed8;--border:#546781;--brand:#99b9ff;--on-brand:#101827;--soft:#263a60;--danger:#ffacb2;--success:#9be5c0;--focus:#a5c4ff}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,select,input{font:inherit;color:inherit}button,select{min-height:42px;border:1px solid var(--border);border-radius:7px;background:var(--surface);padding:8px 13px}button{cursor:pointer;font-weight:650}button:disabled{cursor:default;color:var(--muted);background:var(--bg)}button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+  button.primary{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}button.primary:disabled{background:var(--bg);border-color:var(--border);color:var(--muted)}
+  .preview{background:var(--surface);border-bottom:1px solid var(--border);padding:12px max(16px,calc((100vw - 1056px)/2));display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}.preview strong{display:block}.preview small{color:var(--muted)}.preview-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  main{max-width:1088px;margin:auto;padding:34px 16px}.breadcrumbs{color:var(--muted);font-size:.88rem}h1,h2,h3,p{margin:0}h1{font-size:1.9rem;line-height:1.2;margin:8px 0}h2{font-size:1.3rem}h3{font-size:1rem}.muted{color:var(--muted)}.heading,.toolbar,.actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.heading{margin-bottom:22px}.surface{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden}.toolbar{padding:14px 16px;border-bottom:1px solid var(--border)}.chip{display:inline-block;font-size:.86rem;border-radius:5px;padding:4px 8px;background:var(--soft)}
+  table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:12px 16px;border-bottom:1px solid var(--border);vertical-align:top}th{font-size:.85rem;color:var(--muted);background:var(--bg)}tr:last-child td{border-bottom:0}.table-end{padding:12px 16px;color:var(--muted);border-top:1px solid var(--border);font-size:.9rem}
+  dialog{width:min(540px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:0;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;box-shadow:0 16px 46px #070d233d}dialog::backdrop{background:#0810239a}.panel{padding:20px;display:grid;gap:16px}.panel>header{display:grid;gap:6px}.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;background:var(--bg);border:1px solid var(--border);padding:12px;border-radius:8px;margin:0}.summary div{min-width:0}.summary dt{color:var(--muted);font-size:.84rem}.summary dd{margin:3px 0 0;font-weight:650;overflow-wrap:anywhere}
+  fieldset{display:grid;gap:8px;border:0;margin:0;padding:0}legend{font-weight:700;margin:0 0 8px}.format{display:grid;grid-template-columns:auto 1fr;align-items:center;column-gap:10px;border:1px solid var(--border);border-radius:7px;padding:10px;min-height:48px}.format:has(input:checked){border-color:var(--brand);background:var(--soft)}.format input{margin:0;width:18px;height:18px}.format strong,.format small{display:block}.format small{color:var(--muted)}.note{font-size:.88rem;color:var(--muted)}.error{color:var(--danger);font-weight:650}.success{color:var(--success)}.actions{justify-content:flex-end;border-top:1px solid var(--border);padding-top:14px}.job{margin-top:14px;padding:16px;display:grid;gap:8px}.job .actions{justify-content:flex-start}.job[hidden],[hidden]{display:none!important}
+  @media(max-width:570px){main{padding-top:22px}h1{font-size:1.55rem}.heading>button{width:100%}th,td{padding:10px 9px;overflow-wrap:anywhere}table{table-layout:fixed}.desktop-col{display:none}.panel{padding:16px}.actions button{flex:1}.summary{grid-template-columns:1fr}.preview-controls{width:100%}.preview-controls label{flex:1}.preview-controls select{width:100%}}
+</style>
+<header class="preview">
+  <div><strong>Crypta · Bản xem trước X04</strong><small>Dữ liệu mô phỏng để duyệt luồng xuất báo cáo</small></div>
+  <div class="preview-controls">
+    <label>Danh sách <select id="dataset"><option value="assets">Tài sản</option><option value="requests">Yêu cầu</option><option value="audit">Audit Log</option></select></label>
+    <label>Trạng thái mẫu <select id="scenario"><option value="ready">Có kết quả</option><option value="empty">Không có dòng</option><option value="large">Vượt giới hạn</option><option value="failed">Tạo tệp thất bại</option><option value="expired">Tệp hết hạn</option></select></label>
+    <button id="theme" type="button" aria-pressed="false">Giao diện tối</button>
+  </div>
+</header>
+<main>
+  <p class="breadcrumbs" id="path">Không gian làm việc / Tài sản</p>
+  <div class="heading">
+    <div><h1 id="title">Danh mục tài sản</h1><p class="muted" id="context">Vai trò Approver · Đơn vị Công nghệ thông tin</p></div>
+    <button id="open" type="button">Xuất báo cáo</button>
+  </div>
+  <section class="surface" aria-label="Kết quả tra cứu">
+    <div class="toolbar"><strong id="matched">842 kết quả</strong><span class="chip" id="filter">Trạng thái: Đang hoạt động</span></div>
+    <table id="table">
+      <thead><tr><th scope="col" id="col-id">Mã tài sản</th><th scope="col" id="col-type">Loại</th><th scope="col">Trạng thái</th><th scope="col" class="desktop-col" id="col-date">Hết hạn</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="table-end" id="list-note">Hiển thị một số dòng minh họa. Báo cáo dùng toàn bộ kết quả theo bộ lọc.</p>
+  </section>
+  <section class="surface job" id="job" aria-labelledby="job-title" hidden>
+    <h2 id="job-title" tabindex="-1">Báo cáo của bạn</h2>
+    <p role="status" id="job-status"></p>
+    <p class="muted" id="job-meta"></p>
+    <div class="actions">
+      <button id="cancel" type="button" hidden>Hủy tác vụ</button>
+      <button id="retry" type="button" hidden>Tạo lại</button>
+      <button id="download" type="button" class="primary" hidden>Tải tệp</button>
+    </div>
+  </section>
+</main>
+<dialog id="export" aria-labelledby="export-title" aria-describedby="export-description">
+  <form class="panel" id="create">
+    <header><h2 id="export-title">Xuất báo cáo</h2><p class="muted" id="export-description">Tệp dùng bộ lọc và phạm vi quyền hiện tại.</p></header>
+    <dl class="summary">
+      <div><dt>Danh sách</dt><dd id="summary-dataset"></dd></div><div><dt>Kết quả theo bộ lọc</dt><dd id="summary-count"></dd></div>
+      <div><dt>Phạm vi</dt><dd id="summary-scope"></dd></div><div><dt>Múi giờ</dt><dd>Việt Nam (UTC+07)</dd></div>
+    </dl>
+    <fieldset>
+      <legend>Định dạng</legend>
+      <label class="format"><input name="format" type="radio" value="CSV" checked autofocus><span><strong>CSV</strong><small>Dùng trong bảng tính · tối đa 10.000 dòng</small></span></label>
+      <label class="format"><input name="format" type="radio" value="PDF"><span><strong>PDF</strong><small>Dùng để đọc và in · tối đa 1.000 dòng</small></span></label>
+    </fieldset>
+    <p class="note">Bạn có thể tiếp tục tra cứu trong lúc hệ thống tạo báo cáo. Tệp tải được trong 1 giờ sau khi sẵn sàng.</p>
+    <p class="error" id="validation" role="status" hidden></p>
+    <div class="actions"><button id="close" type="button">Đóng</button><button id="submit" type="submit" class="primary">Tạo báo cáo</button></div>
+  </form>
+</dialog>
+<script>
+  const get = id => document.getElementById(id);
+  const dialog = get('export'), form = get('create');
+  const data = {
+    assets:{title:'Danh mục tài sản',name:'Tài sản',scope:'Đơn vị Công nghệ thông tin',role:'Approver',filter:'Trạng thái: Đang hoạt động',columns:['Mã tài sản','Loại','Hết hạn'],count:842,rows:[
+      ['KEY-IT-042','Khóa RSA','Đang hoạt động','08/11/2026'],['CRT-IT-016','Chứng thư TLS','Đang hoạt động','12/11/2026'],['KEY-IT-073','Khóa ECDSA','Đang hoạt động','30/11/2026']]},
+    requests:{title:'Danh sách yêu cầu',name:'Yêu cầu',scope:'Đơn vị Công nghệ thông tin',role:'Approver',filter:'Trạng thái: Chờ phê duyệt',columns:['Mã yêu cầu','Nghiệp vụ','Ngày gửi'],count:126,rows:[
+      ['YC-IT-008','Cấp mới','Chờ phê duyệt','05/11/2026'],['YC-IT-011','Gia hạn','Chờ phê duyệt','06/11/2026'],['YC-IT-021','Thu hồi','Chờ phê duyệt','07/11/2026']]},
+    audit:{title:'Audit Log',name:'Audit Log',scope:'Toàn hệ thống',role:'Security Admin',filter:'Kết quả: Thành công',columns:['Mã sự kiện','Hành động','Thời điểm'],count:1820,rows:[
+      ['AUD-0118','Đăng nhập','Thành công','07/11/2026 09:18'],['AUD-0120','Đổi đơn vị','Thành công','07/11/2026 10:02'],['AUD-0123','Gửi yêu cầu','Thành công','07/11/2026 10:21']]}
+  };
+  let timer, returnFocus, jobState = '', reportFormat = 'CSV';
+  const source = () => data[get('dataset').value];
+  const selected = () => new FormData(form).get('format');
+  const scenario = () => get('scenario').value;
+  const count = () => scenario() === 'empty' ? 0 : scenario() === 'large' ? 14500 : source().count;
+  const formatted = value => value.toLocaleString('vi-VN');
+  function updateList(){
+    const item=source();
+    get('path').textContent='Không gian làm việc / '+item.name;
+    get('title').textContent=item.title;
+    get('context').textContent='Vai trò '+item.role+' · '+item.scope;
+    get('matched').textContent=formatted(count())+' kết quả';
+    get('filter').textContent=item.filter;
+    [get('col-id'),get('col-type'),get('col-date')].forEach((header,index)=>header.textContent=item.columns[index]);
+    get('rows').replaceChildren(...(count()?item.rows:[]).map(row=>{
+      const tr=document.createElement('tr');
+      row.forEach((value,index)=>{const cell=tr.insertCell();cell.textContent=value;if(index===3)cell.className='desktop-col'});
+      return tr;
+    }));
+    get('table').hidden=!count();
+    get('list-note').textContent=count()?'Hiển thị một số dòng minh họa. Báo cáo dùng toàn bộ kết quả theo bộ lọc.':'Không có kết quả phù hợp. Hãy thay đổi bộ lọc trước khi xuất.';
+  }
+  function validate(){
+    const limit=selected()==='CSV'?10000:1000;
+    const error=!count()?'Bộ lọc hiện tại không có dữ liệu.':count()>limit?'Hãy thu hẹp bộ lọc hoặc chọn định dạng có giới hạn cao hơn.':'';
+    get('validation').textContent=error;get('validation').hidden=!error;get('submit').disabled=!!error;
+  }
+  function show(){
+    returnFocus=document.activeElement;
+    const item=source();
+    get('summary-dataset').textContent=item.name;
+    get('summary-count').textContent=formatted(count())+' dòng';
+    get('summary-scope').textContent=item.scope;
+    validate();dialog.showModal();
+  }
+  function displayJob(state){
+    jobState=state;get('job').hidden=false;
+    get('job-status').className=state==='failed'?'error':state==='ready'?'success':'';
+    get('job-status').textContent={
+      running:'Đang tạo báo cáo. Bạn có thể tiếp tục làm việc.',
+      ready:'Báo cáo đã sẵn sàng để tải.',
+      expired:'Tệp đã hết hạn. Tạo lại để lấy dữ liệu theo bộ lọc hiện tại.',
+      failed:'Chưa tạo được báo cáo. Hãy thử lại.',
+      cancelled:'Đã hủy tác vụ tạo báo cáo.',
+      downloaded:'Đã mô phỏng thao tác tải tệp.'
+    }[state];
+    get('cancel').hidden=state!=='running';
+    get('retry').hidden=!['failed','expired','cancelled'].includes(state);
+    get('download').hidden=state!=='ready';
+    get('download').textContent='Tải '+reportFormat;
+    get('job-meta').textContent=source().name+' · '+reportFormat+' · '+formatted(count())+' dòng · Việt Nam (UTC+07)';
+  }
+  get('open').onclick=show;get('retry').onclick=show;
+  get('close').onclick=()=>dialog.close();
+  dialog.addEventListener('close',()=>{if(returnFocus?.isConnected&&!returnFocus.hidden)returnFocus.focus()});
+  form.addEventListener('change',validate);
+  form.addEventListener('submit',event=>{
+    event.preventDefault();if(get('submit').disabled)return;
+    reportFormat=selected();returnFocus=null;dialog.close();displayJob('running');
+    get('job-title').focus();
+    const outcome=scenario();
+    clearTimeout(timer);timer=setTimeout(()=>displayJob(['failed','expired'].includes(outcome)?outcome:'ready'),1100);
+  });
+  get('cancel').onclick=()=>{if(jobState==='running'){clearTimeout(timer);displayJob('cancelled');get('job-title').focus()}};
+  get('download').onclick=()=>{displayJob('downloaded');get('job-title').focus()};
+  function reset(){clearTimeout(timer);get('job').hidden=true;form.reset();updateList()}
+  get('dataset').onchange=reset;get('scenario').onchange=reset;
+  get('theme').onclick=event=>{
+    const dark=document.documentElement.dataset.theme!=='dark';
+    document.documentElement.dataset.theme=dark?'dark':'light';
+    event.currentTarget.setAttribute('aria-pressed',String(dark));event.currentTarget.textContent=dark?'Giao diện sáng':'Giao diện tối';
+  };
+  updateList();
+</script>
+</html>

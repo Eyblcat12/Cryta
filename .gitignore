@@ -17,7 +17,9 @@ backend/.env
 *.tsbuildinfo
 .npm-cache/
 coverage/
+ci-results/
 *.log
+backups/
 
 # OS and editors
 .DS_Store
@@ -30,5 +32,8 @@ Thumbs.db
 /reporter-output.docx
 /word_documents/
 /tools/doc_assets/
+/tools/test-artifacts/
 /frontend/vite.config.js
 /frontend/vite.config.d.ts
+
+/frontend/dist-motion-off/

@@ -4,8 +4,17 @@ import { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DATABASE_POOL, DatabaseModule } from '../src/database/database.module';
 import { HealthController } from '../src/health/health.controller';
+import { ReadinessService } from '../src/health/readiness.service';
 
 const pools: Pool[] = [];
+const readinessServices: ReadinessService[] = [];
+
+function createHealthController() {
+  const readiness = new ReadinessService();
+  readinessServices.push(readiness);
+  return new HealthController(readiness);
+}
+
 function createPool() {
   const providers = Reflect.getMetadata('providers', DatabaseModule) as Array<{
     provide?: unknown; useFactory?: () => Pool;
@@ -19,6 +28,7 @@ function createPool() {
 
 afterEach(async () => {
   await Promise.all(pools.splice(0).map((pool) => pool.end()));
+  await Promise.all(readinessServices.splice(0).map((service) => service.onModuleDestroy()));
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
@@ -45,24 +55,37 @@ describe('database pool idle error handling', () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain('synthetic-secret');
   });
 
-  it('does not hide query failures or report healthy while the database is unavailable', async () => {
-    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    const pool = createPool();
-    pool.emit('error', new Error('ECONNRESET'));
-    const query = vi.spyOn(pool, 'query').mockRejectedValue(new Error('offline') as never);
-    const health = new HealthController(pool);
+});
+
+describe('health probes', () => {
+  it('reports liveness without connecting and fails readiness when DATABASE_URL is absent', async () => {
+    vi.stubEnv('DATABASE_URL', undefined);
+    const query = vi.spyOn(Pool.prototype, 'query');
+    const health = createHealthController();
+
+    expect(health.live()).toMatchObject({ status: 'ok' });
     await expect(health.check()).rejects.toBeInstanceOf(ServiceUnavailableException);
-    expect(query).toHaveBeenCalledOnce();
-    expect(query).toHaveBeenCalledWith('SELECT 1');
+    expect(query).not.toHaveBeenCalled();
   });
 
-  it('can report healthy on a subsequent successful probe without creating another pool', async () => {
-    const pool = createPool();
-    const query = vi.spyOn(pool, 'query');
-    query.mockRejectedValueOnce(new Error('offline') as never);
+  it('shares a failing probe, hides driver details and retries the next check', async () => {
+    vi.stubEnv('DATABASE_URL', 'postgres://fixture@127.0.0.1/test');
+    const query = vi.spyOn(Pool.prototype, 'query');
+    query.mockRejectedValueOnce(new Error('offline: synthetic-secret') as never);
     query.mockResolvedValueOnce({ rows: [{ value: 1 }] } as never);
-    const health = new HealthController(pool);
-    await expect(health.check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const health = createHealthController();
+
+    const probes = [health.check(), health.check()];
+    await Promise.all(probes.map((probe) => expect(probe).rejects.toMatchObject({
+      status: 503,
+      response: {
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'Không thể kết nối database.',
+      },
+    })));
+    expect(query).toHaveBeenCalledOnce();
+    expect(query).toHaveBeenCalledWith({ text: 'SELECT 1', query_timeout: 1000 });
+
     await expect(health.check()).resolves.toMatchObject({ status: 'ok', database: 'connected' });
     expect(query).toHaveBeenCalledTimes(2);
   });

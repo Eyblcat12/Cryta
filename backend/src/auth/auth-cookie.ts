@@ -7,7 +7,10 @@ export function readRefreshCookie(request: Request): string | undefined {
   const cookies = request.headers.cookie?.split(';') ?? [];
   for (const cookie of cookies) {
     const [name, ...parts] = cookie.trim().split('=');
-    if (name === REFRESH_COOKIE) return decodeURIComponent(parts.join('='));
+    if (name === REFRESH_COOKIE) {
+      try { return decodeURIComponent(parts.join('=')); }
+      catch { return undefined; }
+    }
   }
   return undefined;
 }

@@ -1,0 +1,39 @@
+{
+  "scope": "Academic local demonstration with MOCK provider",
+  "applicationEvidenceRevision": "54929c9e59e61799454c2039a78e5563ccd1d4a7",
+  "handoffSourceRevision": "7c7a45e50e25170a200fc6db1291a844e4019347",
+  "presentation": {
+    "file": "docs/media/crypta-bao-ve.pptx",
+    "sha256": "fddd26273efb8e497d7ce7a1689312851c75d75bfecfb212399fc42299ff05bc",
+    "slides": 14,
+    "nativeTables": 6,
+    "packageAndGeometryPassed": true,
+    "allSlidePreviewsReviewed": true,
+    "nativePowerPointExecutionVerified": false
+  },
+  "openapi": {
+    "file": "docs/openapi.json",
+    "paths": 68,
+    "operations": 74,
+    "jsonBodies": 31,
+    "contractCheckPassed": true
+  },
+  "report": {
+    "file": "docs/BAO_CAO_DO_AN.md",
+    "sections": 11
+  },
+  "useCases": {
+    "count": 12,
+    "source": "docs/USE_CASES.md",
+    "image": "docs/images/use-cases.png"
+  },
+  "ciEvidence": "docs/evidence/ci-54929c9.json",
+  "videoManifest": "docs/media/crypta-demo-manifest.json",
+  "catalog": "docs/evidence/schema-027.json",
+  "limits": [
+    "MOCK assets in default local demonstration",
+    "External Internet mailbox and organizational deployment acceptance pending",
+    "Two NVDA mobile-menu speech checks remain unconfirmed",
+    "Student identity, institutional cover and spoken rehearsal are completed by the presenter"
+  ]
+}

@@ -1,5 +1,11 @@
 # KẾ HOẠCH TRIỂN KHAI CHI TIẾT
 
+> Cập nhật 05/11/2026: [tiến độ và hai pha kiểm chứng](PROJECT_PROGRESS_2026-11-05.md), [54+6 task](TASK_STATUS_2026-11-05.md). Guard worker, dependency/parser đã có kiểm chứng mới; T30/N6, runtime DB role, nghiệp vụ và các cổng release còn mở. T30 vẫn ưu tiên đầu.
+
+> **Cập nhật06/10/2026:** tiếp tục theo thứ tự T30 trước. [Bằng chứng mới](T30_PROGRESS_2026-10-06.md), [NAV](T30_NAV_ACCEPTANCE_2026-10-06.md), [54+6 task](TASK_STATUS_2026-10-06.md) phân biệt phần đã test và chưa nghiệm thu; provider/SMTP/deployment chưa chọn. Mô tả ngày28/09 ngay dưới là lịch sử, motion đã có implementation và T30 vẫn mở.
+
+> **Điều chỉnh thứ tự ngày 28/09/2026:** chủ dự án ưu tiên hoàn thiện **T30 — dashboard theo trang, menu thay nội dung chính bằng client-side routing — trước các task còn lại**. Đặc tả cập nhật trong [KE_HOACH_HOAN_THIEN_DU_AN.md](KE_HOACH_HOAN_THIEN_DU_AN.md), mục T30 (A–N, route/quyền, dữ liệu, motion SPA và 30 kịch bản nghiệm thu). N1–N6 bổ sung fade main, pending UI, reduced-motion/fallback và regression; motion mới chưa triển khai. Thứ tự A…L → N → M; kế hoạch gốc bên dưới giữ làm căn cứ phạm vi nghiệp vụ.
+
 ## Đề tài 20 — Hệ thống quản lý khóa mã hóa và chứng thư số
 
 > **Phiên bản:** 1.0  

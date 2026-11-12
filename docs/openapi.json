@@ -1,0 +1,6435 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/auth/account-actions": {
+      "get": {
+        "operationId": "AuthController_accountActions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "enabled"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kiểm tra môi trường có bật mời tài khoản và đặt lại mật khẩu qua email",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/password-reset": {
+      "post": {
+        "operationId": "AuthController_requestReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPasswordResetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accepted": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "accepted"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Tiếp nhận yêu cầu đặt lại mật khẩu mà không tiết lộ tài khoản tồn tại",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/password-reset/complete": {
+      "post": {
+        "operationId": "AuthController_completeReset",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteAccountActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "changed": {
+                          "type": "boolean"
+                        },
+                        "loginRequired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "changed",
+                        "loginRequired"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Đặt mật khẩu mới bằng token một lần từ email",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/invitation/accept": {
+      "post": {
+        "operationId": "AuthController_acceptInvitation",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteAccountActionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "changed": {
+                          "type": "boolean"
+                        },
+                        "loginRequired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "changed",
+                        "loginRequired"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kích hoạt tài khoản bằng token một lần từ email mời",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": {
+                          "type": "string",
+                          "description": "JWT dùng trong Authorization: Bearer. Giữ như thông tin bí mật."
+                        },
+                        "tokenType": {
+                          "type": "string",
+                          "enum": [
+                            "Bearer"
+                          ]
+                        },
+                        "expiresIn": {
+                          "type": "string",
+                          "description": "Thời hạn JWT theo cấu hình, ví dụ 15m."
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/CryptaAuthUser"
+                        }
+                      },
+                      "required": [
+                        "accessToken",
+                        "tokenType",
+                        "expiresIn",
+                        "user"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Xác thực mật khẩu và bắt đầu MFA nếu tài khoản yêu cầu",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/verify": {
+      "post": {
+        "operationId": "AuthController_verifyMfa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaTotpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Xác minh TOTP và cấp phiên MFA",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/recover": {
+      "post": {
+        "operationId": "AuthController_recoverMfa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaRecoveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Dùng mã khôi phục một lần để bắt đầu thiết lập ứng dụng mới",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/enrollment/verify": {
+      "post": {
+        "operationId": "AuthController_verifyMfaEnrollment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaTotpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Xác minh ứng dụng mới và cấp bộ mã khôi phục",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/enrollment/finish": {
+      "post": {
+        "operationId": "AuthController_finishMfaEnrollment",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnrollmentAckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kích hoạt ứng dụng và tạo phiên sau khi người dùng lưu mã khôi phục",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/status": {
+      "get": {
+        "operationId": "AuthController_mfaStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Xem số mã khôi phục chưa dùng của tài khoản hiện tại",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/mfa/step-up": {
+      "post": {
+        "operationId": "AuthController_stepUpMfa",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaStepUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Xác nhận mật khẩu và TOTP trước khi thay yếu tố hoặc cấp lại mã",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "accessToken": {
+                          "type": "string",
+                          "description": "JWT dùng trong Authorization: Bearer. Giữ như thông tin bí mật."
+                        },
+                        "tokenType": {
+                          "type": "string",
+                          "enum": [
+                            "Bearer"
+                          ]
+                        },
+                        "expiresIn": {
+                          "type": "string",
+                          "description": "Thời hạn JWT theo cấu hình, ví dụ 15m."
+                        },
+                        "user": {
+                          "$ref": "#/components/schemas/CryptaAuthUser"
+                        }
+                      },
+                      "required": [
+                        "accessToken",
+                        "tokenType",
+                        "expiresIn",
+                        "user"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "refreshCookie": []
+          }
+        ],
+        "summary": "Xoay vòng refresh token và cấp access token mới",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController_logout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "loggedOut": {
+                          "type": "boolean"
+                        },
+                        "redirect": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "loggedOut"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Thu hồi phiên hiện tại",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "AuthController_me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/components/schemas/CryptaAuthUser"
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lấy danh tính, vai trò và phạm vi hiện tại",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "changed": {
+                          "type": "boolean"
+                        },
+                        "loginRequired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "changed",
+                        "loginRequired"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Đổi mật khẩu và thu hồi toàn bộ phiên",
+        "tags": [
+          "Authentication"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/status": {
+      "get": {
+        "operationId": "OidcController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "enabled"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "tags": [
+          "Oidc"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/start": {
+      "post": {
+        "operationId": "OidcController_start",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "redirect": {
+                          "type": "string",
+                          "format": "uri"
+                        }
+                      },
+                      "required": [
+                        "redirect"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "tags": [
+          "Oidc"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/callback": {
+      "post": {
+        "operationId": "OidcController_callback",
+        "parameters": [],
+        "responses": {
+          "303": {
+            "description": ""
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "tags": [
+          "Oidc"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/finish": {
+      "post": {
+        "operationId": "OidcController_finish",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "tags": [
+          "Oidc"
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/backchannel": {
+      "post": {
+        "operationId": "OidcController_backchannel",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "loggedOut": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "loggedOut"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "tags": [
+          "Oidc"
+        ]
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "timestamp"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kiểm tra tiến trình API",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "database": {
+                          "type": "string",
+                          "enum": [
+                            "connected"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "timestamp",
+                        "database"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kiểm tra khả năng truy cập database từ API",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "HealthController_check",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok"
+                          ]
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "database": {
+                          "type": "string",
+                          "enum": [
+                            "connected"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "status",
+                        "timestamp",
+                        "database"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "summary": "Kiểm tra API và kết nối database",
+        "tags": [
+          "System"
+        ]
+      }
+    },
+    "/api/v1/assets": {
+      "get": {
+        "operationId": "AssetsController_list",
+        "parameters": [
+          {
+            "name": "ownedOnly",
+            "required": false,
+            "in": "query",
+            "description": "true: chỉ tài sản của owner trong phiên, áp dụng trước count/pagination; không truyền hoặc false giữ scope theo quyền đã cấp.",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "description": "Cần sortBy. Mặc định asc khi đã chọn cột.",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "expiresAt",
+                "createdAt",
+                "code",
+                "status",
+                "type"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "approvalScope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "eligible",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "true: tài sản có thể gia hạn hoặc thu hồi với provider đang cấu hình."
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "REGISTERED",
+                "ACTIVE",
+                "EXPIRING_SOON",
+                "EXPIRED",
+                "REVOKED",
+                "SUPERSEDED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1000000
+                            },
+                            "pageSize": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        }
+                      ],
+                      "description": "Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Danh sách tài sản theo quyền và phạm vi; page/pageSize trả kết quả phân trang",
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v1/assets/{id}/history": {
+      "get": {
+        "operationId": "AssetsController_history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v1/assets/{id}": {
+      "get": {
+        "operationId": "AssetsController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chi tiết metadata tài sản; không bao giờ trả private key",
+        "tags": [
+          "Assets"
+        ]
+      }
+    },
+    "/api/v1/policies": {
+      "get": {
+        "operationId": "PoliciesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      },
+      "post": {
+        "operationId": "PoliciesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      }
+    },
+    "/api/v1/policies/admin": {
+      "get": {
+        "operationId": "PoliciesController_listAdmin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      }
+    },
+    "/api/v1/policies/{id}/versions": {
+      "get": {
+        "operationId": "PoliciesController_history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      },
+      "post": {
+        "operationId": "PoliciesController_version",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyVersionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      }
+    },
+    "/api/v1/policies/{id}/deactivate": {
+      "patch": {
+        "operationId": "PoliciesController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopPolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Policies"
+        ]
+      }
+    },
+    "/api/v1/requests": {
+      "get": {
+        "operationId": "RequestsController_list",
+        "parameters": [
+          {
+            "name": "createdByMe",
+            "required": false,
+            "in": "query",
+            "description": "true: chỉ yêu cầu do user của phiên tạo, áp dụng trước count/pagination; không truyền hoặc false giữ scope theo quyền đã cấp.",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "description": "Cần sortBy. Mặc định asc khi đã chọn cột. ID cùng chiều phân định các dòng bằng nhau.",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "submittedAt",
+                "updatedAt",
+                "status",
+                "type",
+                "emergency"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "emergency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "excludePending",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "approvalScope",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "departmentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Lọc theo đơn vị trong phạm vi người dùng được phép xem."
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời điểm gửi từ mốc này, bao gồm mốc. Dùng múi giờ rõ ràng, tối đa ba chữ số phần giây."
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời điểm gửi đến mốc này, bao gồm mốc. Dùng múi giờ rõ ràng, tối đa ba chữ số phần giây."
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "PENDING",
+                "APPROVED",
+                "REJECTED",
+                "PROCESSING",
+                "COMPLETED",
+                "FAILED",
+                "CANCELLED",
+                "RECONCILIATION_REQUIRED"
+              ]
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "CREATE",
+                "RENEW",
+                "REVOKE"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1000000
+                            },
+                            "pageSize": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        }
+                      ],
+                      "description": "Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Danh sách theo owner, approver scope hoặc toàn hệ thống",
+        "tags": [
+          "Requests"
+        ]
+      },
+      "post": {
+        "operationId": "RequestsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tạo yêu cầu cấp mới, gia hạn hoặc thu hồi",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/requests/{id}": {
+      "get": {
+        "operationId": "RequestsController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Chi tiết yêu cầu theo quyền truy cập",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/requests/drafts/{id}": {
+      "put": {
+        "operationId": "RequestsController_saveDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lưu hoặc sửa nháp của người tạo",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/requests/{id}/submit": {
+      "post": {
+        "operationId": "RequestsController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitDraftDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Gửi nháp của người tạo vào hàng duyệt",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/requests/{id}/decision": {
+      "post": {
+        "operationId": "RequestsController_decide",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Phê duyệt hoặc từ chối với SoD và scope check",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/requests/{id}/cancel": {
+      "post": {
+        "operationId": "RequestsController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Người tạo hủy nháp hoặc yêu cầu đang chờ duyệt",
+        "tags": [
+          "Requests"
+        ]
+      }
+    },
+    "/api/v1/notifications": {
+      "get": {
+        "operationId": "NotificationsController_list",
+        "parameters": [
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "REQUEST_SUBMITTED",
+                "REQUEST_SECOND_APPROVAL",
+                "REQUEST_APPROVED",
+                "REQUEST_REJECTED",
+                "REQUEST_COMPLETED",
+                "REQUEST_RECONCILIATION_REQUIRED",
+                "REQUEST_FAILED",
+                "ASSET_EXPIRING",
+                "ASSET_EXPIRED",
+                "ASSET_REVOKED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Tìm trong thông báo của người nhận, tối đa 100 ký tự.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "description": "Cần sortBy. Mặc định asc khi đã chọn cột.",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "createdAt",
+                "type",
+                "readAt"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "read",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1000000
+                            },
+                            "pageSize": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        }
+                      ],
+                      "description": "Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "patch": {
+        "operationId": "NotificationsController_readAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/{id}/read": {
+      "patch": {
+        "operationId": "NotificationsController_read",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/status": {
+      "get": {
+        "operationId": "NotificationsController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/delivery-issues": {
+      "get": {
+        "operationId": "NotificationsController_issues",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FAILED",
+                "RECONCILIATION_REQUIRED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "pageSize": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/delivery-issues/{id}": {
+      "get": {
+        "operationId": "NotificationsController_deliveryDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Tra cứu lần gửi email theo mã thông báo",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/delivery-issues/{id}/reconcile": {
+      "post": {
+        "operationId": "NotificationsController_reconcileDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailReconciliationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Ghi kết quả đối soát email đã được xác minh",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/delivery-issues/{id}/retry": {
+      "post": {
+        "operationId": "NotificationsController_retryDelivery",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailRetryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Lên lịch gửi lại email có bằng chứng SMTP chưa chấp nhận",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/test-email": {
+      "post": {
+        "operationId": "NotificationsController_test",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestEmailDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/api/v1/operations/metrics": {
+      "get": {
+        "operationId": "OperationsController_snapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Đọc chỉ số vận hành của hệ thống",
+        "tags": [
+          "Operations"
+        ]
+      }
+    },
+    "/api/v1/operations/signals": {
+      "get": {
+        "operationId": "OperationsController_monitorSignals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "monitorToken": []
+          }
+        ],
+        "summary": "Đọc mã cảnh báo bằng token monitor riêng",
+        "tags": [
+          "Operations"
+        ]
+      }
+    },
+    "/api/v1/audit-logs": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [
+          {
+            "name": "correlationId",
+            "required": false,
+            "in": "query",
+            "description": "Mã req_UUID do máy chủ cấp trong x-request-id.",
+            "schema": {}
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "description": "Cần sortBy. Mặc định asc khi đã chọn cột.",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "occurredAt",
+                "action",
+                "outcome",
+                "actor",
+                "entity"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "outcome",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SUCCESS",
+                "FAILED",
+                "DENIED"
+              ]
+            }
+          },
+          {
+            "name": "requestId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "description": "Chỉ dùng cho danh sách tương thích cũ khi không có tham số khác."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1000000
+                            },
+                            "pageSize": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        }
+                      ],
+                      "description": "Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/audit-logs/{id}": {
+      "get": {
+        "operationId": "AuditController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Mã sự kiện audit dạng số nguyên dương.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]*$"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "entityType": {
+                          "type": "string"
+                        },
+                        "entityId": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "outcome": {
+                          "type": "string",
+                          "enum": [
+                            "SUCCESS",
+                            "FAILED",
+                            "DENIED"
+                          ]
+                        },
+                        "occurredAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "actorName": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "nullable": true
+                        },
+                        "correlationId": {
+                          "type": "string",
+                          "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                        },
+                        "changes": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "field": {
+                                "type": "string"
+                              },
+                              "before": {
+                                "type": "string"
+                              },
+                              "after": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "field",
+                              "after"
+                            ]
+                          }
+                        },
+                        "related": {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "USER",
+                                "ASSET"
+                              ]
+                            },
+                            "id": {
+                              "type": "string",
+                              "format": "uuid"
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "id"
+                          ],
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "action",
+                        "entityType",
+                        "entityId",
+                        "outcome",
+                        "occurredAt",
+                        "actorName",
+                        "requestId",
+                        "changes",
+                        "related"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
+    "/api/v1/operations/provider-issues": {
+      "get": {
+        "operationId": "ProviderRecoveryController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 1000000,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "RECONCILIATION_REQUIRED",
+                "FAILED",
+                "RETRY_SCHEDULED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "pageSize": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Operations"
+        ]
+      }
+    },
+    "/api/v1/operations/provider-issues/{id}": {
+      "get": {
+        "operationId": "ProviderRecoveryController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Operations"
+        ]
+      }
+    },
+    "/api/v1/operations/provider-issues/{id}/actions": {
+      "post": {
+        "operationId": "ProviderRecoveryController_recover",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Operations"
+        ]
+      }
+    },
+    "/api/v1/dashboard/summary": {
+      "get": {
+        "operationId": "DashboardController_summary",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard": {
+      "get": {
+        "operationId": "DashboardController_get",
+        "parameters": [
+          {
+            "name": "role",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Dashboard"
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "UsersController_list",
+        "parameters": [
+          {
+            "name": "email",
+            "required": false,
+            "in": "query",
+            "description": "Admin: đối chiếu chính xác email, không phân biệt hoa thường.",
+            "schema": {}
+          },
+          {
+            "name": "userId",
+            "required": false,
+            "in": "query",
+            "description": "Admin: đối chiếu chính xác tài khoản theo UUID.",
+            "schema": {}
+          },
+          {
+            "name": "sortOrder",
+            "required": false,
+            "in": "query",
+            "description": "Cần sortBy. Mặc định asc khi đã chọn cột.",
+            "schema": {
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortBy",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "displayName",
+                "email",
+                "createdAt",
+                "lastLoginAt",
+                "status"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "INACTIVE",
+                "LOCKED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object"
+                              }
+                            },
+                            "total": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "page": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1000000
+                            },
+                            "pageSize": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100
+                            }
+                          },
+                          "required": [
+                            "items",
+                            "total",
+                            "page",
+                            "pageSize"
+                          ]
+                        }
+                      ],
+                      "description": "Mảng tương thích cũ khi không truyền tham số lọc hoặc phân trang. Dùng page=1 để yêu cầu kết quả phân trang."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      },
+      "post": {
+        "operationId": "UsersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/reference-data": {
+      "get": {
+        "operationId": "UsersController_reference",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/invitations": {
+      "post": {
+        "operationId": "UsersController_invite",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteUserDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/invitation": {
+      "post": {
+        "operationId": "UsersController_resendInvitation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/department": {
+      "put": {
+        "operationId": "UsersController_department",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferUserDepartmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/status": {
+      "patch": {
+        "operationId": "UsersController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/access": {
+      "put": {
+        "operationId": "UsersController_access",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserAccessDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "User administration"
+        ]
+      }
+    },
+    "/api/v1/departments": {
+      "get": {
+        "operationId": "DepartmentsController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 1000000
+                        },
+                        "pageSize": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      },
+                      "required": [
+                        "items",
+                        "total",
+                        "page",
+                        "pageSize"
+                      ]
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Department administration"
+        ]
+      }
+    },
+    "/api/v1/departments/{id}": {
+      "get": {
+        "operationId": "DepartmentsController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Department administration"
+        ]
+      },
+      "put": {
+        "operationId": "DepartmentsController_save",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveDepartmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Department administration"
+        ]
+      }
+    },
+    "/api/v1/departments/{id}/status": {
+      "patch": {
+        "operationId": "DepartmentsController_status",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepartmentStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Department administration"
+        ]
+      }
+    },
+    "/api/v1/reports/preview": {
+      "post": {
+        "operationId": "ReportsController_preview",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports": {
+      "post": {
+        "operationId": "ReportsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      },
+      "get": {
+        "operationId": "ReportsController_list",
+        "parameters": [
+          {
+            "name": "dataset",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ASSETS",
+                "REQUESTS",
+                "AUDIT"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/{id}/cancel": {
+      "post": {
+        "operationId": "ReportsController_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Thao tác thành công.",
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "Dữ liệu JSON của thao tác."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "requestId"
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    },
+    "/api/v1/reports/{id}/file": {
+      "get": {
+        "operationId": "ReportsController_download",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tệp báo cáo theo quyền hiện tại của người tạo.",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "x-request-id": {
+                "schema": {
+                  "type": "string",
+                  "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/CryptaError"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Reports"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Crypta API",
+    "description": "API quản lý vòng đời khóa mã hóa và chứng thư số. Dữ liệu tài sản là metadata và tham chiếu provider.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "monitorToken": {
+        "scheme": "bearer",
+        "bearerFormat": "64 lowercase hexadecimal characters",
+        "type": "http",
+        "description": "Token giám sát riêng của môi trường."
+      },
+      "refreshCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "crypta_refresh",
+        "description": "Cookie HttpOnly do đăng nhập hoặc làm mới phiên cấp."
+      }
+    },
+    "schemas": {
+      "RequestPasswordResetDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "CompleteAccountActionDto": {
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 12,
+            "maxLength": 64,
+            "description": "Gồm chữ hoa, chữ thường, số và ký tự đặc biệt."
+          },
+          "token": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "description": "Mã một lần từ liên kết email."
+          }
+        },
+        "required": [
+          "newPassword",
+          "token"
+        ]
+      },
+      "LoginDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 8
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ]
+      },
+      "MfaTotpDto": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "totpCode": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 6,
+            "maxLength": 6
+          }
+        },
+        "required": [
+          "challenge",
+          "totpCode"
+        ]
+      },
+      "MfaRecoveryDto": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "recoveryCode": {
+            "type": "string",
+            "writeOnly": true,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "challenge",
+          "recoveryCode"
+        ]
+      },
+      "MfaEnrollmentAckDto": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 43,
+            "maxLength": 43
+          },
+          "savedRecoveryCodes": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "challenge",
+          "savedRecoveryCodes"
+        ]
+      },
+      "MfaStepUpDto": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "writeOnly": true,
+            "format": "password",
+            "description": "Bắt buộc với tài khoản cục bộ"
+          },
+          "totpCode": {
+            "type": "string",
+            "writeOnly": true,
+            "minLength": 6,
+            "maxLength": 6
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "CODES",
+              "REPLACE"
+            ]
+          }
+        },
+        "required": [
+          "totpCode",
+          "purpose"
+        ]
+      },
+      "ChangePasswordDto": {
+        "type": "object",
+        "properties": {
+          "newPassword": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 12,
+            "maxLength": 64,
+            "description": "Gồm chữ hoa, chữ thường, số và ký tự đặc biệt."
+          },
+          "currentPassword": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 8
+          }
+        },
+        "required": [
+          "newPassword",
+          "currentPassword"
+        ]
+      },
+      "CreatePolicyDto": {
+        "type": "object",
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "enum": [
+              "RSA",
+              "ECDSA",
+              "ED25519",
+              "AES"
+            ]
+          },
+          "minimumKeySize": {
+            "type": "integer",
+            "minimum": 128,
+            "maximum": 16384
+          },
+          "maximumValidityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "certificateProfile": {
+            "type": "string",
+            "enum": [
+              "TLS_SERVER"
+            ]
+          },
+          "warningDays": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            }
+          },
+          "approvalLevels": {
+            "type": "number",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 1
+          },
+          "approvalDeadlineHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168,
+            "default": 48
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "description": "Mã chữ, số, gạch dưới hoặc gạch ngang. Server chuyển thành chữ hoa."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "maximumValidityDays",
+          "warningDays",
+          "code",
+          "name"
+        ]
+      },
+      "PolicyVersionDto": {
+        "type": "object",
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "enum": [
+              "RSA",
+              "ECDSA",
+              "ED25519",
+              "AES"
+            ]
+          },
+          "minimumKeySize": {
+            "type": "integer",
+            "minimum": 128,
+            "maximum": 16384
+          },
+          "maximumValidityDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3650
+          },
+          "certificateProfile": {
+            "type": "string",
+            "enum": [
+              "TLS_SERVER"
+            ]
+          },
+          "warningDays": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3650
+            }
+          },
+          "approvalLevels": {
+            "type": "number",
+            "enum": [
+              1,
+              2
+            ],
+            "default": 1
+          },
+          "approvalDeadlineHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168,
+            "default": 48
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "maximumValidityDays",
+          "warningDays",
+          "expectedVersion"
+        ]
+      },
+      "StopPolicyDto": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ]
+      },
+      "CreateRequestDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "RENEW",
+              "REVOKE"
+            ]
+          },
+          "targetAssetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Bắt buộc với RENEW hoặc REVOKE. Bỏ qua với CREATE."
+          },
+          "policyVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10
+          },
+          "emergency": {
+            "type": "boolean",
+            "default": false
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Tham số theo phiên bản policy. Bỏ qua hoặc gửi {} với REVOKE."
+          }
+        },
+        "required": [
+          "type",
+          "policyVersionId",
+          "reason"
+        ]
+      },
+      "SaveDraftDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "RENEW",
+              "REVOKE"
+            ]
+          },
+          "targetAssetId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "policyVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "emergency": {
+            "type": "boolean"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "description": "Bỏ qua khi tạo lần đầu. Gửi khi chỉnh nháp đã lưu."
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "SubmitDraftDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "DecideRequestDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 10,
+            "description": "Bắt buộc khi từ chối yêu cầu."
+          },
+          "version": {
+            "type": "string",
+            "description": "Phiên bản của yêu cầu vừa đọc, gửi ở dạng chuỗi."
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "CancelRequestDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "EmailReconciliationDto": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "UNSENT"
+            ]
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "evidenceReference": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 64
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Thời điểm SMTP chấp nhận theo bằng chứng, dạng UTC có hậu tố Z."
+          }
+        },
+        "required": [
+          "outcome",
+          "attemptCount",
+          "evidenceReference"
+        ]
+      },
+      "EmailRetryDto": {
+        "type": "object",
+        "properties": {
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "evidenceReference": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "attemptCount",
+          "evidenceReference"
+        ]
+      },
+      "TestEmailDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "RecoveryDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "RETRY",
+              "ABANDON",
+              "CONFIRM"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "version",
+          "action",
+          "reason"
+        ]
+      },
+      "CreateUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 255
+          },
+          "departmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "APPROVER",
+                "ADMIN"
+              ]
+            }
+          },
+          "approverDepartmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "default": []
+          },
+          "temporaryPassword": {
+            "type": "string",
+            "format": "password",
+            "writeOnly": true,
+            "minLength": 12
+          }
+        },
+        "required": [
+          "email",
+          "displayName",
+          "departmentId",
+          "roles",
+          "temporaryPassword"
+        ]
+      },
+      "InviteUserDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 255
+          },
+          "departmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "APPROVER",
+                "ADMIN"
+              ]
+            }
+          },
+          "approverDepartmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "email",
+          "displayName",
+          "departmentId",
+          "roles"
+        ]
+      },
+      "TransferUserDepartmentDto": {
+        "type": "object",
+        "properties": {
+          "departmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "departmentId",
+          "version"
+        ]
+      },
+      "UpdateUserStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "INACTIVE",
+              "LOCKED"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "UpdateUserAccessDto": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "APPROVER",
+                "ADMIN"
+              ]
+            }
+          },
+          "approverDepartmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      },
+      "SaveDepartmentDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_-]{0,49}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 255
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ]
+      },
+      "DepartmentStatusDto": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        },
+        "required": [
+          "active",
+          "version"
+        ]
+      },
+      "ReportPreviewDto": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": [
+              "ASSETS",
+              "REQUESTS",
+              "AUDIT"
+            ]
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "dataset"
+        ]
+      },
+      "CreateReportDto": {
+        "type": "object",
+        "properties": {
+          "dataset": {
+            "type": "string",
+            "enum": [
+              "ASSETS",
+              "REQUESTS",
+              "AUDIT"
+            ]
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "CSV",
+              "PDF"
+            ]
+          },
+          "requestKey": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "dataset",
+          "format",
+          "requestKey"
+        ]
+      },
+      "CryptaAuthUser": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "departmentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "departmentName": {
+            "type": "string"
+          },
+          "tokenVersion": {
+            "type": "integer"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "APPROVER",
+                "ADMIN"
+              ]
+            }
+          },
+          "approverDepartmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "accountActionsEnabled": {
+            "type": "boolean"
+          },
+          "signInMethod": {
+            "type": "string",
+            "enum": [
+              "SSO"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "displayName",
+          "departmentId",
+          "tokenVersion",
+          "roles",
+          "approverDepartmentIds",
+          "mustChangePassword"
+        ]
+      },
+      "CryptaApiError": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Mã lỗi nghiệp vụ hoặc HTTP_<status>."
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "description": "Chi tiết tùy mã lỗi. Mặc định là mảng rỗng."
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "details"
+            ]
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "path": {
+            "type": "string",
+            "description": "Mẫu đường dẫn API. Dùng / khi yêu cầu chưa khớp route."
+          }
+        },
+        "required": [
+          "error",
+          "requestId",
+          "timestamp",
+          "path"
+        ]
+      }
+    },
+    "responses": {
+      "CryptaError": {
+        "description": "Lỗi API. Dùng mã HTTP, error.code và requestId để xử lý và truy vết.",
+        "headers": {
+          "x-request-id": {
+            "schema": {
+              "type": "string",
+              "description": "Mã truy vết do máy chủ tạo, trùng với x-request-id."
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/CryptaApiError"
+            }
+          }
+        }
+      }
+    }
+  }
+}

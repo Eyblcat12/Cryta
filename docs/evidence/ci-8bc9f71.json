@@ -1,0 +1,251 @@
+{
+  "candidateRevision": "8bc9f7124bca1f57f21310efb30a984bde02a7f9",
+  "pullRequestMergeRevision": "5614a2533024cdb1b7bb4bbf83f385b43da4c0de",
+  "sourceTree": "f5b1c62e89ff5fba303ba7a61a80e713a770219a",
+  "verification": "Each ZIP SHA-256 matched the GitHub artifact digest. Report revisions, image IDs, commit timestamps and source trees were compared. Both refs ran the complete five-job workflow with no branch/event-specific verification conditions.",
+  "incident": "https://www.githubstatus.com/incidents/dvy0t3mvh1lg",
+  "recoveryRefs": [
+    "codex/crypta-ci-head-recovery-20261112",
+    "codex/crypta-ci-merge-recovery-20261112"
+  ],
+  "runs": [
+    {
+      "id": 43146203979,
+      "revision": "8bc9f7124bca1f57f21310efb30a984bde02a7f9",
+      "sourceTree": "f5b1c62e89ff5fba303ba7a61a80e713a770219a",
+      "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146203979",
+      "jobsPassed": 5,
+      "commitTime": "2026-11-12T03:39:18+07:00",
+      "artifacts": [
+        {
+          "sha256": "cb19b94328164a8bcba5eb9425f326f3466fef969ba991d53367d57e4d1ae240",
+          "name": "integration-results",
+          "id": 13912573122,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146203979/artifacts/13912573122"
+        },
+        {
+          "sha256": "f0b9d2c4b877657703535b0ff7410ec79f4d523df8d65913dfa7b5c8f3640ff6",
+          "name": "release-build-manifest",
+          "id": 13913140354,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146203979/artifacts/13913140354"
+        },
+        {
+          "sha256": "9856607e6b496df7ac3be2f5aeba6faa45484bc50ec0bc07edd7499a21d1ea3b",
+          "name": "release-image-security",
+          "id": 13912578226,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146203979/artifacts/13912578226"
+        }
+      ],
+      "tests": {
+        "draftUi": {
+          "passed": 18,
+          "total": 18,
+          "fixtureOnly": false
+        },
+        "chromiumPostgresql": {
+          "passed": 66,
+          "total": 66,
+          "fixtureOnly": false
+        },
+        "chromiumFixture": {
+          "passed": 197,
+          "total": 197,
+          "fixtureOnly": true
+        }
+      },
+      "images": [
+        {
+          "component": "backend",
+          "imageId": "sha256:3fbf02c022433e4e47c658e96dc077fb593c19de9d3b227492bab9043de28f44",
+          "osPackages": 19,
+          "libraryPackages": 170,
+          "highCriticalFindings": 0
+        },
+        {
+          "component": "frontend",
+          "imageId": "sha256:fa896670eb16aa33f75f6cbff1a2f1f4066b142c24cd4aa396be1c44f60e6e14",
+          "osPackages": 21,
+          "libraryPackages": 0,
+          "highCriticalFindings": 0
+        }
+      ],
+      "scanner": "docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+      "databaseUpdatedAt": "2026-11-12T01:03:48.608294617Z",
+      "cleanupCompleted": true,
+      "externalContainerCount": 0,
+      "buildContexts": [
+        {
+          "component": "backend",
+          "sha256": "077d5e17eea68a2de10d41eaa4eca4ab186b114380820d593c781466047113ab"
+        },
+        {
+          "component": "frontend",
+          "sha256": "7ded0b8e5d2d9bff27ec41cad58e3ced491fbc4ce4928c87f1b7cc0c166c22e3"
+        }
+      ],
+      "configurationExampleSha256": "e51563386d12d6b85e97b9129bfd92accfdc93206e7a7f773fc0db49782325be"
+    },
+    {
+      "id": 43146204102,
+      "revision": "5614a2533024cdb1b7bb4bbf83f385b43da4c0de",
+      "sourceTree": "f5b1c62e89ff5fba303ba7a61a80e713a770219a",
+      "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146204102",
+      "jobsPassed": 5,
+      "commitTime": "2026-11-11T20:39:24Z",
+      "artifacts": [
+        {
+          "sha256": "4af549a2ab738a195b39ae129f21b7eed3c7ae5c148e3264f2932968d12a665d",
+          "name": "integration-results",
+          "id": 13912163439,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146204102/artifacts/13912163439"
+        },
+        {
+          "sha256": "f68a1062d85f137fbc07903552e783e1ee5b4054035676fbcb75bb02fd191df3",
+          "name": "release-build-manifest",
+          "id": 13911869232,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146204102/artifacts/13911869232"
+        },
+        {
+          "sha256": "5af969e40ffd693631462b4b495e30f0582f9f8f089c420c92984f80d1f1e5ac",
+          "name": "release-image-security",
+          "id": 13913160111,
+          "url": "https://github.com/Eyblcat12/Cryta/actions/runs/43146204102/artifacts/13913160111"
+        }
+      ],
+      "tests": {
+        "draftUi": {
+          "passed": 18,
+          "total": 18,
+          "fixtureOnly": false
+        },
+        "chromiumPostgresql": {
+          "passed": 66,
+          "total": 66,
+          "fixtureOnly": false
+        },
+        "chromiumFixture": {
+          "passed": 197,
+          "total": 197,
+          "fixtureOnly": true
+        }
+      },
+      "images": [
+        {
+          "component": "backend",
+          "imageId": "sha256:784debe4ec66fb9dba39c8c8cdce5eeafeb2e13bc59085ba40a938b3c142ccd4",
+          "osPackages": 19,
+          "libraryPackages": 170,
+          "highCriticalFindings": 0
+        },
+        {
+          "component": "frontend",
+          "imageId": "sha256:12b13d6bf62c44cc13f5ba3d3c18246120acfdcbde99179c12376dc5ff1bd851",
+          "osPackages": 21,
+          "libraryPackages": 0,
+          "highCriticalFindings": 0
+        }
+      ],
+      "scanner": "docker.io/aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb",
+      "databaseUpdatedAt": "2026-11-12T01:03:48.608294617Z",
+      "cleanupCompleted": true,
+      "externalContainerCount": 0,
+      "buildContexts": [
+        {
+          "component": "backend",
+          "sha256": "173f7a50c462a71e64221a741f4455afd32d24305f558cfd1876774610decf65"
+        },
+        {
+          "component": "frontend",
+          "sha256": "34f9a09324fdc96c15f6e22deca7b0ddb864a1c7ac609c8e4a7bb122e188cee6"
+        }
+      ],
+      "configurationExampleSha256": "e51563386d12d6b85e97b9129bfd92accfdc93206e7a7f773fc0db49782325be"
+    }
+  ],
+  "headUnitArtifacts": [
+    {
+      "run": 43146203979,
+      "artifact": 13912195472,
+      "name": "verification-backend",
+      "sha256": "5ccbe2131a3ced15b9d8db79af6303480b70c252e20786cee48c0c70bff44edb",
+      "reports": [
+        {
+          "path": "audit.json",
+          "summary": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0,
+            "total": 0
+          }
+        },
+        {
+          "path": "smtp.json",
+          "summary": {
+            "success": true,
+            "numPassedTests": 7,
+            "numTotalTests": 7,
+            "numFailedTests": 0
+          }
+        },
+        {
+          "path": "unit.json",
+          "summary": {
+            "success": true,
+            "numPassedTests": 523,
+            "numTotalTests": 523,
+            "numFailedTests": 0
+          }
+        }
+      ]
+    },
+    {
+      "run": 43146203979,
+      "artifact": 13911692037,
+      "name": "verification-frontend",
+      "sha256": "09b74f330cc05c03a7b7f2b584805adab652cf53b559410e63819bb4ba2e9f5e",
+      "reports": [
+        {
+          "path": "audit.json",
+          "summary": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0,
+            "total": 0
+          }
+        },
+        {
+          "path": "unit.json",
+          "summary": {
+            "success": true,
+            "numPassedTests": 148,
+            "numTotalTests": 148,
+            "numFailedTests": 0
+          }
+        }
+      ]
+    },
+    {
+      "run": 43146203979,
+      "artifact": 13911279114,
+      "name": "ci-tooling-audit",
+      "sha256": "25873eb1ab6aa02ebe80192142eb27cb47d5b9b25c64ee9ecacd96da804bd620",
+      "reports": [
+        {
+          "path": "tooling-audit.json",
+          "summary": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0,
+            "total": 0
+          }
+        }
+      ]
+    }
+  ]
+}
